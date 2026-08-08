@@ -1,8 +1,58 @@
 // main.js — Panda H5 (Kaplay) boot + audio pool + iPad viewport plumbing.
 // No build step. Loads scenes and components from ./scenes and ./components.
+//
+// levels data is inlined as a JS const (not fetched, not JSON-imported) so
+// the game boots under the file:// protocol on iPad Safari, where fetch()
+// is blocked and JSON module imports require the assert { type: "json" }
+// attribute that older WebKit builds do not honor. data/levels.json stays
+// in the repo as a single source of truth for offline editing.
 
 import kaplay from "./assets/vendor/kaplay.mjs";
 import "./save.js";
+
+const levelsData = {
+  "levels": [
+    {
+      "id": 1,
+      "title": "Numbers up to 5",
+      "intro": "lvl-1-intro",
+      "rounds": [
+        { "a": 2, "b": 1, "answer": 3, "missing": 1 },
+        { "a": 4, "b": 1, "answer": 5, "missing": 1 },
+        { "a": 1, "b": 3, "answer": 4, "missing": 3 },
+        { "a": 3, "b": 2, "answer": 5, "missing": 2 },
+        { "a": 2, "b": 2, "answer": 4, "missing": 2 },
+        { "a": 1, "b": 4, "answer": 5, "missing": 4 }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Make a Ten",
+      "intro": "lvl-2-intro",
+      "rounds": [
+        { "a": 8, "b": 5,  "need": 2, "rest": 3, "answer": 13 },
+        { "a": 7, "b": 6,  "need": 3, "rest": 3, "answer": 13 },
+        { "a": 9, "b": 4,  "need": 1, "rest": 3, "answer": 13 },
+        { "a": 6, "b": 7,  "need": 4, "rest": 3, "answer": 13 },
+        { "a": 8, "b": 6,  "need": 2, "rest": 4, "answer": 14 },
+        { "a": 9, "b": 7,  "need": 1, "rest": 6, "answer": 16 }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Up to 20",
+      "intro": "lvl-3-intro",
+      "rounds": [
+        { "a": 9,  "b": 8, "answer": 17, "missing": 8 },
+        { "a": 11, "b": 4, "answer": 15, "missing": 4 },
+        { "a": 12, "b": 5, "answer": 17, "missing": 5 },
+        { "a": 13, "b": 6, "answer": 19, "missing": 6 },
+        { "a": 14, "b": 4, "answer": 18, "missing": 4 },
+        { "a": 15, "b": 5, "answer": 20, "missing": 5 }
+      ]
+    }
+  ]
+};
 
 const CUE_IDS = [
   "step-1", "step-2", "step-3", "step-4",
@@ -85,15 +135,6 @@ document.addEventListener("pointerdown", () => {
 watchOrientation();
 
 (async () => {
-  let levelsData = null;
-  try {
-    const res = await fetch("data/levels.json", { cache: "no-cache" });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    levelsData = await res.json();
-  } catch (err) {
-    console.error("[panda] failed to load levels.json:", err);
-    levelsData = { levels: [] };
-  }
   window.PandaLevels = levelsData;
 
   const [
