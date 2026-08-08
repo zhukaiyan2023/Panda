@@ -14,15 +14,15 @@ const levelsData = {
   "levels": [
     {
       "id": 1,
-      "title": "Numbers up to 5",
+      "title": "Three Friends",
       "intro": "lvl-1-intro",
       "rounds": [
-        { "a": 2, "b": 1, "answer": 3, "missing": 1 },
-        { "a": 4, "b": 1, "answer": 5, "missing": 1 },
-        { "a": 1, "b": 3, "answer": 4, "missing": 3 },
-        { "a": 3, "b": 2, "answer": 5, "missing": 2 },
-        { "a": 2, "b": 2, "answer": 4, "missing": 2 },
-        { "a": 1, "b": 4, "answer": 5, "missing": 4 }
+        { "kind": "three-sum", "nums": [2, 3, 4], "answer": 9 },
+        { "kind": "three-sum", "nums": [1, 5, 3], "answer": 9 },
+        { "kind": "three-ten",  "nums": [3, 7, 2], "answer": 12 },
+        { "kind": "three-sum", "nums": [4, 2, 1], "answer": 7 },
+        { "kind": "three-ten",  "nums": [6, 4, 5], "answer": 15 },
+        { "kind": "three-sum", "nums": [2, 2, 3], "answer": 7 }
       ]
     },
     {
@@ -30,12 +30,12 @@ const levelsData = {
       "title": "Make a Ten",
       "intro": "lvl-2-intro",
       "rounds": [
-        { "a": 8, "b": 5,  "need": 2, "rest": 3, "answer": 13 },
-        { "a": 7, "b": 6,  "need": 3, "rest": 3, "answer": 13 },
-        { "a": 9, "b": 4,  "need": 1, "rest": 3, "answer": 13 },
-        { "a": 6, "b": 7,  "need": 4, "rest": 3, "answer": 13 },
-        { "a": 8, "b": 6,  "need": 2, "rest": 4, "answer": 14 },
-        { "a": 9, "b": 7,  "need": 1, "rest": 6, "answer": 16 }
+        { "kind": "make-ten", "a": 8, "b": 5, "need": 2, "rest": 3, "answer": 13 },
+        { "kind": "make-ten", "a": 7, "b": 6, "need": 3, "rest": 3, "answer": 13 },
+        { "kind": "make-ten", "a": 9, "b": 4, "need": 1, "rest": 3, "answer": 13 },
+        { "kind": "make-ten", "a": 6, "b": 7, "need": 4, "rest": 3, "answer": 13 },
+        { "kind": "make-ten", "a": 8, "b": 6, "need": 2, "rest": 4, "answer": 14 },
+        { "kind": "make-ten", "a": 9, "b": 7, "need": 1, "rest": 6, "answer": 16 }
       ]
     },
     {
@@ -56,6 +56,7 @@ const levelsData = {
 
 const CUE_IDS = [
   "step-1", "step-2", "step-3", "step-4",
+  "lvl1-step-1", "lvl1-step-2",
   "enc-great", "enc-awesome", "enc-amazing", "enc-nice", "enc-try",
   "n-1", "n-2", "n-3", "n-4", "n-5", "n-6", "n-7", "n-8", "n-9", "n-10",
   "round-start", "round-end",
