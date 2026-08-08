@@ -47,3 +47,41 @@ export default function choice(parent, opts = {}) {
 
   return root;
 }
+
+// iconButton — small square button used for scene chrome (back / replay / etc).
+// Smaller than the numeric choice buttons and uses the accent palette.
+const ACCENT = [255, 138, 61];
+const ACCENT_INK = [255, 255, 255];
+
+export function iconButton(parent, opts = {}) {
+  const k = window.kaplay;
+  const x = opts.x;
+  const y = opts.y;
+  const w = opts.w ?? 96;
+  const h = opts.h ?? 72;
+  const label = String(opts.label);
+
+  const root = parent.add([k.pos(0, 0), k.z(opts.z ?? 5), k.area()]);
+
+  root.add([
+    k.rect(w, h, { radius: 20 }),
+    k.color(...ACCENT),
+    k.outline(4, k.rgb(...INK)),
+    k.pos(x, y),
+    k.anchor("center"),
+  ]);
+
+  root.add([
+    k.text(label, { size: opts.fontSize ?? 36 }),
+    k.color(...ACCENT_INK),
+    k.pos(x, y),
+    k.anchor("center"),
+  ]);
+
+  if (opts.onClick) {
+    root.onClick(() => opts.onClick());
+    root.onTouchStart(() => opts.onClick());
+  }
+
+  return root;
+}

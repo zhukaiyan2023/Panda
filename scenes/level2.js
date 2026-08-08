@@ -5,7 +5,7 @@
 import tenFrame from "../components/tenFrame.js";
 import expression from "../components/expression.js";
 import stepBar from "../components/stepBar.js";
-import choice from "../components/choice.js";
+import choice, { iconButton } from "../components/choice.js";
 
 const INK = [61, 54, 82];
 const ENCOURAGE = ["enc-great", "enc-awesome", "enc-amazing", "enc-nice"];
@@ -23,6 +23,18 @@ function shuffle(arr) {
 
 function drawRound(k, round, ri, totalRounds, state) {
   k.add([k.rect(k.width(), k.height()), k.color(255, 241, 220)]);
+
+  iconButton(k, {
+    label: "←",
+    x: 96, y: 100, w: 96, h: 72,
+    fontSize: 44,
+    onClick: () => {
+      window.PandaAudio.playCue("back");
+      roundIdx = 0;
+      k.go("levelPicker");
+    },
+  });
+
   stepBar(k, { step: 1, x: k.width() / 2, y: 100, w: 1000, h: 36 });
 
   k.add([
