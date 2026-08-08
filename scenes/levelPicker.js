@@ -70,8 +70,9 @@ function drawCard(k, parent, level, unlocked) {
       window.PandaAudio.playCue("level-locked");
     }
   };
+  // Kaplay is configured with touchToMouse, so onClick covers both mouse and
+  // touch input without double-firing on iPad Safari.
   card.onClick(onPick);
-  card.onTouchStart(onPick);
 }
 
 export default function levelPickerScene(k) {

@@ -5,10 +5,11 @@
 const { chromium } = require("playwright");
 
 (async () => {
-  const browser = await chromium.launch({
-    headless: true,
-    executablePath: process.env.CHROME_PATH || "/Users/kaiyan/Library/Caches/ms-playwright/chromium-1208/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing",
-  });
+  const launchOptions = { headless: true };
+  if (process.env.CHROME_PATH) {
+    launchOptions.executablePath = process.env.CHROME_PATH;
+  }
+  const browser = await chromium.launch(launchOptions);
   const ctx = await browser.newContext({
     viewport: { width: 1366, height: 1024 },
     deviceScaleFactor: 2,

@@ -76,10 +76,18 @@ let audioUnlocked = false;
 function unlockAudio() {
   if (audioUnlocked) return;
   for (const el of Object.values(audio)) {
-    el.volume = 0;
+    const wasMuted = el.muted;
+    el.muted = true;
     const p = el.play();
+    const restore = () => {
+      el.pause();
+      el.currentTime = 0;
+      el.muted = wasMuted;
+    };
     if (p && typeof p.then === "function") {
-      p.then(() => el.pause()).catch(() => {});
+      p.then(restore).catch(() => { el.muted = wasMuted; });
+    } else {
+      restore();
     }
   }
   audioUnlocked = true;
@@ -89,6 +97,8 @@ function playCue(id) {
   const el = audio[id];
   if (!el) return;
   try {
+    el.muted = false;
+    el.volume = 1;
     el.currentTime = 0;
     const p = el.play();
     if (p && typeof p.catch === "function") p.catch(() => {});
