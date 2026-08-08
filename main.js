@@ -2,6 +2,7 @@
 // No build step. Loads scenes and components from ./scenes and ./components.
 
 import kaplay from "./assets/vendor/kaplay.mjs";
+import "./save.js";
 
 const CUE_IDS = [
   "step-1", "step-2", "step-3", "step-4",
@@ -95,11 +96,22 @@ watchOrientation();
   }
   window.PandaLevels = levelsData;
 
-  const scenes = window.PandaScenes || {};
-  if (scenes.levelPicker) k.scene("levelPicker", scenes.levelPicker);
-  if (scenes.level1)      k.scene("level1",      scenes.level1);
-  if (scenes.level2)      k.scene("level2",      scenes.level2);
-  if (scenes.level3)      k.scene("level3",      scenes.level3);
+  const [
+    { default: levelPicker },
+    { default: level1 },
+    { default: level2 },
+    { default: level3 },
+  ] = await Promise.all([
+    import("./scenes/levelPicker.js"),
+    import("./scenes/level1.js"),
+    import("./scenes/level2.js"),
+    import("./scenes/level3.js"),
+  ]);
+
+  k.scene("levelPicker", () => levelPicker(k));
+  k.scene("level1", () => level1(k));
+  k.scene("level2", () => level2(k));
+  k.scene("level3", () => level3(k));
 
   k.go("levelPicker");
 })();

@@ -75,8 +75,7 @@ function drawCard(k, parent, level, unlocked, onClick) {
   });
 }
 
-export default function levelPicker() {
-  const k = window.kaplay;
+export default function levelPickerScene(k) {
   const levels = (window.PandaLevels?.levels || []);
   const save = window.PandaSave?.load() || { unlockedLevel: 1, starsByLevel: {} };
 
