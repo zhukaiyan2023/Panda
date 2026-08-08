@@ -9,9 +9,15 @@ const LOCKED_BG = [220, 213, 230];
 const UNLOCKED_BG = [255, 255, 255];
 const ACCENT = [255, 138, 61];
 
-function drawCard(k, parent, level, unlocked, onClick) {
-  const w = 280;
-  const h = 360;
+const SHORT_TITLES = {
+  1: "Up to 5",
+  2: "Make 10",
+  3: "Up to 20",
+};
+
+function drawCard(k, parent, level, unlocked) {
+  const w = 320;
+  const h = 380;
   const x = level.cardX;
   const y = level.cardY;
 
@@ -25,54 +31,47 @@ function drawCard(k, parent, level, unlocked, onClick) {
   ]);
 
   const titleColor = unlocked ? INK : [150, 140, 170];
+
   card.add([
-    k.text(`Level ${level.id}`, { size: 30 }),
+    k.text(`Level ${level.id}`, { size: 36 }),
     k.color(...titleColor),
-    k.pos(x, y - h / 2 + 50),
+    k.pos(0, -h / 2 + 60),
     k.anchor("center"),
   ]);
 
   card.add([
-    k.text(level.title, { size: 32, align: "center", width: w - 32 }),
+    k.text(SHORT_TITLES[level.id] || level.title, { size: 40 }),
     k.color(...titleColor),
-    k.pos(x, y - 20),
+    k.pos(0, 0),
     k.anchor("center"),
   ]);
 
   if (unlocked) {
     card.add([
-      k.text("▶", { size: 48 }),
+      k.text("▶", { size: 56 }),
       k.color(...ACCENT),
-      k.pos(x, y + h / 2 - 60),
+      k.pos(0, h / 2 - 60),
       k.anchor("center"),
     ]);
   } else {
     card.add([
-      k.text("🔒", { size: 48 }),
+      k.text("🔒", { size: 56 }),
       k.color(...titleColor),
-      k.pos(x, y + h / 2 - 60),
+      k.pos(0, h / 2 - 60),
       k.anchor("center"),
     ]);
   }
 
-  card.onClick(() => {
+  const onPick = () => {
     if (unlocked) {
       window.PandaAudio.playCue("next");
       k.go(`level${level.id}`);
     } else {
       window.PandaAudio.playCue("level-locked");
     }
-    if (onClick) onClick(level);
-  });
-  card.onTouchStart(() => {
-    if (unlocked) {
-      window.PandaAudio.playCue("next");
-      k.go(`level${level.id}`);
-    } else {
-      window.PandaAudio.playCue("level-locked");
-    }
-    if (onClick) onClick(level);
-  });
+  };
+  card.onClick(onPick);
+  card.onTouchStart(onPick);
 }
 
 export default function levelPickerScene(k) {
@@ -94,19 +93,21 @@ export default function levelPickerScene(k) {
   k.add([
     k.text("Pick a level", { size: 32 }),
     k.color(...INK),
-    k.pos(k.width() / 2, 180),
+    k.pos(k.width() / 2, 190),
     k.anchor("center"),
   ]);
 
-  const baseY = 500;
-  const cards = levels.map((lvl, i) => ({
-    ...lvl,
-    cardX: k.width() / 2 - 320 + i * 320,
-    cardY: baseY,
-  }));
-  cards.forEach((lvl) => {
+  const stride = 380;
+  const totalSpan = (levels.length - 1) * stride;
+  const baseY = 560;
+  levels.forEach((lvl, i) => {
+    const lvlWithCoords = {
+      ...lvl,
+      cardX: k.width() / 2 - totalSpan / 2 + i * stride,
+      cardY: baseY,
+    };
     const unlocked = lvl.id <= save.unlockedLevel;
-    drawCard(k, k, lvl, unlocked);
+    drawCard(k, k, lvlWithCoords, unlocked);
   });
 
   const totalStars = Object.values(save.starsByLevel || {}).reduce((a, b) => a + b, 0);
