@@ -10,6 +10,7 @@ const MUTED = [180, 170, 200];
 
 function makeToken(parent, k, text, opts) {
   return parent.add([
+    k.pos(0, 0),
     k.text(text, {
       size: opts.size,
       font: "monospace",
@@ -44,8 +45,10 @@ export default function expression(parent, opts = {}) {
 
   tokens.forEach((tok, i) => {
     const node = makeToken(root, k, tok.text, { size, muted: tok.muted });
-    node.pos.x = startX + i * gap;
-    node.pos.y = y;
+    if (node && node.pos) {
+      node.pos.x = startX + i * gap;
+      node.pos.y = y;
+    }
   });
 
   return root;
