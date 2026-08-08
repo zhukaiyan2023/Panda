@@ -24,6 +24,15 @@ export const MUTED = [180, 170, 200];
 export const DISABLED_BG = [230, 225, 239];
 export const DISABLED_INK = [170, 163, 189];
 
+// Per-number colors used to code the three addends in a mixed-addition
+// problem. Each addend gets a clearly different color so the child can see
+// "these are three different things being added together".
+export const NUM_BLUE  = [124, 199, 255]; // --c-blue
+export const NUM_YELLOW = [255, 209, 102]; // --c-yellow
+export const NUM_PINK  = [255, 143, 171]; // --c-pink
+export const NUM_PURPLE = [155, 140, 255]; // --c-purple
+export const ACCENT = [255, 138, 61]; // --c-orange-deep
+
 // Ten-frame cells. A saturated fill across all ten cells dominated the screen,
 // so filled cells use a softer coral and the strong orange is reserved for
 // interactive accents.
