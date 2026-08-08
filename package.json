@@ -1,0 +1,16 @@
+{
+  "name": "panda-math-adventure",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "python3 -m http.server 8126",
+    "smoke": "node tools/smoke.cjs",
+    "placeholders": "node tools/make-placeholders.js",
+    "audio:build": "node tools/build-audio.js",
+    "test:visual": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.47.0"
+  }
+}
