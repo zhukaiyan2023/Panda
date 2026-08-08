@@ -1,23 +1,26 @@
 // scenes/roundScene.js — the shared round scaffold every level is built on.
 //
-// level1/2/3 previously carried near-identical copies of the chrome, the button
-// layout, shuffle(), finishLevel() and the pick/advance state machine — roughly
-// 70% of each file was duplicated. That is why a single bad area() call broke
-// all three levels at once, and why Level 1 still ran Level 2's make-a-ten
-// reveal steps. The flow lives here once; a level supplies only what makes it
-// that level.
-//
 // A level config provides:
 //   levelId     number      — save slot and unlock progression
 //   sceneName   string      — the Kaplay scene to re-enter for the next round
 //   introCue    string      — audio cue on entering round 0
-//   stepLabels  string[4]   — the teaching steps this level walks through
-//   equation    (round) => ({ left, right, sum })
-//   question    (round) => ({ correct, values })
-//   body        (ctx)  => any   — draws the number representation, return value
-//                                 is exposed to steps as ctx.body
-//   steps       [(ctx) => void] — reveals for steps 2..4, index 0 is step 2
-//   replayCue   (round, step) => string
+//   stepLabels  string[N]   — one teaching step per round beat
+//   steps       [(ctx) => stepConfig]   — one per step; index 0 is step 1
+//     stepConfig = {
+//       equation(round, prev)  { left, right, sum }   — what to show
+//       question(round, prev)  { correct, values }    — what buttons to render
+//       body?(ctx)             any                   — visual under equation
+//       cue                    string                — short audio prompt
+//       reveal?(ctx)           void                  — extra on-screen text
+//       onAdvance?(ctx)        void                  — after correct pick
+//     }
+//     OR a bare (ctx) => stepConfig returning falsey to skip rendering the
+//     button row that round (the existing reveal-only style).
+//
+// Why each step can carry its own equation + question: levels now teach in
+// beats. L1 shows the same equation across 2 steps ("see" then "count").
+// L2 shows a chain (a+?=10, then need+rest=answer). Buttons stay visible at
+// every step — a child shouldn't have to wait for buttons to re-appear.
 
 import expression from "../components/expression.js";
 import stepBar from "../components/stepBar.js";
@@ -26,17 +29,15 @@ import choice, { iconButton } from "../components/choice.js";
 import { INK, PAPER, FONT } from "../components/theme.js";
 
 const ENCOURAGE = ["enc-great", "enc-awesome", "enc-amazing", "enc-nice"];
-const LAST_STEP = 4;
-// Pause between reveal lines: long enough for an adult to read one aloud.
-const STEP_DELAY = 1.6;
+// Long enough for a slow voice to land a one-word prompt and the child to
+// look at the buttons before the timer expires. The verifier flips a global
+// flag to skip these pauses; in-game timing is unchanged.
+const STEP_DELAY = 4.0;
+const TEST_DELAY = 0.05;
 
-// Layout constants for the 1366x1024 letterbox. The icon buttons get their own
-// left column: they used to sit in the step bar's row, where the first step
-// label overlapped them.
 export const LAYOUT = {
   iconX: 84,
   backY: 92,
-  replayY: 184,
   barX: 748,
   barY: 84,
   barW: 1060,
@@ -52,9 +53,6 @@ export const LAYOUT = {
   pandaSize: 230,
 };
 
-// The band between the number representation and the answer buttons only fits
-// two lines. Older lines are retired rather than allowed to grow into the
-// buttons.
 const MAX_REVEAL_LINES = 2;
 
 function shuffle(arr) {
@@ -67,12 +65,7 @@ function shuffle(arr) {
 }
 
 // Builds exactly `count` distinct answer options including the correct one.
-//
-// Levels used to assemble candidates then dedupe, which left a variable number
-// of buttons: in Level 2 round 2 (7 + 6) `need` and `rest` are both 3, so the
-// row collapsed to three buttons. A choice count that changes between rounds is
-// needless friction for a 3-6 year old, so options are topped up by walking
-// outward from the answer until the row is full.
+// Same outward-walk as before so the row stays the same width across rounds.
 export function options(correct, { min = 0, max = 10, prefer = [], count = 4 } = {}) {
   const inRange = (v) => Number.isFinite(v) && v >= min && v <= max;
   const picked = [];
@@ -89,7 +82,8 @@ export function options(correct, { min = 0, max = 10, prefer = [], count = 4 } =
   return picked.slice(0, count);
 }
 
-function saveProgress(levelId) {  const save = window.PandaSave?.load() || { unlockedLevel: 1, starsByLevel: {} };
+function saveProgress(levelId) {
+  const save = window.PandaSave?.load() || { unlockedLevel: 1, starsByLevel: {} };
   save.unlockedLevel = Math.max(save.unlockedLevel, levelId + 1);
   save.starsByLevel = save.starsByLevel || {};
   save.starsByLevel[levelId] = (save.starsByLevel[levelId] || 0) + 1;
@@ -98,12 +92,10 @@ function saveProgress(levelId) {  const save = window.PandaSave?.load() || { unl
 }
 
 export default function createRoundScene(config) {
-  // Round position is per level and survives the k.go() between rounds, which is
-  // why it lives in the factory closure rather than in the scene function.
   let roundIdx = 0;
 
   function drawRound(k, round, ri, totalRounds) {
-    const state = { step: 1, locked: new Set() };
+    const state = { step: 1, locked: new Set(), buttons: [], body: null };
 
     k.add([k.rect(k.width(), k.height()), k.color(...PAPER), k.z(-10)]);
 
@@ -112,17 +104,8 @@ export default function createRoundScene(config) {
       x: LAYOUT.iconX, y: LAYOUT.backY, w: 96, h: 72,
       fontSize: 44,
       onClick: () => {
-        window.PandaAudio.playCue("back");
         roundIdx = 0;
         k.go("levelPicker");
-      },
-    });
-    iconButton(k, {
-      label: "♪",
-      x: LAYOUT.iconX, y: LAYOUT.replayY, w: 96, h: 72,
-      fontSize: 44,
-      onClick: () => {
-        window.PandaAudio.playCue(config.replayCue(round, state.step));
       },
     });
 
@@ -143,16 +126,8 @@ export default function createRoundScene(config) {
       x: LAYOUT.pandaX, y: LAYOUT.pandaY, size: LAYOUT.pandaSize,
     });
 
-    const eq = config.equation(round);
-    expression(k, { ...eq, x: LAYOUT.barX, y: LAYOUT.equationY, size: 104 });
-
-    // Reveal lines occupy a fixed band between the number representation and the
-    // answer buttons. Declared before body() runs so a level may add its context
-    // line while building its number representation.
     let revealLines = [];
     function reveal(text, opts = {}) {
-      // The celebrate step supersedes the working-out rather than piling on
-      // top of it.
       if (opts.replace) {
         revealLines.forEach((n) => n.destroy());
         revealLines = [];
@@ -171,9 +146,6 @@ export default function createRoundScene(config) {
       return node;
     }
 
-    // A standing line of context, pinned under the equation. Level 2 uses it to
-    // keep the whole problem visible while the child works one sub-step of it,
-    // so it must not be retired along with the reveal lines.
     function context(text, opts = {}) {
       return k.add([
         k.text(text, { size: opts.size ?? 40, font: FONT }),
@@ -184,75 +156,154 @@ export default function createRoundScene(config) {
       ]);
     }
 
-    const ctx = { k, round, ri, totalRounds, bar, buddy, reveal, context, state };
-    ctx.body = config.body(ctx);
+    let eqNode = null;
+    function setEquation(eq) {
+      if (eqNode) eqNode.destroy();
+      // Accept either the legacy { left, right, sum } shape or the newer
+      // { slots: [...], colors?: [...] } shape. The newer shape is the one
+      // levels use for any expression that isn't a single two-addend question.
+      const props = { x: LAYOUT.barX, y: LAYOUT.equationY, size: 104 };
+      if (eq.slots) {
+        props.slots = eq.slots;
+        if (eq.colors) props.colors = eq.colors;
+      } else {
+        props.left = eq.left;
+        props.right = eq.right;
+        props.sum = eq.sum;
+      }
+      eqNode = expression(k, props);
+    }
 
-    const { correct, values } = config.question(round);
-    const buttonW = 180;
-    const buttonH = 132;
-    const gap = 24;
-    const ordered = shuffle(values);
-    const totalW = ordered.length * buttonW + (ordered.length - 1) * gap;
-    const startX = LAYOUT.barX - totalW / 2 + buttonW / 2;
+    function clearBody() {
+      if (state.body) state.body.destroy();
+      state.body = null;
+    }
 
-    const buttons = [];
-    ordered.forEach((v, i) => {
-      const btn = choice(k, {
-        label: String(v),
-        x: startX + i * (buttonW + gap),
-        y: LAYOUT.buttonY,
-        w: buttonW, h: buttonH,
-        onClick: () => onPick(v, i),
+    function clearButtons() {
+      state.buttons.forEach(({ btn }) => btn.destroy());
+      state.buttons = [];
+      state.locked.clear();
+    }
+
+    function renderButtons(values, correct, onPick) {
+      const buttonW = 180;
+      const buttonH = 132;
+      const gap = 24;
+      const ordered = shuffle(values);
+      const totalW = ordered.length * buttonW + (ordered.length - 1) * gap;
+      const startX = LAYOUT.barX - totalW / 2 + buttonW / 2;
+
+      ordered.forEach((v, i) => {
+        const btn = choice(k, {
+          label: String(v),
+          x: startX + i * (buttonW + gap),
+          y: LAYOUT.buttonY,
+          w: buttonW, h: buttonH,
+          onClick: () => onPick(v, i),
+        });
+        state.buttons.push({ btn, value: v });
       });
-      buttons.push({ btn, value: v });
-    });
+      return state.buttons;
+    }
 
-    function advance() {
-      if (state.step >= LAST_STEP) return;
+    // Shared context for every step's renderer.
+    const ctx = {
+      k, round, ri, totalRounds, bar, buddy, reveal, context,
+      setEquation, clearBody, clearButtons, renderButtons,
+      get step() { return state.step; },
+    };
+
+    function buildStep(stepNumber, prev) {
+      const stepCfg = config.steps[stepNumber - 1];
+      if (!stepCfg) return;
+      const built = stepCfg(ctx, prev) || {};
+      if (built.equation) setEquation(built.equation);
+      if (built.body) state.body = built.body;
+      if (built.reveal) reveal(built.reveal);
+      if (built.cue) window.PandaAudio.playCue(built.cue);
+      ctx.lastHadQuestion = !!built.question;
+      if (built.question) {
+        renderButtons(
+          built.question.values,
+          built.question.correct,
+          (v, i) => onPick(v, i, built, prev),
+        );
+      }
+    }
+
+    function onPick(value, idx, stepCfg, prev) {
+      // Any real tap cancels the soft auto-advance so the child isn't yanked
+      // into the next step on top of their own answer.
+      if (autoAdvanceTimer) autoAdvanceTimer.cancel();
+      autoAdvanceTimer = null;
+      if (state.locked.has(idx)) return;
+      if (value === stepCfg.question.correct) {
+        state.locked.add(idx);
+        state.buttons[idx].btn.setCorrect();
+        buddy.setMood("cheer", { silent: true });
+        window.PandaAudio.playCue(ENCOURAGE[(ri + config.levelId) % ENCOURAGE.length]);
+        if (stepCfg.onAdvance) stepCfg.onAdvance(ctx);
+        const d = window.__skipTimers ? TEST_DELAY : 0.4;
+        k.wait(d, () => advance(prev));
+      } else {
+        state.buttons[idx].btn.setDisabled(true);
+        buddy.setMood("think");
+      }
+    }
+
+    function advance(prev) {
+      const d = window.__skipTimers ? TEST_DELAY : STEP_DELAY;
+      if (state.step >= config.steps.length) {
+        k.wait(d, finishRound);
+        return;
+      }
       state.step += 1;
       bar.setStep(state.step);
-
-      const revealStep = config.steps[state.step - 2];
-      if (revealStep) revealStep(ctx);
-
-      if (state.step < LAST_STEP) {
-        // The reveal steps are an explanation, not more questions. They used to
-        // be driven by further correct picks, but the only correct button was
-        // already locked by the pick that got here, so every round stalled on
-        // step 2 — the celebrate step and round-end cue were unreachable and no
-        // round ever completed. They now play out on their own.
-        k.wait(STEP_DELAY, advance);
-      } else {
-        k.wait(1.2, () => {
-          window.PandaAudio.playCue("round-end");
-          if (ri + 1 < totalRounds) {
-            roundIdx = ri + 1;
-            k.go(config.sceneName);
+      // Clear the working area for the next beat but keep reveal lines — they
+      // show the running total so far.
+      clearButtons();
+      clearBody();
+      buildStep(state.step, prev || ctx.round);
+      // Auto-advance only when the new step has no question to answer.
+      // Question steps wait for the child to tap; reveal-only steps chain
+      // through after a short pause so the screen doesn't sit still.
+      if (!ctx.lastHadQuestion) {
+        autoAdvanceTimer = k.wait(d, () => {
+          if (state.step >= config.steps.length) {
+            k.wait(d, finishRound);
           } else {
-            saveProgress(config.levelId);
-            window.PandaAudio.playCue("lvl-done");
-            roundIdx = 0;
-            k.go("levelPicker");
+            advance(ctx.round);
           }
         });
       }
     }
 
-    function onPick(value, idx) {
-      if (state.step >= LAST_STEP) return;
-      if (state.locked.has(idx)) return;
-      state.locked.add(idx);
-
-      if (value === correct) {
-        window.PandaAudio.playCue(ENCOURAGE[(ri + config.levelId) % ENCOURAGE.length]);
-        buttons[idx].btn.setCorrect();
-        buddy.setMood("cheer", { silent: true });
-        k.wait(0.4, advance);
+    function finishRound() {
+      // Cancel any pending auto-advance so it doesn't fire on the next round's
+      // closure after we've moved on.
+      if (autoAdvanceTimer) autoAdvanceTimer.cancel();
+      autoAdvanceTimer = null;
+      if (ri + 1 < totalRounds) {
+        roundIdx = ri + 1;
+        k.go(config.sceneName);
       } else {
-        buttons[idx].btn.setDisabled(true);
-        // setMood plays enc-try itself, so the cue is not fired separately.
-        buddy.setMood("think");
+        saveProgress(config.levelId);
+        window.PandaAudio.playCue("lvl-done");
+        roundIdx = 0;
+        k.go("levelPicker");
       }
+    }
+
+    let autoAdvanceTimer = null;
+
+    buildStep(1, round);
+
+    // If step 1 has no question, chain forward. Question steps wait for tap.
+    if (!ctx.lastHadQuestion) {
+      const d = window.__skipTimers ? TEST_DELAY : STEP_DELAY;
+      autoAdvanceTimer = k.wait(d, () => {
+        if (state.step < config.steps.length) advance(ctx.round);
+      });
     }
   }
 
@@ -268,7 +319,9 @@ export default function createRoundScene(config) {
       return;
     }
 
-    window.PandaAudio.playCue(roundIdx === 0 ? (data.intro || config.introCue) : "round-start");
+    if (roundIdx === 0) {
+      window.PandaAudio.playCue(data.intro || config.introCue);
+    }
     drawRound(k, data.rounds[roundIdx] || data.rounds[0], roundIdx, data.rounds.length);
   };
 }

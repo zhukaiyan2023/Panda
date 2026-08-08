@@ -70,16 +70,8 @@ export default function createPairScene(config) {
       label: "←",
       x: 84, y: 92, w: 96, h: 72, fontSize: 44,
       onClick: () => {
-        window.PandaAudio.playCue("back");
         roundIdx = 0;
         k.go("gamesPicker");
-      },
-    });
-    iconButton(k, {
-      label: "♪",
-      x: 84, y: 184, w: 96, h: 72, fontSize: 44,
-      onClick: () => {
-        window.PandaAudio.playCue(config.replayCue?.(round, state.foundPairs + 1) || config.introCue);
       },
     });
 
@@ -209,7 +201,11 @@ export default function createPairScene(config) {
   }
 
   return function scene(k) {
-    window.PandaAudio.playCue(roundIdx === 0 ? config.introCue : "round-start");
+    // Audio: only the first round of a session speaks. Subsequent rounds
+    // continue silently to keep the rhythm from getting noisy.
+    if (roundIdx === 0) {
+      window.PandaAudio.playCue(config.introCue);
+    }
     const round = {
       index: roundIdx,
       candidates: config.candidates(roundIdx),

@@ -1,11 +1,5 @@
-// scenes/level3.js — up to 20, no make-ten step.
-//
-// The child fills the blank in "a + ? = answer". The ten-frame shows the ones
-// place of `a`, with a separate tile for the tens place when a >= 10.
-//
-// Step 3 used to advance the step bar and render nothing at all. It now shows
-// the teen-number decomposition (10 + n = answer), which is the point of a
-// level that crosses ten.
+// scenes/level3.js — up to 20. Same shape as before but migrated to the new
+// per-step API so it composes with the multi-question roundScene.
 
 import tenFrame from "../components/tenFrame.js";
 import createRoundScene, { LAYOUT, options } from "./roundScene.js";
@@ -17,61 +11,71 @@ export default createRoundScene({
   levelId: 3,
   sceneName: "level3",
   introCue: "lvl-3-intro",
-  stepLabels: ["Count on", "Add", "Check", "Cheer"],
-
-  equation: (round) => ({ left: round.a, right: "?", sum: round.answer }),
-
-  question: (round) => {
-    const correct = round.missing ?? round.b;
-    return { correct, values: options(correct, { min: 0, max: 20 }) };
-  },
-
-  body: (ctx) => {
-    const { k, round } = ctx;
-    const tens = Math.floor(round.a / TEN);
-    const ones = round.a % TEN;
-
-    if (tens > 0) {
-      // A full ten shown as one labelled tile, so the frame beside it clearly
-      // represents only the ones place.
-      const tile = k.add([
-        k.rect(96, 130, { radius: 16 }),
-        k.color(...YELLOW),
-        k.outline(3, k.rgb(...INK)),
-        k.pos(LAYOUT.barX - 300, LAYOUT.bodyY),
-        k.anchor("center"),
-      ]);
-      tile.add([
-        k.text(`${tens * TEN}`, { size: 44, font: FONT }),
-        k.color(...INK),
-        k.anchor("center"),
-        k.pos(0, 0),
-      ]);
-    }
-
-    return tenFrame(k, ones, {
-      x: LAYOUT.barX + 60, y: LAYOUT.bodyY, rows: 2, cell: 56, gap: 8,
-    });
-  },
+  stepLabels: ["Count on", "Add", "Teen split", "Cheer"],
 
   steps: [
-    // Step 2 — Add: the complete equation.
-    (ctx) => {
-      const { a, b, answer } = ctx.round;
-      ctx.reveal(`${a} + ${b} = ${answer}`, { size: 56 });
+    // Step 1 — show the equation, ask for the missing addend.
+    (ctx, round) => {
+      const ones = round.a % TEN;
+      // Tens tile (when a >= 10) + ones frame.
+      if (Math.floor(round.a / TEN) > 0) {
+        const tens = Math.floor(round.a / TEN);
+        ctx.tensTile = ctx.k.add([
+          ctx.k.rect(96, 130, { radius: 16 }),
+          ctx.k.color(...YELLOW),
+          ctx.k.outline(3, ctx.k.rgb(...INK)),
+          ctx.k.pos(LAYOUT.barX - 300, LAYOUT.bodyY),
+          ctx.k.anchor("center"),
+        ]);
+        ctx.tensTile.add([
+          ctx.k.text(`${tens * TEN}`, { size: 44, font: FONT }),
+          ctx.k.color(...INK),
+          ctx.k.anchor("center"),
+          ctx.k.pos(0, 0),
+        ]);
+      }
+      ctx.onesFrame = tenFrame(ctx.k, ones, {
+        x: LAYOUT.barX + 60, y: LAYOUT.bodyY,
+        rows: 2, cell: 56, gap: 8,
+      });
+      return {
+        equation: { left: round.a, right: "?", sum: round.answer },
+        cue: "step-1",
+        question: {
+          correct: round.missing ?? round.b,
+          values: options(round.missing ?? round.b, { min: 0, max: 20 }),
+        },
+      };
     },
-    // Step 3 — Check: decompose the teen result into a ten plus the ones.
-    (ctx) => {
-      const { answer } = ctx.round;
-      ctx.reveal(`${TEN} + ${answer - TEN} = ${answer}`, { size: 48 });
+    // Step 2 — show the complete equation.
+    (ctx, round) => {
+      const { a, b, answer } = round;
+      return {
+        equation: { left: a, right: b, sum: answer },
+        cue: "step-2",
+        question: null,   // reveal-only step, auto-advance
+        reveal: `${a} + ${b} = ${answer}`,
+      };
     },
-    // Step 4 — Cheer.
-    (ctx) => {
+    // Step 3 — decompose the teen total into 10 + ones.
+    (ctx, round) => {
+      const { answer } = round;
+      return {
+        equation: { left: TEN, right: answer - TEN, sum: answer },
+        cue: "step-3",
+        question: null,
+        reveal: `${TEN} + ${answer - TEN} = ${answer}`,
+      };
+    },
+    // Step 4 — celebrate.
+    (ctx, round) => {
       ctx.buddy.setMood("cheer");
-      ctx.reveal(String(ctx.round.answer), { size: 96, replace: true });
+      return {
+        equation: { left: "", right: "", sum: round.answer },
+        cue: "step-4",
+        question: null,
+        reveal: String(round.answer),
+      };
     },
   ],
-
-  replayCue: (round, step) =>
-    ({ 1: "round-start", 2: "step-2", 3: "step-3", 4: "round-end" })[step] || "round-start",
 });
