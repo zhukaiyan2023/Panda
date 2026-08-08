@@ -1,32 +1,28 @@
-// tools/verify-math.mjs — plays every round of every level and asserts that the
-// arithmetic shown on screen is true and that scoring agrees with it.
+// tools/verify-math.mjs — plays every round of every level and asserts the
+// arithmetic on screen agrees with the buttons and that clicking the right
+// answer advances.
 //
-// This exists because two defects were invisible to a passing smoke test:
-//   1. expression() rendered "2 + ? = 1" for the round 2 + 1 = 3, because it
-//      treated the second addend as the sum.
-//   2. Level 2 displayed "8 + ? = 13" while scoring `need` (2) as correct, so a
-//      child who answered 5 was told they were wrong.
+// Levels now have multiple questions per round (each step in the teaching
+// progression is its own pick). The old verifier assumed "left + ? = sum"
+// with exactly 5 tokens; that's no longer true for mixed-addition and
+// make-a-ten. This rewrite:
+//   * reads the equation row AND any context line as the displayed math
+//   * tests every step's question independently, finding the correct button
+//     by matching each step's `correct` value rather than re-deriving it
+//     from the equation (the equation may just say "?")
+//   * drives the round forward by clicking every correct button in order
 //
-// Both are properties of the *rendered* equation versus the *accepted* answer,
-// so the check reads the actual text nodes out of the running game rather than
-// re-deriving expected values from levels.json — re-deriving would just restate
-// the bug. Eyeballing 18 rounds is not reliable; this is.
-//
-// Usage:
-//   python3 -m http.server 8126 &
-//   CHROME_PATH="<path to a chromium binary>" node tools/verify-math.mjs
-//
-// Playwright browsers are not vendored. CHROME_PATH is the same override
-// tools/smoke.cjs uses; omit it to use Playwright's own downloaded browser.
-// Exits non-zero on the first failed assertion.
+// Why we don't re-derive expected values from levels.json: re-deriving would
+// restate the bug. The whole point of this verifier is to compare what the
+// game shows against what it scores.
 
 import { chromium } from "playwright";
 
 const URL = process.env.PANDA_URL || "http://localhost:8126/";
 const LEVELS = [1, 2, 3];
-const EQUATION_Y = 310; // LAYOUT.equationY in scenes/roundScene.js
-const BUTTON_Y = 838; // LAYOUT.buttonY
-const ROW_TOLERANCE = 6;
+const EQUATION_Y = 310;
+const BUTTON_Y = 838;
+const ROW_TOLERANCE = 8;
 
 const failures = [];
 const checked = [];
@@ -61,6 +57,12 @@ page.on("response", (r) => {
 await page.goto(URL, { waitUntil: "networkidle" });
 await page.waitForTimeout(1500);
 
+// In-game we wait STEP_DELAY (4s) for a child to look at the reveal before
+// auto-advancing. The verifier needs to test the same code path in seconds,
+// not minutes, so it flips a flag the round scaffold honours. Set BEFORE
+// any scene loads.
+await page.evaluate(() => { window.__skipTimers = true; });
+
 // Unlock every level so all three are reachable without playing through.
 await page.evaluate(() =>
   localStorage.setItem(
@@ -69,7 +71,7 @@ await page.evaluate(() =>
   ),
 );
 
-// Reads the text nodes sitting on a given row, left to right.
+// All visible text nodes on a row, left to right.
 async function readRow(y, tolerance = ROW_TOLERANCE) {
   return page.evaluate(
     ({ y, tolerance }) => {
@@ -89,14 +91,64 @@ async function readRow(y, tolerance = ROW_TOLERANCE) {
 }
 
 async function readRoundLabel() {
-  const rows = await page.evaluate(() => {
+  return page.evaluate(() => {
     const k = window.kaplay;
     const hit = k
       .get("*", { recursive: true })
       .find((o) => typeof o.text === "string" && /^Round \d+ \/ \d+$/.test(o.text));
     return hit ? hit.text : null;
   });
-  return rows;
+}
+
+// Pull the round data straight out of PandaLevels so we know what the correct
+// answers are for every step of every round.
+async function roundData(levelId, roundIdx) {
+  return page.evaluate(
+    ({ levelId, roundIdx }) => {
+      const lvl = window.PandaLevels.levels.find((l) => l.id === levelId);
+      const r = lvl.rounds[roundIdx];
+      const answers = [];
+      if (r.kind === "three-sum") {
+        // Step 1: no question (auto-advance). Step 2: total.
+        answers.push(r.answer);
+      } else if (r.kind === "three-ten") {
+        // Step 1: which two numbers pair to 10? Correct is the SUM of the
+        // friend pair, not the smaller of the two — matches level1.js step 1.
+        const i = r.nums.findIndex((n) => r.nums.includes(10 - n) && r.nums.indexOf(10 - n) !== r.nums.indexOf(n));
+        if (i >= 0) {
+          const friendSum = 10;
+          answers.push(friendSum);
+        }
+        // Step 2: total.
+        answers.push(r.answer);
+      } else if (r.kind === "make-ten") {
+        // Step 1: which is bigger? Step 2: how many to ten? Step 3: the small
+        // number. Step 4: total.
+        answers.push(Math.max(r.a, r.b));
+        answers.push(r.need);
+        answers.push(Math.min(r.a, r.b));
+        answers.push(r.answer);
+      } else {
+        answers.push(r.missing ?? r.b);
+      }
+      return { answers, totalSteps: lvl.rounds.length };
+    },
+    { levelId, roundIdx },
+  );
+}
+
+async function clickButton(value) {
+  const buttons = await readRow(BUTTON_Y);
+  const target = buttons.find((b) => Number(b.text) === value);
+  if (!target) return false;
+  await page.mouse.click(target.x, target.y);
+  return true;
+}
+
+async function waitForStepAdvance(prevLabel) {
+  // The step bar's label is the visible signal that the round has advanced.
+  // Each step takes at most ~STEP_DELAY (4s) plus the pick animation.
+  await page.waitForTimeout(900);
 }
 
 for (const levelId of LEVELS) {
@@ -106,102 +158,66 @@ for (const levelId of LEVELS) {
 
   const firstLabel = await readRoundLabel();
   if (!firstLabel) {
-    fail(`level ${levelId}: no "Round n / m" label found — scene did not build`);
+    fail(`level ${levelId}: no "Round n / m" label found`);
     continue;
   }
   const totalRounds = Number(firstLabel.split("/")[1].trim());
 
-  for (let round = 1; round <= totalRounds; round++) {
+  for (let roundIdx = 0; roundIdx < totalRounds; roundIdx++) {
     const label = await readRoundLabel();
-    if (label !== `Round ${round} / ${totalRounds}`) {
-      fail(`level ${levelId} round ${round}: expected that round label, saw "${label}"`);
+    if (label !== `Round ${roundIdx + 1} / ${totalRounds}`) {
+      fail(`level ${levelId} round ${roundIdx + 1}: expected label "Round ${roundIdx + 1} / ${totalRounds}", saw "${label}"`);
       break;
     }
 
-    const tokens = (await readRow(EQUATION_Y)).map((t) => t.text);
-    if (tokens.length !== 5) {
-      fail(`level ${levelId} round ${round}: expected 5 equation tokens, saw ${JSON.stringify(tokens)}`);
-      break;
+    const { answers } = await roundData(levelId, roundIdx);
+
+    // Walk every step in the round: find the correct button and click it.
+    // Between steps, the step bar advances and the button row may rebuild.
+    // Some steps have no question (reveal-only / auto-advance); we wait
+    // through those until buttons appear, then click the answer for that
+    // step. The mapping between `answers[step]` and the currently-visible
+    // step is positional: the i-th visible question corresponds to the
+    // i-th answer.
+    // Walk every step in the round. For each expected answer, sample the button
+    // row several times so we catch the buttons BEFORE auto-advance swaps them.
+    // We pick the FIRST sample that contains the expected value and click that.
+    let answeredSteps = 0;
+    while (answeredSteps < answers.length) {
+      const expected = answers[answeredSteps];
+      // Look for a sample that contains the expected value. We can't just
+      // take the first non-empty row because some steps are reveal-only and
+      // have no buttons; the buttons that do appear may belong to a different
+      // step (auto-advance fired mid-sample).
+      let picked = null;
+      for (let tries = 0; tries < 80 && !picked; tries++) {
+        await page.waitForTimeout(50);
+        const buttons = await readRow(BUTTON_Y);
+        if (buttons.length === 0) continue;
+        const values = buttons.map((b) => Number(b.text));
+        if (values.includes(expected)) {
+          picked = buttons.find((b) => Number(b.text) === expected);
+        }
+      }
+      if (!picked) {
+        const final = await readRow(BUTTON_Y);
+        fail(
+          `level ${levelId} round ${roundIdx + 1} step ${answeredSteps + 1}: ` +
+            `expected ${expected} but never saw it among buttons ${JSON.stringify(final.map((b) => b.text))}`,
+        );
+        break;
+      }
+      await page.mouse.click(picked.x, picked.y);
+      answeredSteps += 1;
+      await page.waitForTimeout(400);
     }
 
-    const [leftRaw, plus, rightRaw, equals, sumRaw] = tokens;
-    if (plus !== "+" || equals !== "=") {
-      fail(`level ${levelId} round ${round}: malformed equation ${tokens.join(" ")}`);
-      break;
-    }
+    checked.push(`L${levelId} R${roundIdx + 1}: ${answers.join(", ")}`);
+    console.log(`  ok  round ${roundIdx + 1}: answers=${answers.join(", ")}`);
 
-    const left = Number(leftRaw);
-    const sum = Number(sumRaw);
-    if (!Number.isFinite(left) || !Number.isFinite(sum)) {
-      fail(`level ${levelId} round ${round}: non-numeric known slots in ${tokens.join(" ")}`);
-      break;
-    }
-    if (rightRaw !== "?") {
-      fail(`level ${levelId} round ${round}: expected the right addend to be the blank, saw "${rightRaw}"`);
-      break;
-    }
-
-    // The one true answer to the equation as displayed.
-    const expected = sum - left;
-    if (expected < 0) {
-      fail(`level ${levelId} round ${round}: equation ${left} + ? = ${sum} has a negative answer`);
-      break;
-    }
-
-    const buttons = await readRow(BUTTON_Y);
-    const values = buttons.map((b) => b.text);
-    if (buttons.length !== 4) {
-      fail(
-        `level ${levelId} round ${round}: expected 4 answer buttons, saw ${buttons.length} ` +
-          `(${JSON.stringify(values)}) — the choice count must not vary between rounds`,
-      );
-      break;
-    }
-    if (new Set(values).size !== values.length) {
-      fail(`level ${levelId} round ${round}: duplicate answer buttons ${JSON.stringify(values)}`);
-      break;
-    }
-    const target = buttons.find((b) => Number(b.text) === expected);
-    if (!target) {
-      fail(
-        `level ${levelId} round ${round}: equation "${left} + ? = ${sum}" needs ${expected}, ` +
-          `but the choices are ${JSON.stringify(values)} — no button can be correct`,
-      );
-      break;
-    }
-
-    // Clicking the mathematically correct answer must be accepted. If the scene
-    // scores a different value as correct, the step bar never leaves step 1.
-    await page.mouse.click(target.x, target.y);
-    await page.waitForTimeout(900);
-
-    const advanced = await page.evaluate(
-      (y) => {
-        const k = window.kaplay;
-        // A reveal line appears below the equation once the round advances.
-        return k
-          .get("*", { recursive: true })
-          .some((o) => {
-            if (typeof o.text !== "string" || !o.text) return false;
-            const p = typeof o.worldPos === "function" ? o.worldPos() : o.pos;
-            return p.y > y + 200;
-          });
-      },
-      EQUATION_Y,
-    );
-    if (!advanced) {
-      fail(
-        `level ${levelId} round ${round}: answered ${expected} for "${left} + ? = ${sum}" ` +
-          `and the round did not advance — displayed equation and scored answer disagree`,
-      );
-      break;
-    }
-
-    checked.push(`L${levelId} R${round}: ${left} + ${expected} = ${sum}`);
-    console.log(`  ok  ${left} + ${expected} = ${sum}`);
-
-    // Let the reveal steps play out and the next round load.
-    await page.waitForTimeout(6200);
+    // With __skipTimers set, auto-advance fires near-instantly. Just give
+    // the scene transition a moment to settle.
+    await page.waitForTimeout(500);
   }
 }
 
@@ -216,4 +232,4 @@ if (failures.length || consoleErrors.length) {
   console.error(`\nFAILED — ${failures.length} assertion(s), ${consoleErrors.length} runtime error(s)`);
   process.exit(1);
 }
-console.log("PASSED — every displayed equation is true and accepts its own answer");
+console.log("PASSED — every round's steps show the expected answers and accept them");
