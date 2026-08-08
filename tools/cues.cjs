@@ -48,6 +48,14 @@ module.exports = [
   { id: "n-9",  text: "nine" },
   { id: "n-10", text: "ten" },
 
+  // ===== spoken equation intro =====
+  // Glued together by PandaAudio.playSequence to read the problem aloud,
+  // e.g. "what is two plus three plus four?". Kept as separate cues so we
+  // can chain them with the existing n-1..n-10 number names.
+  { id: "q-what-is", text: "what is" },
+  { id: "q-plus",    text: "plus" },
+  { id: "q-equals",  text: "equals" },
+
   // ===== round / level flow =====
   { id: "round-start", text: "go!" },
   { id: "round-end",   text: "done!" },

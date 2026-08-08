@@ -59,6 +59,9 @@ const CUE_IDS = [
   "lvl1-step-1", "lvl1-step-2",
   "enc-great", "enc-awesome", "enc-amazing", "enc-nice", "enc-try",
   "n-1", "n-2", "n-3", "n-4", "n-5", "n-6", "n-7", "n-8", "n-9", "n-10",
+  // spoken equation intro — chained by PandaAudio.playSequence so the child
+  // hears "what is two plus three plus four" instead of just "count!"
+  "q-what-is", "q-plus", "q-equals",
   "round-start", "round-end",
   "lvl-1-intro", "lvl-2-intro", "lvl-3-intro", "lvl-done",
   "panda-hi", "panda-celebrate",
@@ -111,6 +114,21 @@ function playCue(id) {
   } catch (_) {}
 }
 
+// Plays a series of cue ids back-to-back with a small gap so each word is
+// distinct. Used for "what is two plus three plus four" — chained from the
+// individual number cues and a couple of glue words ("what is", "plus").
+// The verifier bypasses audio entirely so sequence length is fine in tests.
+function playSequence(ids, gapMs = 90) {
+  if (!Array.isArray(ids) || ids.length === 0) return;
+  let delay = 0;
+  ids.forEach((id, i) => {
+    setTimeout(() => playCue(id), delay);
+    // First cue waits for itself to mostly finish; later cues chain on the
+    // gap. Using a small fixed gap keeps the rhythm predictable.
+    delay += gapMs + (i === 0 ? 220 : 140);
+  });
+}
+
 const k = kaplay({
   width: 1366,
   height: 1024,
@@ -123,7 +141,7 @@ const k = kaplay({
 });
 
 window.kaplay = k;
-window.PandaAudio = { audio, unlockAudio, playCue, isUnlocked: () => audioUnlocked };
+window.PandaAudio = { audio, unlockAudio, playCue, playSequence, isUnlocked: () => audioUnlocked };
 
 // Art assets are hand-authored SVG under assets/art/. Unlike the level data
 // above, these are fetched over HTTP, so the game must be served (see README) —

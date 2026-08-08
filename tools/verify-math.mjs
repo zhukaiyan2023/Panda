@@ -108,18 +108,9 @@ async function roundData(levelId, roundIdx) {
       const lvl = window.PandaLevels.levels.find((l) => l.id === levelId);
       const r = lvl.rounds[roundIdx];
       const answers = [];
-      if (r.kind === "three-sum") {
-        // Step 1: no question (auto-advance). Step 2: total.
-        answers.push(r.answer);
-      } else if (r.kind === "three-ten") {
-        // Step 1: which two numbers pair to 10? Correct is the SUM of the
-        // friend pair, not the smaller of the two — matches level1.js step 1.
-        const i = r.nums.findIndex((n) => r.nums.includes(10 - n) && r.nums.indexOf(10 - n) !== r.nums.indexOf(n));
-        if (i >= 0) {
-          const friendSum = 10;
-          answers.push(friendSum);
-        }
-        // Step 2: total.
+      if (r.kind === "three-sum" || r.kind === "three-ten") {
+        // L1 is one step now: just the total. The cell row visualizes the
+        // pair-to-ten pattern itself; the question is always the sum.
         answers.push(r.answer);
       } else if (r.kind === "make-ten") {
         // Step 1: which is bigger? Step 2: how many to ten? Step 3: the small

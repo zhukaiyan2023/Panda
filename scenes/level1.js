@@ -1,104 +1,100 @@
-// scenes/level1.js — mixed addition with three colored addends.
+// scenes/level1.js — mixed three-addend addition, taught visually.
 //
-// The problem is rendered as [N1] + [N2] + [N3] = ?  with each addend in its
-// own color (blue, yellow, pink) and a one-row ten-frame underneath. Children
-// see "three things being added together" rather than a string of digits.
+// Each round is a single teaching beat: the equation "N1 + N2 + N3 = ?" sits
+// at the top, and underneath sits one merged row of cells — total cells =
+// sum of the three addends. Each cell holds a colored circle whose color
+// matches the addend it represents (blue / yellow / pink), so the child
+// counts "blue, blue, yellow, yellow, yellow, pink, pink, pink, pink" and
+// sees the answer forming under their finger. Number labels under each
+// group reinforce the count.
 //
-// Pattern A (sum ≤ 10): step 1 shows the problem with an audible intro cue
-// ("three numbers, count them"), then auto-advances to step 2 where the
-// child picks the total.
+// On a correct pick the equation's "?" becomes the actual sum, and the row
+// pulses once so the answer feels landed.
 //
-// Pattern B (two of the three pair to 10): step 1 asks which pair adds to 10
-// (correct = 10, the SUM of the friend pair); step 2 asks for the total.
+// Pattern A (sum ≤ 10) and Pattern B (two pair to 10) share the same body
+// now: the visual self-teaches the friend pair without a dedicated step.
 
-import tenFrame from "../components/tenFrame.js";
+import { INK, FONT, NUM_BLUE, NUM_YELLOW, NUM_PINK } from "../components/theme.js";
 import createRoundScene, { LAYOUT, options } from "./roundScene.js";
-import { INK, FONT, NUM_BLUE, NUM_YELLOW, NUM_PINK, MUTED } from "../components/theme.js";
 
-const TEN = 10;
 const COLORS = [NUM_BLUE, NUM_YELLOW, NUM_PINK];
 
-function friendPair(nums) {
-  for (let i = 0; i < nums.length; i++) {
-    for (let j = i + 1; j < nums.length; j++) {
-      if (nums[i] + nums[j] === TEN) return [nums[i], nums[j]];
-    }
-  }
-  return null;
-}
+// Renders one merged cell row: total cells = sum of nums; each addend fills
+// its own contiguous block of cells with that addend's color. Number labels
+// sit below each block. The returned object exposes pulse() for the answer-
+// reveal beat.
+function mergedRow(ctx, nums) {
+  const { k } = ctx;
+  const total = nums.reduce((a, b) => a + b, 0);
+  const cell = 72;
+  const gap = 8;
+  const totalW = total * cell + (total - 1) * gap;
+  const startX = LAYOUT.barX - totalW / 2 + cell / 2;
+  const y = LAYOUT.bodyY + 40;
 
-// Renders three big number tiles in a row, each in its own color with a
-// small one-row ten-frame beneath. The equation above shows them as
-// "N1 + N2 + N3 = ?" with each addend colored to match its tile.
-function threeTileBody(ctx, highlight = null) {
-  const { k, round } = ctx;
-  const nums = round.nums;
-  const tileW = 200;
-  const gap = 60;
-  const totalW = nums.length * tileW + (nums.length - 1) * gap;
-  const startX = LAYOUT.barX - totalW / 2 + tileW / 2;
-  const y = LAYOUT.bodyY + 60;
+  const root = k.add([k.pos(0, 0)]);
+  const cellNodes = [];
 
-  nums.forEach((n, i) => {
-    const x = startX + i * (tileW + gap);
-    const color = COLORS[i];
-    const isHi = highlight && highlight.includes(n);
-
-    // Big colored tile.
-    const tile = k.add([
-      k.rect(tileW, 200, { radius: 28 }),
-      k.color(...color),
-      k.outline(4, k.rgb(...INK)),
-      k.pos(x, y),
-      k.anchor("center"),
-    ]);
-    // The number itself, in white over the color.
-    tile.add([
-      k.text(String(n), { size: 120, font: FONT }),
-      k.color(255, 255, 255),
-      k.anchor("center"),
-      k.pos(0, 0),
-    ]);
-    if (isHi) {
-      // Pulse ring around the friend pair so the eye lands on them.
-      const ring = k.add([
-        k.rect(tileW + 30, 230, { radius: 36 }),
-        k.color(...color),
-        k.opacity(0.35),
-        k.outline(6, k.rgb(...INK)),
-        k.pos(x, y),
+  let cellIdx = 0;
+  nums.forEach((n, colorIdx) => {
+    const color = COLORS[colorIdx];
+    const groupStart = cellIdx;
+    for (let c = 0; c < n; c++) {
+      const cx = startX + cellIdx * (cell + gap);
+      const box = root.add([
+        k.rect(cell, cell, { radius: 14 }),
+        k.color(255, 250, 240),
+        k.outline(4, k.rgb(...INK)),
+        k.pos(cx, y),
         k.anchor("center"),
       ]);
-      ctx.friendRings = ctx.friendRings || [];
-      ctx.friendRings.push(ring);
+      root.add([
+        k.circle(Math.round(cell * 0.62)),
+        k.color(...color),
+        k.outline(3, k.rgb(...INK)),
+        k.pos(cx, y),
+        k.anchor("center"),
+      ]);
+      cellNodes.push({ box, cx });
+      cellIdx++;
     }
 
-    // One-row ten-frame underneath, filled to n (capped at 10). The big tile
-    // already carries the number, so the frame's own label is suppressed.
-    const frame = tenFrame(k, Math.min(n, 10), {
-      x, y: y + 170, rows: 1, cell: 28, gap: 4, showLabel: false,
-    });
+    // Number label centered under this color's group.
+    const groupEnd = cellIdx - 1;
+    const groupCenterX = (startX + groupStart * (cell + gap) + startX + groupEnd * (cell + gap)) / 2;
+    root.add([
+      k.text(String(n), { size: 56, font: FONT }),
+      k.color(...color),
+      k.outline(3, k.rgb(...INK)),
+      k.pos(groupCenterX, y + cell / 2 + 56),
+      k.anchor("center"),
+    ]);
   });
+
+  // Pulse all cell outlines once. Called when the child answers correctly.
+  root.pulse = () => {
+    cellNodes.forEach(({ box }) => {
+      k.tween(box.opacity ?? 1, 0.4, 0.15, (v) => { box.opacity = v; });
+      k.wait(0.15, () => {
+        k.tween(box.opacity ?? 1, 1, 0.25, (v) => { box.opacity = v; });
+      });
+    });
+  };
+
+  return root;
 }
 
-// Builds the equation as a colored slot list: [N1, "+", N2, "+", N3, "=", "?"]
-function coloredEquation(nums, sumKnown) {
+// Build the equation as [N1, "+", N2, "+", N3, "=", sumSlot]. sumSlot is
+// either "?" while asking or the actual answer after a correct pick.
+function coloredEquation(nums, sumSlot) {
   const slots = [];
-  nums.forEach((n, i) => {
-    if (i > 0) slots.push("+");
-    slots.push(n);
-  });
-  slots.push("=", sumKnown != null ? sumKnown : "?");
   const colors = [];
-  let slotIdx = 0;
-  nums.forEach((_, i) => {
-    if (i > 0) {
-      colors.push(undefined);
-      slotIdx++;
-    }
+  nums.forEach((n, i) => {
+    if (i > 0) { slots.push("+"); colors.push(undefined); }
+    slots.push(n);
     colors.push(COLORS[i]);
-    slotIdx++;
   });
+  slots.push("=", sumSlot);
   colors.push(undefined, undefined);
   return { slots, colors };
 }
@@ -107,38 +103,35 @@ export default createRoundScene({
   levelId: 1,
   sceneName: "level1",
   introCue: "lvl-1-intro",
-  stepLabels: ["See", "Count"],
+  // One teaching beat now: see the row, count the colors, pick the total.
+  stepLabels: ["Count"],
 
   steps: [
-    // Step 1 — See: introduce the three numbers with a friendly cue. For
-    // pattern B, ask which two are friends of 10 (correct = 10).
     (ctx, round) => {
-      const friend = friendPair(round.nums);
-      threeTileBody(ctx, friend || null);
-      const eq = coloredEquation(round.nums, null);
-      ctx.context(`What is ${round.nums[0]} + ${round.nums[1]} + ${round.nums[2]} ?`);
+      const body = mergedRow(ctx, round.nums);
+      ctx.cellRow = body;
+      // Read the equation aloud as soon as the problem appears:
+      // "what is two plus three plus four". Chained cues so we don't have
+      // to ship one MP3 per (nums, answer) combination.
+      const spoken = ["q-what-is"];
+      round.nums.forEach((n) => {
+        spoken.push(`n-${n}`);
+        spoken.push("q-plus");
+      });
+      spoken.pop(); // drop the trailing "plus"
+      ctx.k.wait(0.1, () => window.PandaAudio.playSequence(spoken));
       return {
-        equation: eq,
-        cue: friend ? "step-2" : "lvl1-step-1",
-        question: friend
-          ? {
-              correct: 10,
-              values: options(10, { min: 0, max: 10, count: 4 }),
-            }
-          : null, // pattern A: no question, just look and auto-advance
-      };
-    },
-    // Step 2 — Count: always asks the final sum.
-    (ctx, prev) => {
-      const friend = friendPair(prev.nums);
-      // Rebuild the body to show the friend-pair highlight clearly.
-      threeTileBody(ctx, friend || null);
-      return {
-        equation: coloredEquation(prev.nums, prev.answer),
+        equation: coloredEquation(round.nums, "?"),
         cue: "lvl1-step-2",
         question: {
-          correct: prev.answer,
-          values: options(prev.answer, { min: 0, max: 16, count: 4 }),
+          correct: round.answer,
+          values: options(round.answer, { min: 0, max: 16, count: 4 }),
+        },
+        onAdvance: () => {
+          // After a correct pick, swap the "?" for the real sum and pulse
+          // the row once so the answer feels rewarded.
+          ctx.setEquation(coloredEquation(round.nums, round.answer));
+          ctx.cellRow?.pulse?.();
         },
       };
     },
