@@ -29,6 +29,18 @@ import { fileURLToPath } from "node:url";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, "..");
 
+// Load .env from project root if present so callers don't have to `source` it
+// before invoking the script. Existing process.env values win.
+try {
+  const envPath = path.join(ROOT, ".env");
+  if (fs.existsSync(envPath)) {
+    for (const line of fs.readFileSync(envPath, "utf8").split("\n")) {
+      const m = line.match(/^([A-Z_][A-Z0-9_]*)=(.*)$/);
+      if (m && !process.env[m[1]]) process.env[m[1]] = m[2];
+    }
+  }
+} catch (_) { /* ignore */ }
+
 const KEY = process.env.ELEVENLABS_KEY;
 const VOICE = process.env.ELEVENLABS_VOICE_ID || "EXAVITQu4vr4xnSDxMaL"; // Bella
 const MODEL = process.env.ELEVENLABS_MODEL_ID || "eleven_flash_v2_5";
@@ -70,7 +82,15 @@ async function synthesizeOne(cue) {
     body: JSON.stringify({
       text: safe(cue.text),
       model_id: MODEL,
-      voice_settings: { stability: 0.6, similarity_boost: 0.7 },
+      // Voice tuned for 3-6 year old non-English speakers: slower (0.75)
+      // and very stable so each tiny utterance is clearly articulated.
+      voice_settings: {
+        stability: 0.8,
+        similarity_boost: 0.7,
+        style: 0.3,
+        speed: 0.75,
+        use_speaker_boost: false,
+      },
     }),
   });
   if (!res.ok) {

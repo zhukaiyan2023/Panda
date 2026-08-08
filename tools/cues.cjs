@@ -1,26 +1,42 @@
-// tools/cues.js — 31-cue manifest for the Panda math game.
-// Each entry maps a cue id (filename without .mp3) to the text that Azure Speech
-// should speak. tools/build-audio.js reads this list and generates assets/audio/<id>.mp3.
+// tools/cues.js — short audio cues for the Panda math game.
 //
-// NB: kept as CommonJS so the Azure builder can keep its require() style without
-// having to be converted to ESM. The ElevenLabs builder imports this via a dynamic
-// import() with an explicit assertion.
+// Each cue is a 1-3 word utterance. The target audience is 3-6 year old
+// non-English speakers (the project description names Chinese kids), so:
+//   * nothing longer than 3 syllables
+//   * concrete words a toddler can attach to a picture (yum, pop, hug, ten)
+//   * no abstract praise like "you did it" or "high five" — these don't
+//     translate and a 3 year old won't follow the meaning anyway
+//   * numbers stay short ("one".."ten") so they're recognisable
+//
+// tools/build-audio-elevenlabs.mjs reads this list and writes
+// assets/audio/<id>.mp3. CommonJS so the Azure builder can keep its style.
 
 module.exports = [
-  // step transitions
-  { id: "step-1", text: "Find a friend." },
-  { id: "step-2", text: "Make ten." },
-  { id: "step-3", text: "Add the rest." },
-  { id: "step-4", text: "Celebrate!" },
+  // ===== math round step transitions =====
+  // Short prompts the panda reads to the child. Each step is a teaching beat:
+  // step-1 = find the biggest, step-2 = make a ten, step-3 = split the small,
+  // step-4 = count it all. Calm, gentle, never shouty.
+  { id: "step-1", text: "biggest?" },
+  { id: "step-2", text: "friend?" },
+  { id: "step-3", text: "small?" },
+  { id: "step-4", text: "count!" },
 
-  // encouragements (rotated on correct answer)
-  { id: "enc-great",    text: "Great job!" },
-  { id: "enc-awesome",  text: "Awesome!" },
-  { id: "enc-amazing",  text: "Amazing!" },
-  { id: "enc-nice",     text: "Nice work!" },
-  { id: "enc-try",      text: "Try again." },
+  // Variant for Level 1 (mixed-addition). When the three numbers don't pair
+  // to ten we skip the friend step, so the cue list is shorter.
+  { id: "lvl1-step-1", text: "see?" },
+  { id: "lvl1-step-2", text: "count!" },
 
-  // number names (used when picking an answer)
+  // ===== encouragements =====
+  // One word each, rotated on a correct answer. Cheerful sounds a toddler
+  // can mimic even without understanding English.
+  { id: "enc-great",   text: "yay!" },
+  { id: "enc-awesome", text: "woohoo!" },
+  { id: "enc-amazing", text: "wow!" },
+  { id: "enc-nice",    text: "yummy!" },
+  { id: "enc-try",     text: "oops!" },
+
+  // ===== number names =====
+  // Spoken slowly when a number lands on the board.
   { id: "n-1",  text: "one" },
   { id: "n-2",  text: "two" },
   { id: "n-3",  text: "three" },
@@ -32,50 +48,52 @@ module.exports = [
   { id: "n-9",  text: "nine" },
   { id: "n-10", text: "ten" },
 
-  // round / level flow
-  { id: "round-start", text: "Round start." },
-  { id: "round-end",   text: "Round end." },
-  { id: "lvl-1-intro", text: "Welcome to level one. Numbers up to five." },
-  { id: "lvl-2-intro", text: "Welcome to level two. Make a ten." },
-  { id: "lvl-3-intro", text: "Welcome to level three. Up to twenty." },
-  { id: "lvl-done",    text: "Level complete!" },
+  // ===== round / level flow =====
+  { id: "round-start", text: "go!" },
+  { id: "round-end",   text: "done!" },
+  { id: "lvl-1-intro", text: "three friends!" },
+  { id: "lvl-2-intro", text: "make ten" },
+  { id: "lvl-3-intro", text: "big numbers" },
+  { id: "lvl-done",    text: "all done!" },
 
-  // panda teacher feedback
-  { id: "panda-hi",         text: "Hi, I'm Panda. Let's play!" },
-  { id: "panda-celebrate",  text: "You did it! High five!" },
+  // ===== panda teacher feedback =====
+  // Was "Hi, I'm Panda. Let's play!" — now just a friendly panda noise so the
+  // child associates the character with a sound, not a sentence.
+  { id: "panda-hi",        text: "hi!" },
+  { id: "panda-celebrate", text: "hurray!" },
 
-  // ui feedback
-  { id: "tap-unlock",     text: "Tap to start." },
-  { id: "level-locked",   text: "Finish the previous level first." },
-  { id: "next",           text: "Next." },
-  { id: "back",           text: "Back." },
+  // ===== ui feedback =====
+  { id: "tap-unlock",   text: "tap!" },
+  { id: "level-locked", text: "not yet" },
+  { id: "next",         text: "next" },
+  { id: "back",         text: "back" },
 
   // ===== panda-park migrated games =====
   // boat — pair to cross
-  { id: "boat-intro",     text: "Pick two boats that make ten." },
-  { id: "boat-pair",      text: "You found the pair!" },
-  { id: "boat-done",      text: "The bridge is full!" },
+  { id: "boat-intro", text: "ten!" },
+  { id: "boat-pair",  text: "yes!" },
+  { id: "boat-done",  text: "yay!" },
 
   // cloud — find all pairs in six clouds
-  { id: "cloud-intro",    text: "Find every pair that hugs to ten." },
-  { id: "cloud-pair",     text: "A hug!" },
-  { id: "cloud-done",     text: "All pairs found!" },
+  { id: "cloud-intro", text: "hug!" },
+  { id: "cloud-pair",  text: "hug!" },
+  { id: "cloud-done",  text: "yay!" },
 
   // bounce — pop a balloon
-  { id: "bounce-intro",   text: "Pop the balloon that makes ten." },
-  { id: "bounce-pop",     text: "Pop!" },
-  { id: "bounce-done",    text: "All popped!" },
+  { id: "bounce-intro", text: "pop!" },
+  { id: "bounce-pop",   text: "pop!" },
+  { id: "bounce-done",  text: "yay!" },
 
   // whack-a-mole — 30 second race
-  { id: "whack-intro",    text: "Tap two moles that add to ten." },
-  { id: "whack-start",    text: "Go!" },
-  { id: "whack-tick",     text: "Ten seconds left!" },
-  { id: "whack-timeup",   text: "Time's up!" },
-  { id: "whack-done",     text: "Five pairs! You win!" },
+  { id: "whack-intro",  text: "tap tap!" },
+  { id: "whack-start",  text: "go!" },
+  { id: "whack-tick",   text: "hurry!" },
+  { id: "whack-timeup", text: "stop!" },
+  { id: "whack-done",   text: "yay!" },
 
   // panda feed — find pairs, panda eats
-  { id: "feed-intro",     text: "Help the panda eat. Pick two numbers that make ten." },
-  { id: "feed-nom",       text: "Yum!" },
-  { id: "feed-next",      text: "Harder now!" },
-  { id: "feed-done",      text: "The panda is full!" },
+  { id: "feed-intro", text: "yum!" },
+  { id: "feed-nom",   text: "yum!" },
+  { id: "feed-next",  text: "more!" },
+  { id: "feed-done",  text: "full!" },
 ];
