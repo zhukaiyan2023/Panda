@@ -1,6 +1,10 @@
 // tools/cues.js — 31-cue manifest for the Panda math game.
 // Each entry maps a cue id (filename without .mp3) to the text that Azure Speech
 // should speak. tools/build-audio.js reads this list and generates assets/audio/<id>.mp3.
+//
+// NB: kept as CommonJS so the Azure builder can keep its require() style without
+// having to be converted to ESM. The ElevenLabs builder imports this via a dynamic
+// import() with an explicit assertion.
 
 module.exports = [
   // step transitions
@@ -45,4 +49,33 @@ module.exports = [
   { id: "level-locked",   text: "Finish the previous level first." },
   { id: "next",           text: "Next." },
   { id: "back",           text: "Back." },
+
+  // ===== panda-park migrated games =====
+  // boat — pair to cross
+  { id: "boat-intro",     text: "Pick two boats that make ten." },
+  { id: "boat-pair",      text: "You found the pair!" },
+  { id: "boat-done",      text: "The bridge is full!" },
+
+  // cloud — find all pairs in six clouds
+  { id: "cloud-intro",    text: "Find every pair that hugs to ten." },
+  { id: "cloud-pair",     text: "A hug!" },
+  { id: "cloud-done",     text: "All pairs found!" },
+
+  // bounce — pop a balloon
+  { id: "bounce-intro",   text: "Pop the balloon that makes ten." },
+  { id: "bounce-pop",     text: "Pop!" },
+  { id: "bounce-done",    text: "All popped!" },
+
+  // whack-a-mole — 30 second race
+  { id: "whack-intro",    text: "Tap two moles that add to ten." },
+  { id: "whack-start",    text: "Go!" },
+  { id: "whack-tick",     text: "Ten seconds left!" },
+  { id: "whack-timeup",   text: "Time's up!" },
+  { id: "whack-done",     text: "Five pairs! You win!" },
+
+  // panda feed — find pairs, panda eats
+  { id: "feed-intro",     text: "Help the panda eat. Pick two numbers that make ten." },
+  { id: "feed-nom",       text: "Yum!" },
+  { id: "feed-next",      text: "Harder now!" },
+  { id: "feed-done",      text: "The panda is full!" },
 ];

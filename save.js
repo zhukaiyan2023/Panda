@@ -1,7 +1,17 @@
 // save.js — localStorage.panda-save-v1 persistence.
 //
 // Shape:
-//   { currentLevel: 1..3, unlockedLevel: 1..3, starsByLevel: { 1: n, 2: n, 3: n } }
+//   {
+//     currentLevel: 1..3,
+//     unlockedLevel: 1..3,
+//     starsByLevel: { 1: n, 2: n, 3: n },
+//     unlockedGame: 1..5,           // panda-park games, parallel track
+//     starsByGame:  { 1: n, 2: n, 3: n, 4: n, 5: n },
+//   }
+//
+// The math and game tracks are independent: finishing all 3 math levels does
+// not auto-unlock panda-park games, and vice versa. Each track has its own
+// first-unlocked default so a brand-new install can play either.
 //
 // Bad JSON or disabled storage falls back to an in-memory default so the game
 // still plays.
@@ -12,6 +22,8 @@ const DEFAULT = {
   currentLevel: 1,
   unlockedLevel: 1,
   starsByLevel: {},
+  unlockedGame: 1,
+  starsByGame: {},
 };
 
 let memFallback = null;
@@ -68,13 +80,27 @@ function sanitize(value) {
       stars[i] = clampInt(value.starsByLevel[i], 0, 999, 0);
     }
   }
-  return { currentLevel: current, unlockedLevel: unlocked, starsByLevel: stars };
+  const unlockedGame = clampInt(value.unlockedGame, 1, 5, 1);
+  const gameStars = {};
+  if (value.starsByGame && typeof value.starsByGame === "object") {
+    for (let i = 1; i <= 5; i++) {
+      gameStars[i] = clampInt(value.starsByGame[i], 0, 999, 0);
+    }
+  }
+  return {
+    currentLevel: current,
+    unlockedLevel: unlocked,
+    starsByLevel: stars,
+    unlockedGame,
+    starsByGame: gameStars,
+  };
 }
 
 function cloneSave(value) {
   return {
     ...value,
     starsByLevel: { ...(value.starsByLevel || {}) },
+    starsByGame: { ...(value.starsByGame || {}) },
   };
 }
 

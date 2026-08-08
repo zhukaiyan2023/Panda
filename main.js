@@ -62,6 +62,11 @@ const CUE_IDS = [
   "lvl-1-intro", "lvl-2-intro", "lvl-3-intro", "lvl-done",
   "panda-hi", "panda-celebrate",
   "tap-unlock", "level-locked", "next", "back",
+  "boat-intro", "boat-pair", "boat-done",
+  "cloud-intro", "cloud-pair", "cloud-done",
+  "bounce-intro", "bounce-pop", "bounce-done",
+  "whack-intro", "whack-start", "whack-tick", "whack-timeup", "whack-done",
+  "feed-intro", "feed-nom", "feed-next", "feed-done",
 ];
 
 const audio = {};
@@ -119,6 +124,31 @@ const k = kaplay({
 window.kaplay = k;
 window.PandaAudio = { audio, unlockAudio, playCue, isUnlocked: () => audioUnlocked };
 
+// Art assets are hand-authored SVG under assets/art/. Unlike the level data
+// above, these are fetched over HTTP, so the game must be served (see README) —
+// double-clicking index.html will start but render without art. Each load is
+// guarded individually: a missing or malformed file should cost the game its
+// decoration, not its arithmetic. Components check k.getSprite() before drawing.
+const SPRITES = [
+  "panda-idle", "panda-cheer", "panda-think",
+  "bamboo", "leaf",
+  "star", "lock",
+  "badge-1", "badge-2", "badge-3",
+  // panda-park migrated game props
+  "boat", "cloud", "mole", "balloon", "bubble",
+];
+
+function loadArt() {
+  return Promise.all(
+    SPRITES.map((name) =>
+      Promise.resolve(k.loadSprite(name, `assets/art/${name}.svg`)).catch((err) => {
+        console.warn(`[panda] sprite "${name}" failed to load:`, err?.message || err);
+        return null;
+      }),
+    ),
+  );
+}
+
 function tryLockLandscape() {
   if (!screen.orientation || typeof screen.orientation.lock !== "function") return;
   screen.orientation.lock("landscape").catch(() => {});
@@ -149,20 +179,43 @@ watchOrientation();
 
   const [
     { default: levelPicker },
+    { default: gamesPicker },
     { default: level1 },
     { default: level2 },
     { default: level3 },
+    { default: gameBoat },
+    { default: gameBounce },
+    { default: gameCloud },
+    { default: gameFeed },
+    { default: gameWhack },
   ] = await Promise.all([
     import("./scenes/levelPicker.js"),
+    import("./scenes/gamesPicker.js"),
     import("./scenes/level1.js"),
     import("./scenes/level2.js"),
     import("./scenes/level3.js"),
+    import("./scenes/gameBoat.js"),
+    import("./scenes/gameBounce.js"),
+    import("./scenes/gameCloud.js"),
+    import("./scenes/gameFeed.js"),
+    import("./scenes/gameWhack.js"),
   ]);
 
+  // Sprites must be resolved before the first scene runs: scenes decide at build
+  // time whether a sprite exists, so loading them afterwards would leave the
+  // opening screen permanently art-less.
+  await loadArt();
+
   k.scene("levelPicker", () => levelPicker(k));
+  k.scene("gamesPicker", () => gamesPicker(k));
   k.scene("level1", () => level1(k));
   k.scene("level2", () => level2(k));
   k.scene("level3", () => level3(k));
+  k.scene("gameBoat",   () => gameBoat(k));
+  k.scene("gameBounce", () => gameBounce(k));
+  k.scene("gameCloud",  () => gameCloud(k));
+  k.scene("gameFeed",   () => gameFeed(k));
+  k.scene("gameWhack",  () => gameWhack(k));
 
   k.go("levelPicker");
 })();

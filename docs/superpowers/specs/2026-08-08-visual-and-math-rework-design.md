@@ -53,7 +53,41 @@ the same screen.
 For a math-teaching app aimed at ages 3–6 this outranks any visual concern:
 a plain interface teaches correctly, a false equation teaches wrongly.
 
-### 3. Secondary defects
+### 3. Defects found while implementing
+
+Fixing the crash made the levels reachable, and playing them surfaced four more
+defects that the original diagnosis could not see:
+
+- **No round was completable.** `advance()` ran only from a correct pick, and
+  that pick disabled the button and added its index to `state.locked`. Reaching
+  step 3 required a second correct pick, but the only correct button was now
+  locked, so `onPick` returned early. Every round stalled on step 2 — the
+  celebrate step, the `round-end` cue and the next round were unreachable. The
+  reveal steps are an explanation rather than further questions, so they now play
+  out on a timer after the first correct answer.
+- **Level 2 scored an answer the screen contradicted.** It displayed
+  `a + ? = a+b` ("8 + ? = 13") while treating `need` (2) as correct. A child who
+  correctly computed 5 was marked wrong. The equation now states the question
+  being scored, `a + ? = 10`, with the full problem pinned below as context.
+- **Level 1 ran Level 2's make-a-ten reveal steps.** `data/levels.json` has no
+  `need` field for Level 1, so the fallback `10 - a` produced "2 + 8 = 10"
+  immediately after a round about 2 + 1 = 3, then filled a ten-frame to 10. This
+  is `level2.js` copied and not fully adapted.
+- **Level 3 step 3 rendered nothing** — it advanced the step bar and returned.
+- **`stepBar` and `tenFrame` were re-created rather than updated.** Each
+  `advance()` called `stepBar(...)` again, so four bars were stacked by the final
+  step, with the labels overprinting each other. Both components now expose
+  `setStep` / `setValue`.
+- **The answer count varied between rounds.** Candidate lists were deduped after
+  the fact, so Level 2 round 2 (7 + 6, where `need` and `rest` are both 3)
+  collapsed to three buttons.
+
+Roughly 70% of each scene file was a verbatim copy of the others, which is why
+one bad `area()` call broke all three levels and why Level 1 still carried Level
+2's steps. The shared flow was extracted to `scenes/roundScene.js`; a level now
+supplies only its equation, choices, number representation and reveal steps.
+
+### 4. Cosmetic defects
 
 - `components/stepBar.js:51` hardcodes the make-a-ten step labels
   ("Find a friend / Make 10 / Add the rest / Celebrate") for every level.
@@ -175,17 +209,29 @@ completion. This finally uses the two orphaned audio cues already in the repo.
 
 ## Testing
 
-The arithmetic fix must be verified mechanically, not by eye. An
-automated check drives the game headless and, for **all 18 rounds** across the
-three levels, asserts that the three numerals rendered by `expression` satisfy
-`left + right === sum`. Reviewing 18 rounds visually is not reliable.
+The arithmetic fix must be verified mechanically, not by eye. `tools/verify-math.mjs`
+drives the game headless and, for **all 18 rounds** across the three levels,
+asserts that:
 
-Additional checks:
+- the equation rendered on screen is true (`left + right === sum`),
+- exactly four distinct answer buttons are offered,
+- and clicking the equation's own answer is **accepted** — which is what catches
+  the Level 2 class of bug, where the displayed equation and the scored answer
+  disagreed.
 
-- Zero console errors across all scenes plus tap interaction (already passing).
-- Every sprite referenced by `loadSprite` resolves — no 404s.
-- No text node overlaps another in the top-left region.
-- Screenshot capture of every scene for visual review.
+Reviewing 18 rounds visually is not reliable. Wired up as `npm run verify:math`,
+honouring the same `CHROME_PATH` override as the existing `npm run smoke`.
+
+Result: 18/18 rounds pass, zero console errors, zero failed requests.
+
+Additional checks performed:
+
+- `npm run smoke` still passes (canvas up, 31 audio cues, 3 levels, 0 errors).
+- Screenshots of the picker and every level reviewed for overlap. Two real
+  collisions were found and fixed this way: the panda overlapped the Level 1 card
+  on the picker, and Level 2's context line collided with the ten-frame's count
+  label. Reveal lines are now capped at two, so the working-out cannot grow into
+  the answer buttons.
 
 ## Out of scope
 

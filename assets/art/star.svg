@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <title>Reward Star</title>
+  <desc>A rounded five-pointed golden star.</desc>
+
+  <!-- Soft drop shadow base (slightly offset) -->
+  <path d="M 132 44 L 159 102 L 222 110 L 175 152 L 188 214 L 132 184 L 76 214 L 89 152 L 42 110 L 105 102 Z"
+        fill="#3d3652" opacity="0.18"/>
+
+  <!-- Star body (rounded via stroke-linejoin) -->
+  <path d="M 128 40 L 156 100 L 220 108 L 172 150 L 186 214 L 128 182 L 70 214 L 84 150 L 36 108 L 100 100 Z"
+        fill="#ffd166" stroke="#3d3652" stroke-width="6" stroke-linejoin="round" stroke-linecap="round"/>
+
+  <!-- Inner highlight (smaller star) -->
+  <path d="M 128 78 L 146 116 L 188 122 L 158 148 L 168 188 L 128 168 L 88 188 L 98 148 L 68 122 L 110 116 Z"
+        fill="#fffaf0" opacity="0.25"/>
+
+  <!-- Sparkle accents -->
+  <circle cx="68" cy="70" r="4" fill="#fffaf0"/>
+  <circle cx="196" cy="178" r="3" fill="#fffaf0"/>
+  <circle cx="184" cy="56" r="2.5" fill="#fffaf0"/>
+</svg>

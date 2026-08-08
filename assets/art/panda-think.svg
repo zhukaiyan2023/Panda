@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <title>Panda - Think (warm/encouraging)</title>
+  <desc>Curious panda with one paw resting at chin, slight head tilt, soft smile. Reads as 'let's try again'.</desc>
+
+  <!-- Body -->
+  <path d="M 60 232 Q 50 210 56 188 Q 64 168 84 164 L 172 164 Q 192 168 200 188 Q 206 210 196 232 Z"
+        fill="#fffaf0" stroke="#3d3652" stroke-width="4" stroke-linejoin="round"/>
+
+  <!-- Right arm (resting at side) -->
+  <path d="M 192 184 Q 208 188 210 208 Q 210 226 196 232 Q 182 232 178 218 Q 176 200 178 188 Z"
+        fill="#3d3652" stroke="#3d3652" stroke-width="4" stroke-linejoin="round"/>
+
+  <!-- Ears -->
+  <circle cx="74" cy="64" r="22" fill="#3d3652" stroke="#3d3652" stroke-width="4"/>
+  <circle cx="182" cy="64" r="22" fill="#3d3652" stroke="#3d3652" stroke-width="4"/>
+  <circle cx="74" cy="66" r="9" fill="#ff8fab"/>
+  <circle cx="182" cy="66" r="9" fill="#ff8fab"/>
+
+  <!-- Head (slightly tilted by rotation group) -->
+  <g transform="rotate(-6 128 118)">
+
+    <!-- Left arm bent UP toward chin (drawn behind head so it goes under chin) -->
+    <path d="M 70 200
+             Q 56 196 60 176
+             Q 66 156 86 152
+             Q 104 150 116 160
+             Q 122 164 122 168"
+          fill="#3d3652" stroke="#3d3652" stroke-width="4" stroke-linejoin="round"/>
+    <!-- Paw resting at chin -->
+    <ellipse cx="118" cy="166" rx="13" ry="10" fill="#fffaf0" stroke="#3d3652" stroke-width="3.5"/>
+
+    <!-- Head ellipse -->
+    <ellipse cx="128" cy="118" rx="76" ry="72" fill="#fffaf0" stroke="#3d3652" stroke-width="4"/>
+
+    <!-- Eye patches -->
+    <ellipse cx="98" cy="112" rx="20" ry="26" fill="#3d3652" transform="rotate(-18 98 112)"/>
+    <ellipse cx="158" cy="112" rx="20" ry="26" fill="#3d3652" transform="rotate(18 158 112)"/>
+
+    <!-- Soft brows raised in friendly curiosity -->
+    <path d="M 86 92 Q 95 86 108 92" fill="none" stroke="#3d3652" stroke-width="3.5" stroke-linecap="round"/>
+    <path d="M 148 92 Q 159 84 172 92" fill="none" stroke="#3d3652" stroke-width="3.5" stroke-linecap="round"/>
+
+    <!-- Eye whites -->
+    <circle cx="98" cy="114" r="9" fill="#fffaf0"/>
+    <circle cx="158" cy="114" r="9" fill="#fffaf0"/>
+
+    <!-- Pupils, looking slightly up-right (toward the thought) -->
+    <circle cx="101" cy="113" r="5" fill="#3d3652"/>
+    <circle cx="161" cy="113" r="5" fill="#3d3652"/>
+
+    <!-- Eye highlights -->
+    <circle cx="103" cy="111" r="1.6" fill="#fffaf0"/>
+    <circle cx="163" cy="111" r="1.6" fill="#fffaf0"/>
+
+    <!-- Cheeks (warm) -->
+    <circle cx="76" cy="142" r="7" fill="#ff8fab" opacity="0.85"/>
+    <circle cx="180" cy="142" r="7" fill="#ff8fab" opacity="0.85"/>
+
+    <!-- Nose -->
+    <path d="M 122 138 Q 128 144 134 138 Q 132 146 128 148 Q 124 146 122 138 Z"
+          fill="#3d3652" stroke="#3d3652" stroke-width="2" stroke-linejoin="round"/>
+
+    <!-- Mouth: small soft smile, slightly parted (curious-encouraging, not sad/o-surprised) -->
+    <path d="M 128 152 L 128 158" fill="none" stroke="#3d3652" stroke-width="3" stroke-linecap="round"/>
+    <path d="M 116 160 Q 128 170 140 160" fill="#3d3652" stroke="#3d3652" stroke-width="2.5" stroke-linejoin="round"/>
+    <path d="M 120 161 Q 128 166 136 161" fill="#ff8fab" opacity="0.85"/>
+
+  </g>
+
+  <!-- Thought sparkles (off to the upper right) -->
+  <circle cx="216" cy="58" r="4" fill="#ffd166" stroke="#3d3652" stroke-width="1.5"/>
+  <circle cx="226" cy="42" r="2.5" fill="#ff8a3d"/>
+  <circle cx="232" cy="30" r="2" fill="#7cc7ff"/>
+</svg>

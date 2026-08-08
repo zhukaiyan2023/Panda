@@ -1,0 +1,214 @@
+// scenes/gamesPicker.js — panda-park games tab.
+//
+// Five large cards: Boat, Bounce, Cloud, Feed, Whack. Locked games show a
+// lock badge; unlocked games play their intro cue and enter the scene on tap.
+// Stars are tracked separately under save.starsByGame so the math and games
+// tracks are independent.
+//
+// The tab bar at the top mirrors the one on the math picker — same chrome,
+// same tab pill style — so a child can predict where "Math" went when they
+// want it back.
+
+import panda from "../components/panda.js";
+import {
+  INK, PAPER, CARD, ORANGE, YELLOW, BLUE, PURPLE, PINK, FONT,
+} from "../components/theme.js";
+
+const LOCKED_BG = [220, 213, 230];
+const LOCKED_INK = [150, 140, 170];
+
+const GAMES = [
+  { id: 1, title: "Boat",  sub: "Pair to cross",  scene: "gameBoat",   sprite: "boat",   accent: BLUE },
+  { id: 2, title: "Bounce", sub: "Pop balloons",  scene: "gameBounce", sprite: "balloon", accent: PINK },
+  { id: 3, title: "Cloud",  sub: "Hug a pair",    scene: "gameCloud",  sprite: "cloud",  accent: PURPLE },
+  { id: 4, title: "Feed",   sub: "Help panda eat", scene: "gameFeed",   sprite: "bubble", accent: ORANGE },
+  { id: 5, title: "Whack",  sub: "Race the clock", scene: "gameWhack",  sprite: "mole",   accent: YELLOW },
+];
+
+function hasSprite(k, name) {
+  try { return !!k.getSprite(name); } catch (_) { return false; }
+}
+
+function sprite(parent, k, name, { x, y, size }) {
+  if (!hasSprite(k, name)) return null;
+  const node = parent.add([k.sprite(name), k.anchor("center"), k.pos(x, y)]);
+  node.width = size;
+  node.height = size;
+  return node;
+}
+
+function drawTab(k, parent, label, x, y, w, h, active) {
+  const fill = active ? ORANGE : CARD;
+  const text = parent.add([
+    k.rect(w, h, { radius: 22 }),
+    k.color(...fill),
+    k.outline(4, k.rgb(...INK)),
+    k.pos(x, y),
+    k.anchor("center"),
+    k.area(),
+  ]);
+  parent.add([
+    k.text(label, { size: 32, font: FONT }),
+    k.color(active ? [255, 255, 255] : INK),
+    k.pos(x, y),
+    k.anchor("center"),
+  ]);
+  text.onClick(() => {
+    window.PandaAudio.playCue("next");
+    k.go(label === "Math" ? "levelPicker" : "gamesPicker");
+  });
+}
+
+function drawCard(k, parent, game, unlocked) {
+  const w = 240;
+  const h = 280;
+  const x = game.cardX;
+  const y = game.cardY;
+
+  parent.add([
+    k.rect(w, h, { radius: 24 }),
+    k.color(...INK),
+    k.opacity(0.15),
+    k.pos(x, y + 10),
+    k.anchor("center"),
+  ]);
+
+  const card = parent.add([
+    k.rect(w, h, { radius: 24 }),
+    k.color(...(unlocked ? CARD : LOCKED_BG)),
+    k.outline(5, k.rgb(...INK)),
+    k.pos(x, y),
+    k.anchor("center"),
+    k.area(),
+  ]);
+
+  // Accent band.
+  if (unlocked) {
+    card.add([
+      k.rect(w - 10, 84, { radius: 20 }),
+      k.color(...game.accent),
+      k.opacity(0.28),
+      k.pos(0, -h / 2 + 46),
+      k.anchor("center"),
+    ]);
+  }
+
+  // Prop sprite centered on the card.
+  if (unlocked) {
+    sprite(card, k, game.sprite, { x: 0, y: -10, size: 110 });
+  } else {
+    sprite(card, k, "lock", { x: 0, y: 0, size: 90 });
+  }
+
+  const titleColor = unlocked ? INK : LOCKED_INK;
+  card.add([
+    k.text(game.title, { size: 36, font: FONT }),
+    k.color(...titleColor),
+    k.pos(0, h / 2 - 70),
+    k.anchor("center"),
+  ]);
+  card.add([
+    k.text(game.sub, { size: 18, font: FONT }),
+    k.color(...titleColor),
+    k.opacity(0.7),
+    k.pos(0, h / 2 - 38),
+    k.anchor("center"),
+  ]);
+
+  const onPick = () => {
+    if (unlocked) {
+      window.PandaAudio.playCue("next");
+      k.go(game.scene);
+    } else {
+      window.PandaAudio.playCue("level-locked");
+    }
+  };
+  card.onClick(onPick);
+}
+
+export default function gamesPickerScene(k) {
+  const save = window.PandaSave?.load() || { unlockedGame: 1, starsByGame: {} };
+
+  k.add([k.rect(k.width(), k.height()), k.color(...PAPER), k.z(-10)]);
+
+  // Tabs at the top.
+  drawTab(k, k, "Math", 600, 200, 200, 70, false);
+  drawTab(k, k, "Games", 850, 200, 200, 70, true);
+
+  // Back to math picker (icon button top-left).
+  const back = k.add([
+    k.rect(96, 72, { radius: 20 }),
+    k.color(...ORANGE),
+    k.outline(4, k.rgb(...INK)),
+    k.pos(84, 92),
+    k.anchor("center"),
+    k.area(),
+  ]);
+  k.add([
+    k.text("←", { size: 44, font: FONT }),
+    k.color(255, 255, 255),
+    k.pos(84, 92),
+    k.anchor("center"),
+  ]);
+  back.onClick(() => {
+    window.PandaAudio.playCue("back");
+    k.go("levelPicker");
+  });
+
+  k.add([
+    k.text("Panda's Game Park", { size: 56, font: FONT }),
+    k.color(...INK),
+    k.pos(k.width() / 2, 110),
+    k.anchor("center"),
+  ]);
+
+  k.add([
+    k.text("Pick a game", { size: 28, font: FONT }),
+    k.color(...INK),
+    k.pos(k.width() / 2, 290),
+    k.anchor("center"),
+  ]);
+
+  // 5 cards in a single row.
+  const stride = 240;
+  const totalSpan = (GAMES.length - 1) * stride;
+  const baseY = 600;
+  GAMES.forEach((g, i) => {
+    drawCard(
+      k,
+      k,
+      {
+        ...g,
+        cardX: k.width() / 2 - totalSpan / 2 + i * stride,
+        cardY: baseY,
+      },
+      g.id <= save.unlockedGame,
+    );
+  });
+
+  // Panda greeter in the bottom-left so they recognize the character from
+  // the math picker.
+  const buddy = panda(k, { x: 120, y: 850, size: 200 });
+  buddy.setMood("idle");
+
+  // Total stars for games tab.
+  const totalStars = Object.values(save.starsByGame || {}).reduce((a, b) => a + b, 0);
+  const starY = k.height() - 80;
+  const hasStarSprite = sprite(k, k, "star", { x: k.width() / 2 - 40, y: starY, size: 52 });
+  k.add([
+    k.text(String(totalStars), { size: 40, font: FONT }),
+    k.color(...INK),
+    k.pos(k.width() / 2 + (hasStarSprite ? 6 : 0), starY),
+    k.anchor("center"),
+  ]);
+  if (!hasStarSprite) {
+    k.add([
+      k.text("game stars", { size: 24, font: FONT }),
+      k.color(...INK),
+      k.pos(k.width() / 2, starY + 36),
+      k.anchor("center"),
+    ]);
+  }
+
+  window.PandaAudio.playCue("panda-hi");
+}

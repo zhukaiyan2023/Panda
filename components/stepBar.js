@@ -1,61 +1,77 @@
 // components/stepBar.js — 4-step progress bar shown above the game area.
 //
-// Steps: Find a friend / Make 10 / Add the rest / Celebrate. Highlights the
-// current step (1..4) and animates a fill bar from 25% to 100%.
+// Step labels are supplied by the caller: they describe a teaching strategy, and
+// each level teaches a different one. They used to be hardcoded to the
+// make-a-ten wording ("Find a friend / Make 10 / ..."), which Level 1 also
+// displayed even though it teaches plain addition under 5.
+//
+// The returned object exposes setStep(n). Callers must reuse a single bar and
+// call setStep rather than constructing a new bar per step: the previous code
+// re-invoked stepBar() on every advance, leaving four overlapping bars stacked
+// on screen by the final step.
+//
+// Usage:
+//   const bar = stepBar(parent, { labels: [...4 strings], x, y, w, h });
+//   bar.setStep(2);
 
-const INK = [61, 54, 82];
-const STEP_BG = [240, 236, 250];
-const STEP_ACTIVE = [255, 209, 102];
-const BAR = [255, 143, 171];
+import { INK, YELLOW, PINK, FONT } from "./theme.js";
 
-function pill(parent, k, label, x, y, w, h, active) {
-  const p = parent.add([
-    k.rect(w, h, { radius: h / 2 }),
-    k.color(...(active ? STEP_ACTIVE : STEP_BG)),
-    k.pos(x, y),
-    k.anchor("center"),
-  ]);
-  p.add([
-    k.text(label, { size: Math.round(h * 0.55) }),
-    k.color(...INK),
-    k.anchor("center"),
-    k.pos(0, 0),
-  ]);
-  return p;
-}
+const TRACK = [240, 236, 250];
+const STEP_COUNT = 4;
 
 export default function stepBar(parent, opts = {}) {
   const k = window.kaplay;
-  const step = Math.max(1, Math.min(4, opts.step ?? 1));
+  const labels = (opts.labels ?? []).slice(0, STEP_COUNT);
   const x = opts.x ?? 0;
   const y = opts.y ?? 0;
   const w = opts.w ?? 900;
   const h = opts.h ?? 36;
 
+  const clampStep = (n) => Math.max(1, Math.min(STEP_COUNT, n ?? 1));
+  let step = clampStep(opts.step);
+
   const root = parent.add([k.pos(0, 0), k.z(opts.z ?? 0)]);
 
-  const barW = w;
   const barH = 14;
+  const barLeft = x - w / 2;
   root.add([
-    k.rect(barW, barH, { radius: barH / 2 }),
-    k.color(...STEP_BG),
-    k.pos(x - barW / 2, y - barH / 2),
+    k.rect(w, barH, { radius: barH / 2 }),
+    k.color(...TRACK),
+    k.pos(barLeft, y - barH / 2),
   ]);
-  const fillW = (barW * step) / 4;
-  root.add([
-    k.rect(fillW, barH, { radius: barH / 2 }),
-    k.color(...BAR),
-    k.pos(x - barW / 2, y - barH / 2),
+  const fill = root.add([
+    k.rect((w * step) / STEP_COUNT, barH, { radius: barH / 2 }),
+    k.color(...PINK),
+    k.pos(barLeft, y - barH / 2),
   ]);
 
-  const labels = ["Find a friend", "Make 10", "Add the rest", "Celebrate"];
-  const stepW = 180;
-  const stepGap = (w - labels.length * stepW) / (labels.length - 1);
-  labels.forEach((label, i) => {
-    const px = x - w / 2 + stepW / 2 + i * (stepW + stepGap);
-    const py = y + 32 + h / 2;
-    pill(root, k, label, px, py, stepW, h, i + 1 === step);
+  const pillW = 190;
+  const pillGap = labels.length > 1
+    ? (w - labels.length * pillW) / (labels.length - 1)
+    : 0;
+  const pills = labels.map((label, i) => {
+    const pill = root.add([
+      k.rect(pillW, h, { radius: h / 2 }),
+      k.color(...(i + 1 === step ? YELLOW : TRACK)),
+      k.pos(barLeft + pillW / 2 + i * (pillW + pillGap), y + 32 + h / 2),
+      k.anchor("center"),
+    ]);
+    pill.add([
+      k.text(label, { size: Math.round(h * 0.52), font: FONT }),
+      k.color(...INK),
+      k.anchor("center"),
+      k.pos(0, 0),
+    ]);
+    return pill;
   });
+
+  root.setStep = (n) => {
+    step = clampStep(n);
+    fill.width = (w * step) / STEP_COUNT;
+    pills.forEach((pill, i) => {
+      pill.color = k.rgb(...(i + 1 === step ? YELLOW : TRACK));
+    });
+  };
 
   return root;
 }

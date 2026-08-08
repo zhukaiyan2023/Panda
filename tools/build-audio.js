@@ -14,7 +14,7 @@
 const fs = require("fs");
 const path = require("path");
 
-const CUES = require("./cues.js");
+const CUES = require("./cues.cjs");
 
 function loadDotenv() {
   const envPath = path.resolve(__dirname, "..", ".env");

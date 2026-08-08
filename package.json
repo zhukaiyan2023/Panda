@@ -6,8 +6,11 @@
   "scripts": {
     "dev": "python3 -m http.server 8126",
     "smoke": "node tools/smoke.cjs",
+    "verify:math": "node tools/verify-math.mjs",
+    "verify:games": "node tools/verify-games.mjs",
     "placeholders": "node tools/make-placeholders.js",
     "audio:build": "node tools/build-audio.js",
+    "audio:build:elevenlabs": "node tools/build-audio-elevenlabs.mjs",
     "test:visual": "playwright test",
     "deploy": "wrangler deploy",
     "preview": "wrangler dev"

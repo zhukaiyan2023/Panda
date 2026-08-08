@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="200" height="240" viewBox="0 0 200 240">
+  <title>Pink Balloon</title>
+  <desc>A round slightly oval pink balloon with a knot at the bottom and trailing string.</desc>
+
+  <!-- String (drawn first so it appears behind the balloon near the knot) -->
+  <path d="M 100 184 Q 96 200 110 214 Q 124 226 108 238"
+        fill="none" stroke="#c9536a" stroke-width="2" stroke-linecap="round"/>
+
+  <!-- Knot at bottom (small triangle) -->
+  <path d="M 92 168 L 108 168 L 100 184 Z" fill="#c9536a" stroke="#c9536a" stroke-width="3" stroke-linejoin="round"/>
+
+  <!-- Balloon body (oval, taller than wide) -->
+  <ellipse cx="100" cy="92" rx="72" ry="80" fill="#FF8FB3" stroke="#c9536a" stroke-width="4"/>
+
+  <!-- White highlight ellipse (top-left) -->
+  <ellipse cx="72" cy="60" rx="18" ry="26" fill="#fffaf0" opacity="0.7"/>
+  <ellipse cx="80" cy="48" rx="6" ry="8" fill="#fffaf0" opacity="0.85"/>
+
+  <!-- Soft side shading on right -->
+  <path d="M 158 70 Q 172 110 152 150 Q 140 160 138 156 Q 154 120 150 78 Z"
+        fill="#c9536a" opacity="0.18"/>
+</svg>

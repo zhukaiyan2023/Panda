@@ -34,14 +34,51 @@ audio**. No build step, no PWA, no Chinese narration — just open
 
 ## Levels
 
-| Level | Title | Skill |
-| --- | --- | --- |
-| 1 | Numbers up to 5 | Plain addition with totals ≤ 5 |
-| 2 | Make a Ten | Decompose b into `need + rest` so `a + need = 10` |
-| 3 | Up to 20 | Two-digit addition without the make-ten scaffold |
+| Level | Title | Skill | Question asked |
+| --- | --- | --- | --- |
+| 1 | Numbers up to 5 | Plain addition with totals ≤ 5 | fill the blank in `a + ? = answer` |
+| 2 | Make a Ten | Decompose b into `need + rest` so `a + need = 10` | fill the blank in `a + ? = 10` |
+| 3 | Up to 20 | Two-digit addition without the make-ten scaffold | fill the blank in `a + ? = answer` |
 
 Each level has 6 rounds. Completing a level unlocks the next; stars accumulate
 per level.
+
+The equation on screen is always the question actually being scored. Level 2 is
+the subtle one: the child is asked how many `a` needs to reach ten, so the
+equation reads `a + ? = 10` and the correct answer is `need`. The full problem
+stays pinned below it as context (`We want 8 + 5`) so the strategy reads as a
+step toward that problem rather than a different question.
+
+Answering correctly plays out the remaining reveal steps automatically — they
+are an explanation, not further questions.
+
+### Shared round scaffold
+
+`scenes/roundScene.js` owns the chrome, the step bar, the answer buttons, the
+pick/advance state machine and save progression. A level file supplies only its
+equation, its choices, its number representation and its reveal steps. Adding a
+level means writing a config, not copying a scene.
+
+### Panda-park games
+
+A second tab — "Games" — opens five pair-finding activities ported from
+[panda-park](https://example.com). Each is a thin wrapper around either
+`scenes/pairScene.js` (Boat, Cloud, Feed) or a self-contained scene (Bounce,
+Whack). The five games all teach the same "make 10" idea but with different
+constraints, so a child who finds Level 2's 4-button question too easy can
+move to a more physical / time-pressured version of the same content:
+
+| Game | Mechanic | Round shape |
+| --- | --- | --- |
+| Boat | 6 boats, pick 2 that sum to 10; bridge fills | Single pair per round |
+| Bounce | 4 balloons, pop the one that completes 10 | Single pick |
+| Cloud | 6 clouds, find 2–3 pairs in a round | Multi-pair per round |
+| Feed | 3/5/7 bubbles, panda eats any valid pair | Multi-pair, escalating size |
+| Whack | 30-second timer, 6 holes, find 5 pairs | Time-attack |
+
+All five games save progress under `unlockedGame` / `starsByGame` (separate
+from the math track). The math and games tracks unlock independently so a
+child can play either path first.
 
 ### The ten-frame
 
@@ -61,14 +98,55 @@ for numbers ≥ 10, Level 3 shows the ones place in the frame and a separate
 
 ---
 
-## Regenerating the audio (Azure Speech F0)
+## Art
+
+`assets/art/` holds hand-authored SVG sprites (panda in three moods, bamboo,
+leaf, star, lock, level badges), loaded with `k.loadSprite()`. SVG keeps the art
+crisp at any iPad Retina scale, diffable as text, and free of a build step.
+
+These are fetched over HTTP, so **the game must be served** — see Quick start.
+Opening `index.html` directly still boots and plays, but without art: every
+sprite is guarded by a `k.getSprite()` check so a missing file costs the game its
+decoration, not its arithmetic.
+
+Canvas text uses `Arial Rounded MT Bold`, which ships with iPadOS. Kaplay accepts
+CSS font family names directly, so no font binary is bundled. `components/theme.js`
+is the single source of truth for canvas colors and mirrors the CSS custom
+properties in `styles.css` — change both together.
+
+---
+
+## Checks
+
+```bash
+python3 -m http.server 8126 &
+npm run verify:math      # honours CHROME_PATH, same as npm run smoke
+npm run verify:games     # boots every panda-park game and clicks one valid pair
+```
+
+`tools/verify-math.mjs` plays every round of every level and asserts that the
+equation rendered on screen is true, that it has exactly four distinct answer
+buttons, and that clicking the equation's own answer is accepted. Two shipped
+defects were invisible without it: `expression()` rendered `2 + ? = 1` for the
+round 2 + 1 = 3, and Level 2 displayed `8 + ? = 13` while scoring 2 as correct,
+so a child who answered 5 was told they were wrong.
+
+`tools/verify-games.mjs` boots every panda-park game, finds a valid pair (or
+the single correct balloon), clicks it, and asserts that the round progressed
+without console errors. Whack is the only timed game and is verified by timer
+presence rather than a complete playthrough.
+
+---
+
+## Regenerating the audio (Azure Speech F0 or ElevenLabs)
 
 The audio pool is pre-baked. The shipped MP3s are 1-second silent
-placeholders so the game boots without errors. To get real
-**en-US-JennyNeural** narration:
+placeholders so the game boots without errors. To get real voice
+narration, choose **one** of two providers:
 
-1. Sign up for an Azure Speech F0 free tier
-   (<https://azure.microsoft.com/pricing/details/cognitive-services/speech-services/>).
+### Azure Speech F0 (project default)
+
+1. Sign up at <https://azure.microsoft.com/pricing/details/cognitive-services/speech-services/>.
 2. Copy `.env.example` to `.env` and fill in:
    ```
    AZURE_SPEECH_KEY=<your key>
@@ -78,16 +156,33 @@ placeholders so the game boots without errors. To get real
    ```
 3. Run:
    ```bash
-   node tools/build-audio.js
+   npm run audio:build          # or: node tools/build-audio.js
    ```
-4. The script reads `tools/cues.js`, synthesizes each cue via the Azure
-   REST endpoint, and overwrites `assets/audio/<id>.mp3`.
+   Dry-run: `npm run audio:build -- --dry-run`.
 
-Dry-run preview: `node tools/build-audio.js --dry-run`.
+### ElevenLabs (free tier compatible)
 
-> The 31 cues cover level intros, step transitions, four rotating
-> encouragements (`enc-great` / `enc-awesome` / `enc-amazing` / `enc-nice`),
-> a `enc-try` for wrong answers, the digits 1–10, and UI feedback.
+ElevenLabs's free tier covers ~10,000 characters/month — enough for the
+49-cue manifest many times over. Library voices require `eleven_flash_v2_5`
+for free accounts; "Bella" (the project's chosen voice) is reachable on the
+free tier.
+
+1. Create an API key at <https://elevenlabs.io/app/settings/api-keys> (it must
+   start with `sk_`, not be the key *id*).
+2. Add to `.env`:
+   ```
+   ELEVENLABS_KEY=sk_...
+   ELEVENLABS_VOICE_ID=EXAVITQu4vr4xnSDxMaL   # Bella, optional override
+   ELEVENLABS_MODEL_ID=eleven_flash_v2_5      # optional, default
+   ```
+3. Run:
+   ```bash
+   npm run audio:build:elevenlabs   # or: node tools/build-audio-elevenlabs.mjs
+   ```
+
+> Both builders read the same `tools/cues.cjs` manifest (49 entries as of the
+> panda-park migration) and overwrite `assets/audio/<id>.mp3`. Runtime audio
+> is served from those local files; no provider API is called during play.
 
 ---
 
@@ -106,7 +201,7 @@ components/tenFrame.js    2×5 grid of rounded squares
 components/expression.js  "a + ? = b" math rendering
 components/stepBar.js     4-step progress bar
 components/choice.js      Numeric answer button
-assets/audio/             31 pre-baked MP3s
+assets/audio/             49 pre-baked MP3s
 assets/vendor/kaplay.mjs  Self-hosted Kaplay (no CDN)
 tools/cues.js             Audio cue manifest
 tools/build-audio.js      Azure Speech F0 synthesizer

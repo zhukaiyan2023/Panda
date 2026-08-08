@@ -1,179 +1,77 @@
-// scenes/level3.js — up to 20 (no make-ten step).
+// scenes/level3.js — up to 20, no make-ten step.
 //
-// Renders full 2x5 ten-frame for the ones place (a % 10) and a small "1"
-// indicator above it for the tens place when a >= 10.
+// The child fills the blank in "a + ? = answer". The ten-frame shows the ones
+// place of `a`, with a separate tile for the tens place when a >= 10.
+//
+// Step 3 used to advance the step bar and render nothing at all. It now shows
+// the teen-number decomposition (10 + n = answer), which is the point of a
+// level that crosses ten.
 
 import tenFrame from "../components/tenFrame.js";
-import expression from "../components/expression.js";
-import stepBar from "../components/stepBar.js";
-import choice, { iconButton } from "../components/choice.js";
+import createRoundScene, { LAYOUT, options } from "./roundScene.js";
+import { INK, YELLOW, FONT } from "../components/theme.js";
 
-const INK = [61, 54, 82];
-const ENCOURAGE = ["enc-great", "enc-awesome", "enc-amazing", "enc-nice"];
+const TEN = 10;
 
-let roundIdx = 0;
+export default createRoundScene({
+  levelId: 3,
+  sceneName: "level3",
+  introCue: "lvl-3-intro",
+  stepLabels: ["Count on", "Add", "Check", "Cheer"],
 
-function shuffle(arr) {
-  const copy = arr.slice();
-  for (let i = copy.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [copy[i], copy[j]] = [copy[j], copy[i]];
-  }
-  return copy;
-}
+  equation: (round) => ({ left: round.a, right: "?", sum: round.answer }),
 
-function drawRound(k, round, ri, totalRounds, state) {
-  k.add([k.rect(k.width(), k.height()), k.color(255, 241, 220)]);
+  question: (round) => {
+    const correct = round.missing ?? round.b;
+    return { correct, values: options(correct, { min: 0, max: 20 }) };
+  },
 
-  iconButton(k, {
-    label: "←",
-    x: 96, y: 100, w: 96, h: 72,
-    fontSize: 44,
-    onClick: () => {
-      window.PandaAudio.playCue("back");
-      roundIdx = 0;
-      k.go("levelPicker");
-    },
-  });
-  iconButton(k, {
-    label: "🔊",
-    x: 220, y: 100, w: 96, h: 72,
-    fontSize: 36,
-    onClick: () => {
-      const stepCues = {
-        1: "round-start",
-        2: `step-2`,
-        3: `step-3`,
-        4: "round-end",
-      };
-      window.PandaAudio.playCue(stepCues[state.step] || "round-start");
-    },
-  });
+  body: (ctx) => {
+    const { k, round } = ctx;
+    const tens = Math.floor(round.a / TEN);
+    const ones = round.a % TEN;
 
-  stepBar(k, { step: 1, x: k.width() / 2, y: 100, w: 1000, h: 36 });
+    if (tens > 0) {
+      // A full ten shown as one labelled tile, so the frame beside it clearly
+      // represents only the ones place.
+      const tile = k.add([
+        k.rect(96, 130, { radius: 16 }),
+        k.color(...YELLOW),
+        k.outline(3, k.rgb(...INK)),
+        k.pos(LAYOUT.barX - 300, LAYOUT.bodyY),
+        k.anchor("center"),
+      ]);
+      tile.add([
+        k.text(`${tens * TEN}`, { size: 44, font: FONT }),
+        k.color(...INK),
+        k.anchor("center"),
+        k.pos(0, 0),
+      ]);
+    }
 
-  k.add([
-    k.text(`Round ${ri + 1} / ${totalRounds}`, { size: 28 }),
-    k.color(...INK),
-    k.pos(k.width() / 2, 180),
-    k.anchor("center"),
-  ]);
-
-  expression(k, { a: round.a, b: round.b, missing: round.b, x: k.width() / 2, y: 290, size: 110 });
-
-  const ones = round.a % 10;
-  const tens = Math.floor(round.a / 10);
-  if (tens > 0) {
-    k.add([
-      k.text(String(tens), { size: 64 }),
-      k.color(...INK),
-      k.pos(k.width() / 2 - 200, 460),
-      k.anchor("center"),
-    ]);
-  }
-  tenFrame(k, ones, { x: k.width() / 2 + 60, y: 460, rows: 2, cell: 50, gap: 8 });
-
-  const allChoices = [round.b, round.b + 1, Math.max(0, round.b - 1), round.b + 2]
-    .filter((v, idx, arr) => v >= 0 && v <= 20 && arr.indexOf(v) === idx)
-    .slice(0, 4);
-  if (!allChoices.includes(round.b)) allChoices[0] = round.b;
-
-  const buttonY = 770;
-  const buttonW = 180;
-  const buttonH = 132;
-  const gap = 24;
-  const totalW = allChoices.length * buttonW + (allChoices.length - 1) * gap;
-  const startX = k.width() / 2 - totalW / 2 + buttonW / 2;
-
-  const buttons = [];
-  shuffle(allChoices).forEach((v, i) => {
-    const x = startX + i * (buttonW + gap);
-    const btn = choice(k, {
-      label: String(v),
-      x, y: buttonY,
-      w: buttonW, h: buttonH,
-      onClick: () => onPick(v, round.b, buttons, i),
+    return tenFrame(k, ones, {
+      x: LAYOUT.barX + 60, y: LAYOUT.bodyY, rows: 2, cell: 56, gap: 8,
     });
-    buttons.push({ btn, value: v });
-  });
+  },
 
-  state.locked = new Set();
-  state.step = 1;
+  steps: [
+    // Step 2 — Add: the complete equation.
+    (ctx) => {
+      const { a, b, answer } = ctx.round;
+      ctx.reveal(`${a} + ${b} = ${answer}`, { size: 56 });
+    },
+    // Step 3 — Check: decompose the teen result into a ten plus the ones.
+    (ctx) => {
+      const { answer } = ctx.round;
+      ctx.reveal(`${TEN} + ${answer - TEN} = ${answer}`, { size: 48 });
+    },
+    // Step 4 — Cheer.
+    (ctx) => {
+      ctx.buddy.setMood("cheer");
+      ctx.reveal(String(ctx.round.answer), { size: 96, replace: true });
+    },
+  ],
 
-  function advance() {
-    if (state.step === 1) {
-      state.step = 2;
-      stepBar(k, { step: 2, x: k.width() / 2, y: 100, w: 1000, h: 36 });
-      k.add([
-        k.text(`${round.a} + ${round.b} = ${round.answer}`, { size: 64 }),
-        k.color(...INK),
-        k.pos(k.width() / 2, 560),
-        k.anchor("center"),
-      ]);
-    } else if (state.step === 2) {
-      state.step = 3;
-      stepBar(k, { step: 3, x: k.width() / 2, y: 100, w: 1000, h: 36 });
-    } else if (state.step === 3) {
-      state.step = 4;
-      stepBar(k, { step: 4, x: k.width() / 2, y: 100, w: 1000, h: 36 });
-      k.add([
-        k.text(`🎉 ${round.answer}`, { size: 110 }),
-        k.color(...INK),
-        k.pos(k.width() / 2, 600),
-        k.anchor("center"),
-      ]);
-      k.wait(1.2, () => {
-        window.PandaAudio.playCue("round-end");
-        if (ri + 1 < totalRounds) {
-          roundIdx = ri + 1;
-          k.go("level3");
-        } else {
-          finishLevel(k, 3);
-        }
-      });
-    }
-  }
-
-  function onPick(value, correctAnswer, btns, idx) {
-    if (state.step >= 4) return;
-    if (state.locked.has(idx)) return;
-    if (value === correctAnswer) {
-      const cue = ENCOURAGE[(ri + 2) % ENCOURAGE.length];
-      window.PandaAudio.playCue(cue);
-      btns[idx].btn.setDisabled(true);
-      state.locked.add(idx);
-      k.wait(0.4, advance);
-    } else {
-      window.PandaAudio.playCue("enc-try");
-      btns[idx].btn.setDisabled(true);
-      state.locked.add(idx);
-    }
-  }
-}
-
-function finishLevel(k, levelId) {
-  const save = window.PandaSave?.load() || { unlockedLevel: 1, starsByLevel: {} };
-  save.unlockedLevel = Math.max(save.unlockedLevel, levelId + 1);
-  save.starsByLevel = save.starsByLevel || {};
-  save.starsByLevel[levelId] = (save.starsByLevel[levelId] || 0) + 1;
-  save.currentLevel = levelId;
-  window.PandaSave?.save(save);
-  window.PandaAudio.playCue("lvl-done");
-  roundIdx = 0;
-  k.go("levelPicker");
-}
-
-export default function level3Scene(k) {
-  const data = (window.PandaLevels?.levels || []).find((l) => l.id === 3);
-  if (!data) {
-    k.add([k.text("Level 3 data missing", { size: 48 }), k.color(...INK), k.pos(k.width() / 2, k.height() / 2), k.anchor("center")]);
-    return;
-  }
-  if (roundIdx === 0) {
-    window.PandaAudio.playCue(data.intro || "lvl-3-intro");
-  } else {
-    window.PandaAudio.playCue("round-start");
-  }
-  const state = {};
-  drawRound(k, data.rounds[roundIdx] || data.rounds[0], roundIdx, data.rounds.length, state);
-}
+  replayCue: (round, step) =>
+    ({ 1: "round-start", 2: "step-2", 3: "step-3", 4: "round-end" })[step] || "round-start",
+});

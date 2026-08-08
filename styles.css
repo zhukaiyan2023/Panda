@@ -23,7 +23,7 @@ html, body {
   overflow: hidden;
   background: var(--c-paper);
   color: var(--c-ink);
-  font-family: "Trebuchet MS", "Arial Rounded MT Bold", system-ui, sans-serif;
+  font-family: "Arial Rounded MT Bold", "Trebuchet MS", system-ui, sans-serif;
   -webkit-tap-highlight-color: transparent;
   -webkit-user-select: none;
   user-select: none;

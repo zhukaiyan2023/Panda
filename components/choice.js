@@ -1,14 +1,18 @@
 // components/choice.js — a single numeric answer button (plain digits, no emoji).
 //
-// Each button is sized for ≥44pt touch targets on iPad and accepts a label,
+// Each button is sized for >=44pt touch targets on iPad and accepts a label,
 // an enabled/disabled state, and a click handler. Disabled buttons render
 // dimmed to indicate they have been locked out (e.g. wrong answer).
 
-const INK = [61, 54, 82];
-const PAPER = [255, 250, 240];
-const ACTIVE_BG = [255, 255, 255];
-const DISABLED_BG = [230, 225, 239];
-const DISABLED_INK = [170, 163, 189];
+import { INK, CARD, DISABLED_BG, DISABLED_INK, ORANGE, FONT } from "./theme.js";
+
+// area() falls back to the object's own renderArea(), which only shape
+// components (rect/circle/sprite/text) provide. The shape here lives on a child,
+// so the shape must be handed to area() explicitly — otherwise the root has no
+// renderArea and Kaplay's per-frame hit test throws on every frame.
+function hitShape(k, x, y, w, h) {
+  return k.area({ shape: new k.Rect(k.vec2(x - w / 2, y - h / 2), w, h) });
+}
 
 export default function choice(parent, opts = {}) {
   const k = window.kaplay;
@@ -18,26 +22,28 @@ export default function choice(parent, opts = {}) {
   const w = opts.w ?? 132;
   const h = opts.h ?? 112;
 
-  // The shape must be passed explicitly: area() otherwise falls back to the
-  // object's own renderArea(), which only exists on shape components like
-  // rect(). Here the rect is a child, so root would have no renderArea and
-  // Kaplay's per-frame hit test would throw.
-  const root = parent.add([
-    k.pos(0, 0),
-    k.z(opts.z ?? 0),
-    k.area({ shape: new k.Rect(k.vec2(x - w / 2, y - h / 2), w, h) }),
+  const root = parent.add([k.pos(0, 0), k.z(opts.z ?? 0), hitShape(k, x, y, w, h)]);
+
+  // A flat offset slab behind the face reads as a raised key, which is easier
+  // for a small child to recognize as pressable than an outlined rectangle.
+  const shadow = root.add([
+    k.rect(w, h, { radius: 24 }),
+    k.color(...INK),
+    k.opacity(0.18),
+    k.pos(x, y + 8),
+    k.anchor("center"),
   ]);
 
-  const rect = root.add([
+  const face = root.add([
     k.rect(w, h, { radius: 24 }),
-    k.color(...(opts.disabled ? DISABLED_BG : ACTIVE_BG)),
+    k.color(...(opts.disabled ? DISABLED_BG : CARD)),
     k.outline(4, k.rgb(...INK)),
     k.pos(x, y),
     k.anchor("center"),
   ]);
 
-  root.add([
-    k.text(label, { size: 56 }),
+  const text = root.add([
+    k.text(label, { size: 56, font: FONT }),
     k.color(...(opts.disabled ? DISABLED_INK : INK)),
     k.pos(x, y),
     k.anchor("center"),
@@ -51,7 +57,16 @@ export default function choice(parent, opts = {}) {
 
   root.setDisabled = (disabled) => {
     opts.disabled = disabled;
-    rect.color = k.rgb(...(disabled ? DISABLED_BG : ACTIVE_BG));
+    face.color = k.rgb(...(disabled ? DISABLED_BG : CARD));
+    text.color = k.rgb(...(disabled ? DISABLED_INK : INK));
+    shadow.opacity = disabled ? 0.08 : 0.18;
+  };
+
+  // Marks a button as the confirmed correct answer, distinct from the dimmed
+  // "already tried this" state.
+  root.setCorrect = () => {
+    face.color = k.rgb(...ORANGE);
+    text.color = k.rgb(255, 255, 255);
   };
 
   return root;
@@ -59,8 +74,6 @@ export default function choice(parent, opts = {}) {
 
 // iconButton — small square button used for scene chrome (back / replay / etc).
 // Smaller than the numeric choice buttons and uses the accent palette.
-const ACCENT = [255, 138, 61];
-const ACCENT_INK = [255, 255, 255];
 
 export function iconButton(parent, opts = {}) {
   const k = window.kaplay;
@@ -70,24 +83,19 @@ export function iconButton(parent, opts = {}) {
   const h = opts.h ?? 72;
   const label = String(opts.label);
 
-  // Same explicit-shape requirement as choice() above.
-  const root = parent.add([
-    k.pos(0, 0),
-    k.z(opts.z ?? 5),
-    k.area({ shape: new k.Rect(k.vec2(x - w / 2, y - h / 2), w, h) }),
-  ]);
+  const root = parent.add([k.pos(0, 0), k.z(opts.z ?? 5), hitShape(k, x, y, w, h)]);
 
   root.add([
     k.rect(w, h, { radius: 20 }),
-    k.color(...ACCENT),
+    k.color(...ORANGE),
     k.outline(4, k.rgb(...INK)),
     k.pos(x, y),
     k.anchor("center"),
   ]);
 
   root.add([
-    k.text(label, { size: opts.fontSize ?? 36 }),
-    k.color(...ACCENT_INK),
+    k.text(label, { size: opts.fontSize ?? 36, font: FONT }),
+    k.color(255, 255, 255),
     k.pos(x, y),
     k.anchor("center"),
   ]);
