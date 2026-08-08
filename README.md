@@ -28,7 +28,7 @@ audio**. No build step, no PWA, no Chinese narration — just open
 
 > Offline play works for the local-ten game after the first load because
 > the Kaplay runtime is self-hosted under `assets/vendor/` and all audio
-> cues ship with the repo.
+   cues ship with the repo.
 
 ---
 
