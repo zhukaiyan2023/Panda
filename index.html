@@ -35,7 +35,7 @@
     .voice-fallback.show { display:inline-block; }
     .hint { min-height:30px;margin-top:16px;font-size:19px;font-weight:800; }
     .progress { height:14px;background:#eee6f4;border-radius:999px;overflow:hidden;margin:22px 0 10px; }
-    .bar { height:100%;width:25%;background:linear-gradient(90deg,var(--pink),var(--purple),var(--blue));border-radius:999px;transition:.4s; }
+    .bar { height:100%;width:25%;max-width:100%;background:linear-gradient(90deg,var(--pink),var(--purple),var(--blue));border-radius:999px;transition:.4s; }
     .steps { display:flex;justify-content:center;gap:8px;flex-wrap:wrap;margin-top:14px; }
     .step { padding:8px 13px;border-radius:999px;background:#f0ecfa;font-weight:900;font-size:14px; }
     .step.active { background:var(--yellow); }
@@ -144,7 +144,7 @@
       if(i===n) el.setAttribute('aria-current','step');
       else el.removeAttribute('aria-current');
     }
-    $('bar').style.width = ((n-1)*33.33+25)+'%';
+    $('bar').style.width = (n===4 ? 100 : n*25)+'%';
   }
 
   function renderObjects(count, emoji){
