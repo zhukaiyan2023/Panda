@@ -51,11 +51,7 @@ export default function scene(k) {
 
   iconButton(k, {
     label: "←", x: 84, y: 92, w: 96, h: 72, fontSize: 44,
-    onClick: () => { window.PandaAudio.playCue("back"); k.go("gamesPicker"); },
-  });
-  iconButton(k, {
-    label: "♪", x: 84, y: 184, w: 96, h: 72, fontSize: 44,
-    onClick: () => window.PandaAudio.playCue("whack-intro"),
+    onClick: () => { k.go("gamesPicker"); },
   });
 
   const bar = stepBar(k, {
@@ -227,7 +223,9 @@ export default function scene(k) {
           h.value = null;
           h.mole.onUpdate(() => {});
         });
-        window.PandaAudio.playCue("enc-amazing");
+        // Whack is the loudest game by design (it's a time-attack), so the only
+// audible feedback on a correct pair is a quiet mood swap — no cheering
+// cues. Without this rule, 5 pairs in 30 seconds would be a wall of sound.
         buddy.setMood("cheer", { silent: true });
         if (state.pairs >= PAIRS_NEEDED) {
           finish(true);
@@ -240,7 +238,6 @@ export default function scene(k) {
           if (t > 0.4) { second.mole.pos.x = second.x; second.mole.onUpdate(() => {}); return; }
           second.mole.pos.x = second.x + Math.sin(t * 30) * 12;
         });
-        window.PandaAudio.playCue("enc-try");
         buddy.setMood("think");
       }
     }
@@ -302,9 +299,4 @@ export default function scene(k) {
   k.wait(0.4, () => window.PandaAudio.playCue("whack-start"));
   k.loop(SPAWN_INTERVAL, spawn);
   spawn();   // immediate first spawn
-
-  // 10-second warning.
-  k.wait(TIME_LIMIT - 10, () => {
-    if (!state.finished) window.PandaAudio.playCue("whack-tick");
-  });
 }

@@ -54,7 +54,6 @@ function drawTab(k, parent, label, x, y, w, h, active) {
     k.anchor("center"),
   ]);
   text.onClick(() => {
-    window.PandaAudio.playCue("next");
     k.go(label === "Math" ? "levelPicker" : "gamesPicker");
   });
 }
@@ -117,10 +116,7 @@ function drawCard(k, parent, game, unlocked) {
 
   const onPick = () => {
     if (unlocked) {
-      window.PandaAudio.playCue("next");
       k.go(game.scene);
-    } else {
-      window.PandaAudio.playCue("level-locked");
     }
   };
   card.onClick(onPick);
@@ -151,7 +147,6 @@ export default function gamesPickerScene(k) {
     k.anchor("center"),
   ]);
   back.onClick(() => {
-    window.PandaAudio.playCue("back");
     k.go("levelPicker");
   });
 
@@ -209,6 +204,4 @@ export default function gamesPickerScene(k) {
       k.anchor("center"),
     ]);
   }
-
-  window.PandaAudio.playCue("panda-hi");
 }

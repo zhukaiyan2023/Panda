@@ -110,6 +110,6 @@ export default createPairScene({
     window.PandaAudio.playCue("boat-pair");
     return reward;
   },
-  roundEndCue: () => "boat-done",
-  replayCue: () => "boat-intro",
+  roundEndCue: () => null,
+  replayCue: () => null,
 });

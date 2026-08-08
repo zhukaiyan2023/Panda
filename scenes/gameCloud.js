@@ -109,6 +109,6 @@ export default createPairScene({
       k.anchor("center"),
     ]);
   },
-  roundEndCue: () => "cloud-done",
-  replayCue: () => "cloud-intro",
+  roundEndCue: () => null,
+  replayCue: () => null,
 });

@@ -99,6 +99,8 @@ export default createPairScene({
     ]);
     window.PandaAudio.playCue("feed-nom");
   },
-  roundEndCue: () => "feed-done",
-  replayCue: () => "feed-intro",
+  // Each round advances silently; the only spoken cue is the very first
+// intro when the session opens.
+  roundEndCue: () => null,
+  replayCue: () => null,
 });

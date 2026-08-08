@@ -72,14 +72,9 @@ function drawRound(k, ctx) {
   iconButton(k, {
     label: "←", x: 84, y: 92, w: 96, h: 72, fontSize: 44,
     onClick: () => {
-      window.PandaAudio.playCue("back");
       roundIdx = 0;
       k.go("gamesPicker");
     },
-  });
-  iconButton(k, {
-    label: "♪", x: 84, y: 184, w: 96, h: 72, fontSize: 44,
-    onClick: () => window.PandaAudio.playCue("bounce-intro"),
   });
 
   const bar = stepBar(k, {
@@ -135,7 +130,6 @@ function drawRound(k, ctx) {
           k.anchor("center"),
         ]);
         k.wait(1.6, () => {
-          window.PandaAudio.playCue("bounce-done");
           if (roundIdx + 1 < ROUND_COUNT) {
             roundIdx += 1;
             k.go("gameBounce");
@@ -149,7 +143,7 @@ function drawRound(k, ctx) {
       } else {
         it.shake();
         it.setDisabled(true);
-        window.PandaAudio.playCue(ENCOURAGE[roundIdx % ENCOURAGE.length]);
+        // Wrong — just the panda mood (which plays enc-try) and a shake.
         buddy.setMood("think");
         locked = false;     // allow another try on the remaining balloons
       }
@@ -158,6 +152,6 @@ function drawRound(k, ctx) {
 }
 
 export default function scene(k) {
-  window.PandaAudio.playCue(roundIdx === 0 ? "bounce-intro" : "round-start");
+  if (roundIdx === 0) window.PandaAudio.playCue("bounce-intro");
   drawRound(k, { roundData: buildCandidates() });
 }
