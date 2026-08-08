@@ -1,0 +1,4 @@
+# Self-hosted Kaplay runtime.
+# The bundled kaplay.mjs is a verbatim copy of the published build, downloaded
+# once with curl. We pin the version in tools/make-placeholders.js comment for
+# reference; updates should be a manual refresh.
