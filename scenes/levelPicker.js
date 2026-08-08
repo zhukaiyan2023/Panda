@@ -15,7 +15,7 @@ const LOCKED_BG = [220, 213, 230];
 const LOCKED_INK = [150, 140, 170];
 
 const SHORT_TITLES = {
-  1: "Up to 5",
+  1: "Three Friends",
   2: "Make 10",
   3: "Up to 20",
 };
@@ -113,10 +113,7 @@ function drawCard(k, parent, level, unlocked) {
 
   const onPick = () => {
     if (unlocked) {
-      window.PandaAudio.playCue("next");
       k.go(`level${level.id}`);
-    } else {
-      window.PandaAudio.playCue("level-locked");
     }
   };
   // Kaplay is configured with touchToMouse, so onClick covers both mouse and
@@ -176,7 +173,6 @@ export default function levelPickerScene(k) {
     k.anchor("center"),
   ]);
   gamesTab.onClick(() => {
-    window.PandaAudio.playCue("next");
     k.go("gamesPicker");
   });
 
@@ -218,6 +214,4 @@ export default function levelPickerScene(k) {
       k.anchor("center"),
     ]);
   }
-
-  window.PandaAudio.playCue("panda-hi");
 }
