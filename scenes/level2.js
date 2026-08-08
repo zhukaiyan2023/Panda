@@ -34,6 +34,20 @@ function drawRound(k, round, ri, totalRounds, state) {
       k.go("levelPicker");
     },
   });
+  iconButton(k, {
+    label: "🔊",
+    x: 220, y: 100, w: 96, h: 72,
+    fontSize: 36,
+    onClick: () => {
+      const stepCues = {
+        1: "round-start",
+        2: `step-2`,
+        3: `n-${round.rest}`,
+        4: "round-end",
+      };
+      window.PandaAudio.playCue(stepCues[state.step] || "round-start");
+    },
+  });
 
   stepBar(k, { step: 1, x: k.width() / 2, y: 100, w: 1000, h: 36 });
 
