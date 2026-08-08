@@ -1,0 +1,18 @@
+# Runtime dependency installs and package-manager caches should never be public assets.
+**/node_modules
+**/bun.lock
+**/package-lock.json
+**/.wrangler
+
+# Repository and development-only files.
+**/.git
+**/.github
+**/.DS_Store
+.env
+.env.*
+tools/**
+tests/**
+package.json
+README.md
+wrangler.jsonc
+.assetsignore
