@@ -29,7 +29,7 @@ function hasStorage() {
 
 function load() {
   if (!hasStorage()) {
-    return { ...DEFAULT, starsByLevel: { ...DEFAULT.starsByLevel } };
+    return cloneSave(memFallback || DEFAULT);
   }
   try {
     const raw = window.localStorage.getItem(KEY);
@@ -37,7 +37,7 @@ function load() {
     const parsed = JSON.parse(raw);
     return sanitize(parsed);
   } catch (_) {
-    return { ...DEFAULT, starsByLevel: { ...DEFAULT.starsByLevel } };
+    return cloneSave(memFallback || DEFAULT);
   }
 }
 
@@ -58,10 +58,10 @@ function save(next) {
 
 function sanitize(value) {
   if (!value || typeof value !== "object") {
-    return { ...DEFAULT, starsByLevel: { ...DEFAULT.starsByLevel } };
+    return cloneSave(DEFAULT);
   }
   const unlocked = clampInt(value.unlockedLevel, 1, 3, 1);
-  const current = clampInt(value.currentLevel, 1, 3, 1);
+  const current = clampInt(value.currentLevel, 1, unlocked, 1);
   const stars = {};
   if (value.starsByLevel && typeof value.starsByLevel === "object") {
     for (let i = 1; i <= 3; i++) {
@@ -69,6 +69,13 @@ function sanitize(value) {
     }
   }
   return { currentLevel: current, unlockedLevel: unlocked, starsByLevel: stars };
+}
+
+function cloneSave(value) {
+  return {
+    ...value,
+    starsByLevel: { ...(value.starsByLevel || {}) },
+  };
 }
 
 function clampInt(v, lo, hi, fallback) {

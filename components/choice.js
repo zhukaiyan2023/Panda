@@ -36,8 +36,9 @@ export default function choice(parent, opts = {}) {
   ]);
 
   if (opts.onClick && !opts.disabled) {
+    // Kaplay is configured with touchToMouse, so onClick covers both mouse and
+    // touch input without double-firing on iPad Safari.
     root.onClick(() => opts.onClick());
-    root.onTouchStart(() => opts.onClick());
   }
 
   root.setDisabled = (disabled) => {
@@ -79,8 +80,9 @@ export function iconButton(parent, opts = {}) {
   ]);
 
   if (opts.onClick) {
+    // Kaplay is configured with touchToMouse, so onClick covers both mouse and
+    // touch input without double-firing on iPad Safari.
     root.onClick(() => opts.onClick());
-    root.onTouchStart(() => opts.onClick());
   }
 
   return root;
