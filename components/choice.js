@@ -18,7 +18,15 @@ export default function choice(parent, opts = {}) {
   const w = opts.w ?? 132;
   const h = opts.h ?? 112;
 
-  const root = parent.add([k.pos(0, 0), k.z(opts.z ?? 0), k.area()]);
+  // The shape must be passed explicitly: area() otherwise falls back to the
+  // object's own renderArea(), which only exists on shape components like
+  // rect(). Here the rect is a child, so root would have no renderArea and
+  // Kaplay's per-frame hit test would throw.
+  const root = parent.add([
+    k.pos(0, 0),
+    k.z(opts.z ?? 0),
+    k.area({ shape: new k.Rect(k.vec2(x - w / 2, y - h / 2), w, h) }),
+  ]);
 
   const rect = root.add([
     k.rect(w, h, { radius: 24 }),
@@ -62,7 +70,12 @@ export function iconButton(parent, opts = {}) {
   const h = opts.h ?? 72;
   const label = String(opts.label);
 
-  const root = parent.add([k.pos(0, 0), k.z(opts.z ?? 5), k.area()]);
+  // Same explicit-shape requirement as choice() above.
+  const root = parent.add([
+    k.pos(0, 0),
+    k.z(opts.z ?? 5),
+    k.area({ shape: new k.Rect(k.vec2(x - w / 2, y - h / 2), w, h) }),
+  ]);
 
   root.add([
     k.rect(w, h, { radius: 20 }),
