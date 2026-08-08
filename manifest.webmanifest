@@ -1,0 +1,26 @@
+{
+  "name": "Panda's Math Adventure",
+  "short_name": "Panda Math",
+  "description": "A playful early-math game for ages 3-6. Make-a-ten strategy with Bao Bao the panda teacher.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#fff8d9",
+  "theme_color": "#ffd166",
+  "lang": "en-US",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "apple-touch-icon.svg",
+      "sizes": "180x180",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
