@@ -15,6 +15,7 @@ const CUE_IDS = [
   "n-0", "n-1", "n-2", "n-3", "n-4", "n-5", "n-6", "n-7", "n-8", "n-9", "n-10",
   "q-what-is", "q-plus", "q-equals", "equals",
   "lvl-1-greeting", "lvl-1-decomp-pre", "lvl-1-decomp-eq",
+  "l1-sub-find-ten",
   "lvl-2-intro", "lvl-2-step-1-pre", "lvl-2-step-1-eq", "lvl-2-step-1-or", "lvl-2-step-1-q",
   "lvl-2-step-2-big-pre", "lvl-2-step-2-find", "lvl-2-step-2-friend-pre", "lvl-2-step-2-q",
   "lvl-2-step-3-split-pre", "lvl-2-step-3-friend-pre", "lvl-2-step-3-then", "lvl-2-step-3-can-split", "lvl-2-step-3-q",

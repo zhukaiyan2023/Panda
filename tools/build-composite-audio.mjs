@@ -117,27 +117,37 @@ function choosePair(nums) {
     for (let j = i + 1; j < nums.length; j++) {
       if (nums[i] + nums[j] === 10) {
         const thirdIdx = nums.findIndex((_, k) => k !== i && k !== j);
-        return { pair: [nums[i], nums[j]], third: nums[thirdIdx] };
+        return { pair: [nums[i], nums[j]], third: nums[thirdIdx], isMakeTen: true };
       }
     }
   }
   // No pair sums to 10. Use the first two indices as the pair and the
   // last as the third — that's the unambiguous convention for triples
   // that don't fit the make-a-ten pattern (the L1 fallback path).
-  return { pair: [nums[0], nums[1]], third: nums[2] };
+  return { pair: [nums[0], nums[1]], third: nums[2], isMakeTen: false };
 }
 
 // Replicate the pool generators from data/pools.js — duplicated here
 // so this script has no module dependency on the project (it can run
 // on a CI worker with just the .env creds). The bounds MUST match
 // data/pools.js exactly; the safeInt checks below catch any drift.
+//
+// L1 三数相加 — two loops (sum ≤ 10 OR two of three sum to 10), no 0s.
 const l1Pool = [];
-for (let a = 0; a <= 10; a++) {
-  for (let b = 0; b <= 10; b++) {
-    for (let c = 0; c <= 10; c++) {
+for (let a = 1; a <= 9; a++) {
+  for (let b = 1; b <= 9; b++) {
+    for (let c = 1; c <= 9; c++) {
       const sum = a + b + c;
-      if (sum < 3 || sum > 15) continue;
-      l1Pool.push({ kind: "three-sum", nums: [a, b, c], answer: sum });
+      if (sum <= 10) l1Pool.push({ kind: "three-sum", nums: [a, b, c], answer: sum });
+    }
+  }
+}
+for (let a = 1; a <= 9; a++) {
+  for (let b = 1; b <= 9; b++) {
+    for (let c = 1; c <= 9; c++) {
+      const ten = a + b === 10 || a + c === 10 || b + c === 10;
+      if (!ten) continue;
+      l1Pool.push({ kind: "three-sum", nums: [a, b, c], answer: a + b + c });
     }
   }
 }
@@ -145,55 +155,22 @@ const l1HasMakeTen = (r) => {
   const [a, b, c] = r.nums;
   return a + b === 10 || a + c === 10 || b + c === 10;
 };
-const l1MakeTen = l1Pool.filter(l1HasMakeTen);
-const l1Other = l1Pool.filter((r) => !l1HasMakeTen(r));
-const l1Curated = l1MakeTen.slice(0, 200);
-if (l1Curated.length < 200) l1Curated.push(...l1Other.slice(0, 200 - l1Curated.length));
+const l1Curated = l1Pool;
 
 const l2Pool = [];
-// (1) Strict make-a-ten — 63 ordered pairs, a, b ∈ [1, 10], sum ∈ [10, 19].
-for (let a = 1; a <= 10; a++) {
-  for (let b = 1; b <= 10; b++) {
+// Strict make-a-ten — 36 ordered pairs, a, b ∈ {1..9}, sum > 10.
+// (Replaces the previous 5-sub-pool 200-round pool.)
+for (let a = 1; a <= 9; a++) {
+  for (let b = 1; b <= 9; b++) {
     const sum = a + b;
-    if (sum < 10 || sum > 19) continue;
+    if (sum <= 10) continue;
     const big = a >= b ? a : b;
-    if (big > 10) continue;
     const small = a >= b ? b : a;
     const need = 10 - big;
     const rest = small - need;
     l2Pool.push({ kind: "make-ten", a, b, need, rest, answer: sum });
   }
 }
-// (2) Simple single-digit — 36 ordered pairs, a, b ∈ [1, 10], sum ∈ [2, 9].
-for (let a = 1; a <= 10; a++) {
-  for (let b = 1; b <= 10; b++) {
-    const sum = a + b;
-    if (sum < 2 || sum > 9) continue;
-    l2Pool.push({ kind: "simple", a, b, answer: sum });
-  }
-}
-// (3) No-carry 2-digit — 54 ordered pairs, a ∈ [11, 20], b ∈ [1, 9],
-//     ones(a) + b ≤ 10.
-for (let a = 11; a <= 20; a++) {
-  for (let b = 1; b <= 9; b++) {
-    if (a % 10 + b > 10) continue;
-    l2Pool.push({ kind: "no-carry-2d", a, b, answer: a + b });
-  }
-}
-// (4) Carry 2-digit — 36 ordered pairs, a ∈ [11, 19], b ∈ [1, 9],
-//     ones(a) + b > 10 (answer ∈ [21, 28]).
-for (let a = 11; a <= 19; a++) {
-  for (let b = 1; b <= 9; b++) {
-    if (a % 10 + b <= 10) continue;
-    l2Pool.push({ kind: "carry-2d", a, b, answer: a + b });
-  }
-}
-// (5) Trivial drills — 10 ordered (a, 0) for a ∈ [1, 10] + 1 (0, 0).
-for (let a = 1; a <= 10; a++) {
-  l2Pool.push({ kind: "trivial", a, b: 0, answer: a });
-}
-l2Pool.push({ kind: "trivial", a: 0, b: 0, answer: 0 });
-// 63 + 36 + 54 + 36 + 11 = 200 rounds.
 
 const l3Pool = [];
 for (let a = 11; a <= 20; a++) {
@@ -210,9 +187,10 @@ const composites = [];
 
 // L1 — 三数相加.
 for (const r of l1Curated) {
-  const [a, b, c] = r.nums.map((n) => safeInt(n, 0, 10, "l1.nums"));
-  const answer = safeInt(r.answer, 3, 15, "l1.answer");
-  const { pair, third: thirdVal } = choosePair(r.nums);
+  const [a, b, c] = r.nums.map((n) => safeInt(n, 1, 9, "l1.nums"));
+  const answer = safeInt(r.answer, 3, 27, "l1.answer");
+  const { pair, third: thirdVal, isMakeTen } = choosePair(r.nums);
+  // Pattern A (sum ≤ 10, no pair to ten): "look at the first two".
   composites.push({
     id: `l1-intro-${a}-${b}-${c}`,
     text: `先看下${numZh(a)}加${numZh(b)}加${numZh(c)}等于几，这个问题可以分解成我们先看看前两个数相加。`,
@@ -221,17 +199,31 @@ for (const r of l1Curated) {
     id: `l1-sub-${pair[0]}-${pair[1]}`,
     text: `${numZh(pair[0])}加${numZh(pair[1])}等于几`,
   });
+  // Pattern B (two of three sum to 10): make-a-ten practice.
+  if (isMakeTen) {
+    composites.push({
+      id: `l1-intro-mt-${a}-${b}-${c}`,
+      text: `先看下${numZh(a)}加${numZh(b)}加${numZh(c)}等于几，这个问题可以分解成我们先找出相加为10的数。`,
+    });
+  }
   composites.push({
     id: `l1-rwd-${a}-${b}-${c}-${answer}`,
     text: `${numZh(a)}加${numZh(b)}加${numZh(c)}等于${numZh(answer)}`,
   });
   const pairSum = safeInt(pair[0] + pair[1], 0, 20, "l1 pair sum");
-  const third = safeInt(thirdVal, 0, 10, "l1 third addend");
+  const third = safeInt(thirdVal, 1, 9, "l1 third addend");
   composites.push({
     id: `l1-step2-${pairSum}-${third}`,
     text: `${numZh(pairSum)}加${numZh(third)}等于几`,
   });
 }
+
+// Generic phase-2 cue for the L1 make-a-ten pattern: "哪两个数相加等于10".
+// Shared across all ~217 make-a-ten rounds so only one cue is needed.
+composites.push({
+  id: "l1-sub-find-ten",
+  text: "哪两个数相加等于10",
+});
 
 // L2 — 凑十法 + adjacent kinds (simple / no-carry-2d / carry-2d / trivial).
 // Strict make-ten (a, b ∈ [1, 10], sum ∈ [10, 19]) gets the full 4-step
