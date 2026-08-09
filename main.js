@@ -15,7 +15,6 @@ const levelsData = {
     {
       "id": 1,
       "title": "Three Friends",
-      "intro": "lvl-1-intro",
       "rounds": [
         { "kind": "three-sum", "nums": [2, 3, 4], "answer": 9 },
         { "kind": "three-sum", "nums": [1, 5, 3], "answer": 9 },
@@ -33,7 +32,7 @@ const levelsData = {
         { "kind": "make-ten", "a": 8, "b": 5, "need": 2, "rest": 3, "answer": 13 },
         { "kind": "make-ten", "a": 7, "b": 6, "need": 3, "rest": 3, "answer": 13 },
         { "kind": "make-ten", "a": 9, "b": 4, "need": 1, "rest": 3, "answer": 13 },
-        { "kind": "make-ten", "a": 6, "b": 7, "need": 4, "rest": 3, "answer": 13 },
+        { "kind": "make-ten", "a": 7, "b": 6, "need": 3, "rest": 3, "answer": 13 },
         { "kind": "make-ten", "a": 8, "b": 6, "need": 2, "rest": 4, "answer": 14 },
         { "kind": "make-ten", "a": 9, "b": 7, "need": 1, "rest": 6, "answer": 16 }
       ]

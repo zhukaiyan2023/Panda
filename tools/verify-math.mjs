@@ -109,15 +109,37 @@ async function roundData(levelId, roundIdx) {
       const r = lvl.rounds[roundIdx];
       const answers = [];
       if (r.kind === "three-sum" || r.kind === "three-ten") {
-        // L1 is one step now: just the total. The cell row visualizes the
-        // pair-to-ten pattern itself; the question is always the sum.
+        // L1 is two steps now: Pair, then Add the rest.
+        //   Pattern A (sum ≤ 10): pair = first two, pairSum = nums[0]+nums[1].
+        //   Pattern B (pair to ten): pair = the two that make ten, pairSum=10.
+        // Step 1: child picks pairSum.
+        // Step 2: child picks the total.
+        let pair, pairSum;
+        for (let i = 0; i < r.nums.length; i++) {
+          for (let j = i + 1; j < r.nums.length; j++) {
+            if (r.nums[i] + r.nums[j] === 10) {
+              pair = [r.nums[i], r.nums[j]];
+              pairSum = 10;
+              break;
+            }
+          }
+          if (pair) break;
+        }
+        if (!pair) {
+          pair = [r.nums[0], r.nums[1]];
+          pairSum = r.nums[0] + r.nums[1];
+        }
+        answers.push(pairSum);
         answers.push(r.answer);
       } else if (r.kind === "make-ten") {
-        // Step 1: which is bigger? Step 2: how many to ten? Step 3: the small
-        // number. Step 4: total.
-        answers.push(Math.max(r.a, r.b));
+        // L2 redesigned: Compare → To ten → Split → Count.
+        // Step 1: pick ">" (the bigger wins). Step 2: how many does big
+        // need to make ten? Step 3: split small into (need, rest) — the
+        // button text is the literal expression "need+rest". Step 4: the
+        // total.
+        answers.push(">");
         answers.push(r.need);
-        answers.push(Math.min(r.a, r.b));
+        answers.push(`${r.need}+${r.rest}`);
         answers.push(r.answer);
       } else {
         answers.push(r.missing ?? r.b);
@@ -130,7 +152,9 @@ async function roundData(levelId, roundIdx) {
 
 async function clickButton(value) {
   const buttons = await readRow(BUTTON_Y);
-  const target = buttons.find((b) => Number(b.text) === value);
+  // L1/L3 use numeric buttons; L2 step 1 uses ">" / "<" symbols. Match by
+  // string so both work.
+  const target = buttons.find((b) => b.text === String(value));
   if (!target) return false;
   await page.mouse.click(target.x, target.y);
   return true;
@@ -176,6 +200,7 @@ for (const levelId of LEVELS) {
     let answeredSteps = 0;
     while (answeredSteps < answers.length) {
       const expected = answers[answeredSteps];
+      const expectedStr = String(expected);
       // Look for a sample that contains the expected value. We can't just
       // take the first non-empty row because some steps are reveal-only and
       // have no buttons; the buttons that do appear may belong to a different
@@ -185,9 +210,8 @@ for (const levelId of LEVELS) {
         await page.waitForTimeout(50);
         const buttons = await readRow(BUTTON_Y);
         if (buttons.length === 0) continue;
-        const values = buttons.map((b) => Number(b.text));
-        if (values.includes(expected)) {
-          picked = buttons.find((b) => Number(b.text) === expected);
+        if (buttons.some((b) => b.text === expectedStr)) {
+          picked = buttons.find((b) => b.text === expectedStr);
         }
       }
       if (!picked) {

@@ -1,123 +1,221 @@
 // scenes/level2.js — make-a-ten strategy, taught in 4 explicit steps.
 //
-// The full problem stays on screen as `a + b = answer`. Two ten-frames below
-// make the strategy visible: the LEFT frame fills with `a`, the RIGHT frame
-// stays empty until step 2, then fills with `need` so the child SEES the
-// pair making 10.
+// The persistent anchor ("a + b = ?") sits at the TOP of the screen in the
+// largest font — it's the goal the child is working toward and never
+// disappears between teaching beats. Each step shows a smaller sub-question
+// below it.
 //
-// Step 1 — Big:      which is bigger? a or b?
-// Step 2 — Friend:   how many does the big number need to make 10?
-// Step 3 — Small:    how much is the OTHER number?
-// Step 4 — Count:    what is 10 + rest?
-//
-// Each step has its own voice cue so a pre-reader can still follow the
-// teaching beat-by-beat.
+// Step 1 — Compare:    sub "big ? small"; child picks ">" or "<". Big in
+//                      blue, small in pink. After correct, "?" becomes ">".
+// Step 2 — To ten:     sub "big + ? = 10"; child picks the friend count.
+//                      The ten-frame pair below lights up so the child SEES
+//                      the pair making ten. NO reveal text like
+//                      "8 + 2 = 10" — that just restates the equation.
+// Step 3 — Split:      sub "? + ? = small"; child picks a split of the
+//                      small number. Options like "1+4", "2+3", "3+2",
+//                      "4+1" — one of them has the ten-completing part
+//                      (need) as its first addend. After correct, the
+//                      anchor doesn't change yet — only the sub-question's
+//                      "?" slots are now filled.
+// Step 4 — Count:      sub "a + need + rest = ?"; child picks the total.
+//                      After correct, EVERY "?" on screen becomes the
+//                      correct number — the persistent anchor and the
+//                      sub-question both reveal at once.
 
 import tenFrame from "../components/tenFrame.js";
 import createRoundScene, { LAYOUT, options } from "./roundScene.js";
-import { INK, FONT, YELLOW, BLUE } from "../components/theme.js";
+import {
+  INK, FONT, YELLOW, BLUE, PINK, PURPLE, ORANGE,
+} from "../components/theme.js";
 
 const TEN = 10;
+const COL_BIG = BLUE;
+const COL_SMALL = PINK;
+const COL_NEED = ORANGE;
+const COL_REST = PURPLE;
+const COL_TEN  = YELLOW;
 
 function bigger(a, b) { return a >= b ? a : b; }
 function smaller(a, b) { return a >= b ? b : a; }
 
+// Persistent anchor ("a + b = ?") rendered at the top, large.
+function anchorSlots(round, sumSlot) {
+  return {
+    slots: [round.a, "+", round.b, "=", sumSlot],
+    colors: [COL_BIG, undefined, COL_SMALL, undefined, undefined],
+  };
+}
+
 // Two ten-frames side by side. The left frame shows the bigger addend; the
-// right frame shows the friend count that completes ten. Frame fills are
-// kept in sync with the current step via ctx.frameA / ctx.frameB refs.
-function tenFramePair(ctx, round, stepIndex) {
+// right frame shows the friend count that completes ten. Shown from step 2
+// onward — step 1 just compares, no ten-frames yet.
+function tenFramePair(ctx, round) {
   const { k } = ctx;
   const big = bigger(round.a, round.b);
-  const small = smaller(round.a, round.b);
 
-  // Destroy any prior frames so a step transition doesn't pile visuals.
   if (ctx.frameA) ctx.frameA.destroy();
   if (ctx.frameB) ctx.frameB.destroy();
 
   ctx.frameA = tenFrame(k, big, {
-    x: LAYOUT.barX - 220, y: LAYOUT.bodyY + 100,
-    rows: 2, cell: 56, gap: 8, showLabel: false,
+    x: LAYOUT.barX - 220, y: 620,
+    rows: 2, cell: 50, gap: 6, showLabel: false,
   });
   ctx.frameB = tenFrame(k, 0, {
-    x: LAYOUT.barX + 220, y: LAYOUT.bodyY + 100,
-    rows: 2, cell: 56, gap: 8, showLabel: false,
+    x: LAYOUT.barX + 220, y: 620,
+    rows: 2, cell: 50, gap: 6, showLabel: false,
   });
 
-  // Big-number labels above each frame so the child sees "this many dots" at
-  // a glance.
+  // Big-number labels above each frame.
   k.add([
-    k.text(String(big), { size: 64, font: FONT }),
-    k.color(...INK),
-    k.pos(LAYOUT.barX - 220, LAYOUT.bodyY - 30),
+    k.text(String(big), { size: 52, font: FONT }),
+    k.color(...COL_BIG),
+    k.pos(LAYOUT.barX - 220, 530),
     k.anchor("center"),
   ]);
   k.add([
-    k.text(String(small), { size: 64, font: FONT }),
-    k.color(...INK),
-    k.pos(LAYOUT.barX + 220, LAYOUT.bodyY - 30),
+    k.text(String(smaller(round.a, round.b)), { size: 52, font: FONT }),
+    k.color(...COL_SMALL),
+    k.pos(LAYOUT.barX + 220, 530),
     k.anchor("center"),
   ]);
+}
 
-  // Step 2 onward: fill the right frame with the friend count.
-  if (stepIndex >= 1) ctx.frameB.setValue(round.need);
+// Build 4 split-of-small options as button-text strings ("a+b"). Always
+// includes the canonical (need, rest) split as the correct one.
+function buildSplitOptions(small, need, rest) {
+  const seen = new Set();
+  const opts = [];
+  const correctStr = `${need}+${rest}`;
+  // Walk from a=1 upward, generating (a, small-a) pairs.
+  for (let a = 1; a < small; a++) {
+    const b = small - a;
+    const text = `${a}+${b}`;
+    if (!seen.has(text)) {
+      seen.add(text);
+      opts.push(text);
+    }
+  }
+  // If we don't have 4, shuffle and pad by cycling; otherwise take first 4.
+  // The correct split is naturally included when need != rest and a=need
+  // produces (need, rest). For small=4 (need=2, rest=2) the canonical
+  // string is "2+2" which the loop produces.
+  // Trim or cycle to exactly 4 entries.
+  while (opts.length < 4) opts.push(opts[opts.length - 1]);
+  if (opts.length > 4) {
+    // Keep the correct split, plus 3 others.
+    const others = opts.filter((s) => s !== correctStr).slice(0, 3);
+    opts.length = 0;
+    opts.push(correctStr, ...others);
+  }
+  return { options: opts, correct: correctStr };
 }
 
 export default createRoundScene({
   levelId: 2,
   sceneName: "level2",
-  introCue: "lvl-2-intro",
-  stepLabels: ["Find biggest", "Find friend", "Small left", "Count"],
+  // No intro cue — the persistent anchor ("a + b = ?") IS the introduction.
+  // A "make ten" voice on entry would just say the same thing twice.
+  stepLabels: ["Compare", "To ten", "Split", "Count"],
 
   steps: [
-    // Step 1 — Big.
+    // Step 1 — Compare.
     (ctx, round) => {
-      tenFramePair(ctx, round, 0);
+      const big = bigger(round.a, round.b);
+      const small = smaller(round.a, round.b);
+      // Persistent anchor at top, big.
+      ctx.setAnchorEquation(anchorSlots(round, "?"));
       return {
-        equation: { left: round.a, right: round.b, sum: "?" },
+        equation: {
+          slots: [big, "?", small],
+          colors: [COL_BIG, undefined, COL_SMALL],
+        },
+        // Sub-question sits below the persistent anchor.
+        equationOpts: { y: 470, size: 88 },
         cue: "step-1",
         question: {
-          correct: bigger(round.a, round.b),
-          values: options(bigger(round.a, round.b), { min: 0, max: 10, count: 4 }),
+          correct: ">",
+          values: [">", "<"],
+        },
+        onAdvance: () => {
+          ctx.setEquation({
+            slots: [big, ">", small],
+            colors: [COL_BIG, COL_NEED, COL_SMALL],
+          }, { y: 470, size: 88 });
         },
       };
     },
-    // Step 2 — Friend.
+    // Step 2 — To ten.
     (ctx, round) => {
-      tenFramePair(ctx, round, 1);
+      const big = bigger(round.a, round.b);
+      // Anchor stays as-is.
+      tenFramePair(ctx, round);
+      ctx.frameB.setValue(round.need);
       return {
-        equation: { left: round.a, right: "?", sum: TEN },
+        equation: {
+          slots: [big, "+", "?", "=", TEN],
+          colors: [COL_BIG, undefined, undefined, undefined, COL_TEN],
+        },
+        equationOpts: { y: 470, size: 88 },
         cue: "step-2",
         question: {
           correct: round.need,
           values: options(round.need, { min: 0, max: TEN, prefer: [round.rest] }),
         },
-        reveal: `${round.a} + ${round.need} = ${TEN}`,
+        onAdvance: () => {
+          ctx.setEquation({
+            slots: [big, "+", round.need, "=", TEN],
+            colors: [COL_BIG, undefined, COL_NEED, undefined, COL_TEN],
+          }, { y: 470, size: 88 });
+        },
       };
     },
-    // Step 3 — Small.
+    // Step 3 — Split: ? + ? = small.
     (ctx, round) => {
-      const other = smaller(round.a, round.b);
+      const small = smaller(round.a, round.b);
+      const { options: splitOpts, correct } = buildSplitOptions(
+        small, round.need, round.rest,
+      );
       return {
-        equation: { left: TEN, right: "?", sum: TEN + other },
+        equation: {
+          slots: ["?", "+", "?", "=", small],
+          colors: [undefined, undefined, undefined, undefined, COL_SMALL],
+        },
+        equationOpts: { y: 470, size: 88 },
         cue: "step-3",
         question: {
-          correct: other,
-          values: options(other, { min: 0, max: TEN, count: 4 }),
+          correct,
+          values: splitOpts,
         },
-        reveal: `${TEN} + ${other} = ${TEN + other}`,
+        onAdvance: () => {
+          ctx.setEquation({
+            slots: [round.need, "+", round.rest, "=", small],
+            colors: [COL_NEED, undefined, COL_REST, undefined, COL_SMALL],
+          }, { y: 470, size: 88 });
+        },
       };
     },
-    // Step 4 — Count.
+    // Step 4 — Count: a + need + rest = ?
     (ctx, round) => {
-      const other = smaller(round.a, round.b);
       return {
-        equation: { left: TEN, right: other, sum: round.answer },
+        equation: {
+          slots: [round.a, "+", round.need, "+", round.rest, "=", "?"],
+          colors: [COL_BIG, undefined, COL_NEED, undefined, COL_REST, undefined, undefined],
+        },
+        equationOpts: { y: 470, size: 80 },
         cue: "step-4",
         question: {
           correct: round.answer,
           values: options(round.answer, { min: TEN, max: 20, count: 4 }),
         },
-        reveal: `${TEN} + ${other} = ${round.answer}`,
+        onAdvance: () => {
+          // Reveal the persistent anchor at the top.
+          ctx.setAnchorEquation(anchorSlots(round, round.answer));
+          // Reveal the sub-question too.
+          ctx.setEquation({
+            slots: [round.a, "+", round.need, "+", round.rest, "=", round.answer],
+            colors: [COL_BIG, undefined, COL_NEED, undefined, COL_REST, undefined, INK],
+          }, { y: 470, size: 80 });
+        },
       };
     },
   ],

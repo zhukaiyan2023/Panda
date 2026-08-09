@@ -157,12 +157,19 @@ export default function createRoundScene(config) {
     }
 
     let eqNode = null;
-    function setEquation(eq) {
+    let anchorEqNode = null;
+    // The "active" equation sits in the body area at moderate size. Levels
+    // swap it each teaching beat (L1's pair, L2's compare/to-ten/split/count).
+    function setEquation(eq, opts = {}) {
       if (eqNode) eqNode.destroy();
       // Accept either the legacy { left, right, sum } shape or the newer
       // { slots: [...], colors?: [...] } shape. The newer shape is the one
       // levels use for any expression that isn't a single two-addend question.
-      const props = { x: LAYOUT.barX, y: LAYOUT.equationY, size: 104 };
+      const props = {
+        x: opts.x ?? LAYOUT.barX,
+        y: opts.y ?? LAYOUT.equationY,
+        size: opts.size ?? 96,
+      };
       if (eq.slots) {
         props.slots = eq.slots;
         if (eq.colors) props.colors = eq.colors;
@@ -172,6 +179,26 @@ export default function createRoundScene(config) {
         props.sum = eq.sum;
       }
       eqNode = expression(k, props);
+    }
+    // The persistent "anchor" equation — the original problem ("a + b = ?")
+    // that the child is working toward. Renders at the top, large and bold,
+    // and never disappears between teaching beats.
+    function setAnchorEquation(eq, opts = {}) {
+      if (anchorEqNode) anchorEqNode.destroy();
+      const props = {
+        x: opts.x ?? LAYOUT.barX,
+        y: opts.y ?? 260,
+        size: opts.size ?? 100,
+      };
+      if (eq.slots) {
+        props.slots = eq.slots;
+        if (eq.colors) props.colors = eq.colors;
+      } else {
+        props.left = eq.left;
+        props.right = eq.right;
+        props.sum = eq.sum;
+      }
+      anchorEqNode = expression(k, props);
     }
 
     function clearBody() {
@@ -209,7 +236,7 @@ export default function createRoundScene(config) {
     // Shared context for every step's renderer.
     const ctx = {
       k, round, ri, totalRounds, bar, buddy, reveal, context,
-      setEquation, clearBody, clearButtons, renderButtons,
+      setEquation, setAnchorEquation, clearBody, clearButtons, renderButtons,
       get step() { return state.step; },
     };
 
@@ -217,7 +244,7 @@ export default function createRoundScene(config) {
       const stepCfg = config.steps[stepNumber - 1];
       if (!stepCfg) return;
       const built = stepCfg(ctx, prev) || {};
-      if (built.equation) setEquation(built.equation);
+      if (built.equation) setEquation(built.equation, built.equationOpts || {});
       if (built.body) state.body = built.body;
       if (built.reveal) reveal(built.reveal);
       if (built.cue) window.PandaAudio.playCue(built.cue);

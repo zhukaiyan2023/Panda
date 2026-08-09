@@ -13,12 +13,13 @@
 
 module.exports = [
   // ===== math round step transitions =====
-  // Short prompts the panda reads to the child. Each step is a teaching beat:
-  // step-1 = find the biggest, step-2 = make a ten, step-3 = split the small,
-  // step-4 = count it all. Calm, gentle, never shouty.
+  // Short prompts the panda reads to the child. Each step is a teaching beat
+  // for L2 (Make Ten): step-1 = compare, step-2 = how many to ten,
+  // step-3 = split the small, step-4 = count it all. Calm, gentle, never
+  // shouty.
   { id: "step-1", text: "biggest?" },
-  { id: "step-2", text: "friend?" },
-  { id: "step-3", text: "small?" },
+  { id: "step-2", text: "to ten?" },
+  { id: "step-3", text: "split!" },
   { id: "step-4", text: "count!" },
 
   // Variant for Level 1 (mixed-addition). When the three numbers don't pair
