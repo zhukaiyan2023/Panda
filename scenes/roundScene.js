@@ -274,6 +274,13 @@ export default function createRoundScene(config) {
         // guessing with a setTimeout).
         ctx.lastEncourageId = encourageId;
         window.PandaAudio.playCue(encourageId);
+        // Chain the panda's own cheer ("好棒") off the encouragement
+        // so the kid hears "耶！" then "好棒" without overlapping.
+        // Without this, panda.js's setMood would fire panda-celebrate
+        // on top of the enc cue — wall of sound.
+        window.PandaAudio.playAfter(
+          encourageId, ["panda-celebrate"], { gapMs: 200, seqGapMs: 0 },
+        );
         // stepCfg.onAdvance may return a thenable (Promise) — for
         // audio-gated advances like L1 step 2's equation read-back,
         // the promise resolves when the audio chain finishes, and

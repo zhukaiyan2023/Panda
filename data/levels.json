@@ -2,7 +2,7 @@
   "levels": [
     {
       "id": 1,
-      "title": "Three Friends",
+      "title": "三数相加",
       "rounds": [
         { "kind": "three-sum",  "nums": [2, 3, 4], "answer": 9 },
         { "kind": "three-sum",  "nums": [1, 5, 3], "answer": 9 },
@@ -14,7 +14,7 @@
     },
     {
       "id": 2,
-      "title": "Make a Ten",
+      "title": "凑十法",
       "intro": "lvl-2-intro",
       "rounds": [
         { "kind": "make-ten", "a": 8, "b": 5, "need": 2, "rest": 3, "answer": 13 },
@@ -27,7 +27,7 @@
     },
     {
       "id": 3,
-      "title": "Up to 20",
+      "title": "二十以内",
       "intro": "lvl-3-intro",
       "rounds": [
         { "a": 11, "b": 8, "answer": 19 },

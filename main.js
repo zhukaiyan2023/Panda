@@ -14,7 +14,7 @@ const levelsData = {
   "levels": [
     {
       "id": 1,
-      "title": "Three Friends",
+      "title": "三数相加",
       "rounds": [
         { "kind": "three-sum", "nums": [2, 3, 4], "answer": 9 },
         { "kind": "three-sum", "nums": [1, 5, 3], "answer": 9 },
@@ -26,7 +26,7 @@ const levelsData = {
     },
     {
       "id": 2,
-      "title": "Make a Ten",
+      "title": "凑十法",
       "intro": "lvl-2-intro",
       "rounds": [
         { "kind": "make-ten", "a": 8, "b": 5, "need": 2, "rest": 3, "answer": 13 },
@@ -39,7 +39,7 @@ const levelsData = {
     },
     {
       "id": 3,
-      "title": "Up to 20",
+      "title": "二十以内",
       "intro": "lvl-3-intro",
       "rounds": [
         // L3 (二十以内) redesigned: a is a 2-digit (tens digit = 1) and
@@ -58,17 +58,19 @@ const levelsData = {
 };
 
 const CUE_IDS = [
-  "lvl1-step-1", "lvl1-step-2",
   "enc-great", "enc-awesome", "enc-amazing", "enc-nice", "enc-try",
   "n-0", "n-1", "n-2", "n-3", "n-4", "n-5", "n-6", "n-7", "n-8", "n-9", "n-10",
   // spoken equation intro — chained by PandaAudio.playSequence so the child
   // hears "几加三加五" instead of just "算一算". The Mandarin chain reads
   // naturally: "what is three plus five?" in three concatenated words.
   "q-what-is", "q-plus", "q-equals", "equals",
-  "round-start", "round-end",
   // L1 entry — greeting plays once on entering the level, then the
   // per-round "decompose" sentence is built at runtime by chaining
   // these number-agnostic chunks with the universal n-* / q-* cues.
+  // L1 step audio is the decompose sentence, not standalone one-word
+  // cues — the old lvl1-step-1 ("找一对") and lvl1-step-2 ("加剩下的")
+  // were removed. The step bar uses the renamed "两数相加" / "计算结果"
+  // labels (see scenes/level1.js stepLabels).
   "lvl-1-greeting",
   "lvl-1-decomp-pre", "lvl-1-decomp-eq",
   "lvl-2-intro", "lvl-3-intro", "lvl-done",
@@ -85,8 +87,9 @@ const CUE_IDS = [
   // scenes/level3.js. Step 1 uses two number-agnostic chunks; steps 2
   // and 3 use only universal n-* / q-* cues (no chunks needed).
   "lvl-3-step-1-pre", "lvl-3-step-1-q",
-  "panda-hi", "panda-celebrate",
-  "tap-unlock", "level-locked", "next", "back",
+  // The panda speaks on every correct pick — see components/panda.js.
+  // The old `panda-hi` was unused and is dropped.
+  "panda-celebrate",
   "boat-intro", "boat-pair", "boat-done",
   "cloud-intro", "cloud-pair", "cloud-done",
   "bounce-intro", "bounce-pop", "bounce-done",

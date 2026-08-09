@@ -9,6 +9,25 @@
 // list and writes assets/audio/<id>.mp3. CommonJS so other tools can
 // require it without an ESM dance.
 //
+// Renamed in this revision (per user feedback, 2026-08-09):
+//   "三个好朋友" (level-1 title concept) → "三数相加"
+//   "先加一对" (L1 step 1 concept)        → "两数相加" (reflected in
+//                                              stepLabels; not a standalone cue)
+//   "加剩下的" (L1 step 2 concept)        → "计算结果" (same — reflected
+//                                              in stepLabels; not standalone)
+//
+// The lvl1-step-1 ("找一对") / lvl1-step-2 ("加剩下的") MP3s were
+// orphans — L1 step audio is the per-round decompose sentence, not
+// standalone one-word cues. Removed from CUE_IDS.
+//
+// Orphan single-cues swept:
+//   panda-hi         — no caller
+//   round-start / -end, tap-unlock, level-locked, next, back
+//                    — no caller
+//   panda-celebrate  — was blocked by `silent: true` on every cheer;
+//                      unblocked in roundScene + pairScene so the panda
+//                      actually speaks on a correct pick (kept the cue)
+//
 // Notes for translators:
 //   * numbers stay as "一".."十" — they're read as separate cues and chained
 //     via PandaAudio.playSequence. Don't translate "一" into "壹" etc.
@@ -25,8 +44,9 @@ module.exports = [
   // universal n-0..n-10 + q-plus + q-equals cues. Numbers are NEVER
   // baked into a per-round file — any L1 round can use this set.
   //
-  // Greeting plays once when the user first opens L1.
-  { id: "lvl-1-greeting", text: "你好，小朋友，我们来学习三数相加。准备好了吗？" },
+  // Greeting plays once when the user first opens L1. Single sentence,
+  // matches the L2 ("凑十法") and L3 ("二十以内") greeting style.
+  { id: "lvl-1-greeting", text: "小朋友好，我们来学习三数相加" },
   // Chunks of the per-round decompose sentence. The full sentence for
   // a round with nums [a,b,c] reads:
   //   先看下 a 加 b 加 c 等于几，这个问题可以分解成我们先看看前两个数相加。
@@ -85,14 +105,12 @@ module.exports = [
   // L3 teaches the "split 2-digit into 10 + ones, add the ones, add 10
   // and the sum" strategy in 3 teaching beats. Built at runtime by
   // scenes/level3.js from these number-agnostic chunks plus the
-  // universal n-0..n-10 + q-plus + q-equals cues. Same set works for
-  // every L3 round (a is always 11-19, ones = a % 10, b is 1-9, and
-  // ones + b <= 10 — no carrying).
+  // universal n-* / q-* cues. Same set works for every L3 round (a is
+  // always 11-19, ones = a % 10, b is 1-9, and ones + b <= 10 — no
+  // carrying).
   //
   // Step 1 — Split the 2-digit:
-  //   "先把 [a] 拆成十加几"
-  // (The literal "10" in the sentence is read as "十" by TTS, same as
-  //  the visual "10" the child sees. n-a carries the actual a value.)
+  //   "先把 [十][X] 拆成十加几"  (a is read as n-10 + n-{a-10} for teens)
   { id: "lvl-3-step-1-pre", text: "先把" },
   { id: "lvl-3-step-1-q",   text: "拆成十加几" },
   //
@@ -100,10 +118,6 @@ module.exports = [
   // Step 3 — Add 10 and the sum: "十 加 [sum] 等于几"
   // Both steps use only universal cues (n-*, q-plus, q-equals) — no
   // number-agnostic chunks needed.
-
-  // L1 = 三数相加 (mixed-addition) — only 2 beats.
-  { id: "lvl1-step-1", text: "找一对" },     // step 1: 找出相加得 10 的一对
-  { id: "lvl1-step-2", text: "加剩下的" },   // step 2: pairSum + third
 
   // ===== spoken equation intro =====
   // Glued together by PandaAudio.playSequence. L1 step 1 chains
@@ -150,27 +164,22 @@ module.exports = [
   { id: "enc-try",     text: "再试试" },
 
   // ===== round / level flow =====
-  { id: "round-start", text: "开始" },
-  { id: "round-end",   text: "完成" },
   { id: "lvl-done",    text: "全部完成啦" },
 
   // ===== panda teacher feedback =====
-  // Used for setMood transitions. panda-hi plays on first contact (not
-  // currently triggered); panda-celebrate plays on cheer unless silent.
-  { id: "panda-hi",        text: "你好呀" },
+  // The panda is the heart of the game; when it cheers, the kid should
+  // hear it. The previous version blocked panda-celebrate with
+  // `silent: true` on every cheer (because the panda mood triggered the
+  // cue automatically via components/panda.js). The fix was to drop the
+  // silent flag from roundScene + pairScene — the panda now speaks on
+  // every correct pick, on top of the rotated enc-* cue. This is the
+  // only remaining panda-hi-style cue; panda-hi itself is unused.
   { id: "panda-celebrate", text: "好棒" },
-
-  // ===== ui feedback =====
-  { id: "tap-unlock",   text: "点一下" },
-  { id: "level-locked", text: "还没到这一关" },
-  { id: "next",         text: "下一个" },
-  { id: "back",         text: "返回" },
 
   // ===== panda-park migrated games =====
   // Boat — 凑十过河. The first round opens with a friendly greeting that
   // walks the child through what's about to happen (panda wants to cross,
-  // pick two boats that sum to ten, help the panda). Replaces the original
-  // terse "凑十过河" — kids didn't know what the game was asking of them.
+  // pick two boats that sum to ten, help the panda).
   { id: "boat-intro", text: "小朋友，小熊猫要过河，必须把相加等于十的小船选出来，才能过河，帮帮小熊猫吧。" },
   { id: "boat-pair",  text: "凑十啦" },
   { id: "boat-done",  text: "过河啦" },

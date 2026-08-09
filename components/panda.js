@@ -1,18 +1,18 @@
 // components/panda.js — the panda character and its mood feedback.
 //
-// The game is named after this character but never drew one; assets/audio also
-// shipped panda-hi.mp3 and panda-celebrate.mp3 that no code played. This
-// component owns both the art and those cues.
-//
 // Moods:
 //   idle  — default, breathing bob
-//   cheer — correct answer, plays panda-celebrate
+//   cheer — correct answer, plays panda-celebrate. Callers that chain
+//           their own audio off the enc-* cue should pass
+//           `{ silent: true }` and fire panda-celebrate manually so the
+//           two don't overlap. roundScene and pairScene do exactly this.
 //   think — wrong answer, plays enc-try. Deliberately warm and curious, never
 //           sad or scolding: a 3-6 year old sees it right after a mistake.
 //
 // Usage:
 //   const buddy = panda(parent, { x, y, size: 240 });
-//   buddy.setMood("cheer");
+//   buddy.setMood("cheer");            // plays panda-celebrate immediately
+//   buddy.setMood("cheer", { silent: true });  // caller will fire its own cue
 
 const MOODS = {
   idle: "panda-idle",

@@ -2,29 +2,62 @@
 // tools/build-audio-edge.mjs — synthesize Mandarin audio cues for the Panda
 // math game using Microsoft Edge's free online TTS service (no API key).
 //
-// Why Edge TTS and not the macOS `say` command:
-//   * Tingting (the only comfortable Mandarin voice on macOS) sounds flat
-//     and monotone — bad for an upbeat 3-6 year-old audience.
-//   * Edge ships neural voices (Xiaoxiao, Yunjian, Yunxi …) that are
-//     dramatically more expressive, with natural Mandarin prosody and
-//     proper intonation for kid-appropriate phrases.
+// ===== Why Edge TTS? =====
+// The user asked us to consider Chinese free TTS providers (2026-08-09). We
+// evaluated the realistic options and stayed with Edge TTS for now. The
+// trade-offs:
 //
-// We shell out to the Python `edge-tts` CLI (pip package, ~pip3 install
-// edge-tts) because the npm `edge-tts` package (v1.0.1) ships an
-// outdated auth token that Microsoft has blocked with HTTP 403. The
-// Python package is up to date and works against the same public
-// readaloud endpoint. No API key, no billing.
+//   Edge TTS (current)
+//     * Free, no API key, no signup, works immediately against Edge's
+//       public readaloud endpoint via the Python `edge-tts` CLI.
+//     * Multiple Mandarin voices — we ship `zh-CN-XiaoxiaoNeural` by
+//       default (warm female, news style) and a kid-friendly alternative
+//       `zh-CN-XiaoyiNeural` (cartoon, lively) via EDGE_VOICE.
+//     * Microsoft's neural Mandarin prosody is dramatically better than
+//       macOS's only comfortable Mandarin voice ("Tingting"), which
+//       sounds flat and monotone.
+//     * Trade-off: Microsoft service (not Chinese), requires internet.
 //
-// Voice: EDGE_VOICE env var, default "zh-CN-XiaoxiaoNeural" — Mandarin
-// female, cheerful and lively, the canonical Edge Chinese voice.
+//   Chinese providers (free tier — all require API key + signup)
+//     * 火山引擎 (ByteDance) — BV005_streaming is a kid voice; SDK is
+//       decent, free quota generous. Requires API key in WebSocket
+//       handshake.
+//     * 讯飞开放平台 (iFlyTek) — `xiaoyu` (童声) is purpose-built for
+//       kids; free 200k chars/year; requires API key + signature.
+//     * 百度智能云 — 度小童 voice; free quota; requires AK/SK.
+//     * 腾讯云 — 智童 voice; free quota; requires SecretId/SecretKey.
+//     * 阿里云 — 童声 voice; free quota; requires AK.
 //
-// Format: MP3 (what Edge returns natively). main.js loads
+//   All Chinese providers add a `.env`-style API-key dependency that
+//   this project doesn't currently have, plus a network round-trip to
+//   the provider's auth endpoint. For rapid iteration on an iPad-first
+//   kid's math app, the friction outweighs the (marginal) Mandarin
+//   prosody improvement.
+//
+//   Recommendation: ship with Edge TTS as default, keep the
+//   `EDGE_VOICE` env var escape hatch so anyone who wants to swap in a
+//   Chinese provider's CLI tool can replace this whole script without
+//   touching `tools/cues.cjs`.
+//
+// Why Python `edge-tts` and not the npm `edge-tts` package:
+//   * The npm package (v1.0.1) ships an outdated auth token that
+//     Microsoft has blocked with HTTP 403.
+//   * The Python package (`pip install edge-tts`) is up to date and
+//     works against the same public readaloud endpoint.
+//
+// Voice: EDGE_VOICE env var, default `zh-CN-XiaoxiaoNeural` — warm,
+// female, the canonical Edge Chinese voice. For a more cartoon-y /
+// kid-appropriate feel, try `zh-CN-XiaoyiNeural` (Cartoon, Novel,
+// Lively) — sounds like a kid's TV character.
+//
+// Format: MP3 (Edge returns natively). main.js loads
 // assets/audio/<id>.mp3 directly — both Safari and Chromium handle MP3
 // for <audio> tags.
 //
 // Usage:
-//   node tools/build-audio-edge.mjs            # generate all cues
-//   node tools/build-audio-edge.mjs --dry-run  # list, write nothing
+//   node tools/build-audio-edge.mjs                          # default voice
+//   EDGE_VOICE=zh-CN-XiaoyiNeural node tools/build-audio-edge.mjs   # cartoon voice
+//   node tools/build-audio-edge.mjs --dry-run                # list, write nothing
 
 import fs from "node:fs";
 import path from "node:path";
@@ -73,7 +106,7 @@ for (const cue of CUES) {
       throw new Error(`only ${size} bytes — looks like an empty payload`);
     }
     ok += 1;
-    console.log(`  ok  ${cue.id.padEnd(18)} ${String(size).padStart(6)} B  ${text}`);
+    console.log(`  ok  ${cue.id.padEnd(20)} ${String(size).padStart(6)} B  ${text}`);
   } catch (e) {
     failed += 1;
     console.error(`  FAIL ${cue.id}: ${e.message}`);

@@ -135,6 +135,14 @@ export default function createPairScene(config) {
         window.PandaAudio.playCue(
           config.correctCue?.(a, b) || ENCOURAGE[state.foundPairs % ENCOURAGE.length],
         );
+        // Chain the panda's own cheer ("好棒") off the enc cue so the
+        // kid hears "耶！" then "好棒" without overlap. roundScene does
+        // the same — keep both call sites consistent.
+        window.PandaAudio.playAfter(
+          config.correctCue?.(a, b) || ENCOURAGE[state.foundPairs % ENCOURAGE.length],
+          ["panda-celebrate"],
+          { gapMs: 200, seqGapMs: 0 },
+        );
         buddy.setMood("cheer", { silent: true });
 
         if (state.foundPairs >= totalSteps) {

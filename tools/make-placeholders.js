@@ -12,14 +12,21 @@ const path = require("path");
 
 const CUE_IDS = [
   "enc-great", "enc-awesome", "enc-amazing", "enc-nice", "enc-try",
-  "n-1", "n-2", "n-3", "n-4", "n-5", "n-6", "n-7", "n-8", "n-9", "n-10",
-  "round-start", "round-end",
-  "lvl-1-intro", "lvl-2-intro", "lvl-3-intro", "lvl-done",
-  "panda-hi", "panda-celebrate",
-  "tap-unlock",
-  "level-locked",
-  "next",
-  "back",
+  "n-0", "n-1", "n-2", "n-3", "n-4", "n-5", "n-6", "n-7", "n-8", "n-9", "n-10",
+  "q-what-is", "q-plus", "q-equals", "equals",
+  "lvl-1-greeting", "lvl-1-decomp-pre", "lvl-1-decomp-eq",
+  "lvl-2-intro", "lvl-2-step-1-pre", "lvl-2-step-1-eq", "lvl-2-step-1-or", "lvl-2-step-1-q",
+  "lvl-2-step-2-big-pre", "lvl-2-step-2-find", "lvl-2-step-2-friend-pre", "lvl-2-step-2-q",
+  "lvl-2-step-3-split-pre", "lvl-2-step-3-friend-pre", "lvl-2-step-3-then", "lvl-2-step-3-can-split", "lvl-2-step-3-q",
+  "lvl-2-step-4-split", "lvl-2-step-4-calc",
+  "lvl-3-intro", "lvl-3-step-1-pre", "lvl-3-step-1-q",
+  "lvl-done",
+  "panda-celebrate",
+  "boat-intro", "boat-pair", "boat-done",
+  "cloud-intro", "cloud-pair", "cloud-done",
+  "bounce-intro", "bounce-pop", "bounce-done",
+  "whack-intro", "whack-start", "whack-tick", "whack-timeup", "whack-done",
+  "feed-intro", "feed-nom", "feed-next", "feed-done",
 ];
 
 const outDir = path.resolve(__dirname, "..", "assets", "audio");
