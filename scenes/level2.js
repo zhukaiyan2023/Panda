@@ -101,8 +101,12 @@ function tenFramePair(ctx, round) {
   ]));
 }
 
-// Build 4 split-of-small options as button-text strings ("a+b"). Always
+// Build split-of-small options as button-text strings ("a+b"). Always
 // includes the canonical (need, rest) split as the correct one.
+// Returns however many UNIQUE splits exist — for small ∈ {2, 3, 4} the
+// kid sees fewer than 4 buttons. Padding with duplicates ("1+1" four
+// times) used to fill the row, but per user feedback the duplicates are
+// worse than fewer options.
 function buildSplitOptions(small, need, rest) {
   const seen = new Set();
   const opts = [];
@@ -116,12 +120,6 @@ function buildSplitOptions(small, need, rest) {
       opts.push(text);
     }
   }
-  // If we don't have 4, shuffle and pad by cycling; otherwise take first 4.
-  // The correct split is naturally included when need != rest and a=need
-  // produces (need, rest). For small=4 (need=2, rest=2) the canonical
-  // string is "2+2" which the loop produces.
-  // Trim or cycle to exactly 4 entries.
-  while (opts.length < 4) opts.push(opts[opts.length - 1]);
   if (opts.length > 4) {
     // Keep the correct split, plus 3 others.
     const others = opts.filter((s) => s !== correctStr).slice(0, 3);
@@ -174,35 +172,27 @@ function buildL2Step4Ids(big, small, need, rest) {
 
 // Fires a per-step L2 audio chain. Three cases:
 //
-//   1. Step 1 on round 0: chain off the one-time entry greeting
-//      (lvl-2-intro). The greeting plays on scene start, this step
-//      waits for its `ended` event + 800ms so the greeting lands
-//      first.
+// Fires a per-step L2 audio chain. Two cases:
 //
-//   2. Any step after a correct pick (round 0 step 2+, round 1+
-//      all steps): chain off ctx.lastEncourageId — the praise cue
-//      ("耶！" etc.) that roundScene just played. The new prompt
-//      starts AFTER the praise lands, with 400ms breath between.
-//      Without this, the praise and the new prompt overlap and
-//      feel crammed together.
+//   1. Any step after a correct pick (round 0 step 2+, round 1+
+//      all steps): chain off the celebration cue that roundScene just
+//      played. The new prompt starts AFTER the praise lands, with
+//      400ms breath between. Without this, the praise and the new
+//      prompt overlap and feel crammed together.
 //
-//   3. Fallback (no prior audio to chain off): play immediately
+//   2. Fallback (no prior audio to chain off): play immediately
 //      with a small render-settle delay.
-function fireL2StepAudio(ctx, ids, stepNumber) {
-  if (ctx.ri === 0 && stepNumber === 1) {
-    window.PandaAudio.playAfter("lvl-2-intro", ids, {
-      gapMs: 800,
-      seqGapMs: 40,    // tighter — was 200ms, made the steps feel slow
-    });
-    return;
-  }
+//
+// The previous level-intro ("lvl-2-intro" — "现在我们一起学习凑十法")
+// was removed per user feedback: clicking the 凑十法 tile drops the
+// kid straight into round 0 step 1 without the spoken greeting,
+// since the per-step audio already names the strategy on the first
+// round.
+function fireL2StepAudio(ctx, ids, _stepNumber) {
   // After a correct pick, the celebration chain ends with
   // "panda-celebrate" — chain the step audio off its `ended` event
   // so the next step starts immediately when the cheer finishes,
-  // with no setTimeout and no overlap with the cheer tail. The
-  // previous reference (ctx.lastEncourageId, the enc cue) had
-  // already ended by the time advance fired, so playAfter would
-  // have kicked off mid-celebration.
+  // with no setTimeout and no overlap with the cheer tail.
   if (ctx.lastEncourageId) {
     window.PandaAudio.playAfter("panda-celebrate", ids, {
       gapMs: 400,
@@ -232,11 +222,29 @@ export default createRoundScene({
     (ctx, round) => {
       const big = bigger(round.a, round.b);
       const small = smaller(round.a, round.b);
+      const isEqual = round.a === round.b;
       // Frames are visible from step 1 — the child needs to SEE the two
       // counts before picking > / <, not just read the numbers.
       tenFramePair(ctx, round);
       // Persistent anchor at top, big.
       ctx.setAnchorEquation(anchorSlots(round, "?"), { y: 260 });
+      // Equal case: there's no correct comparison (> and < are both
+      // wrong). Skip the per-step "compare which is bigger" audio
+      // (which is awkward for "6 还是 6 谁大"), show "a = b" on the
+      // sub-question row, and auto-advance after a beat so the kid
+      // sees the equal sign and moves on. Per user feedback: "等于时，
+      // 随便取一个" — don't make the kid tap a button when the
+      // numbers are the same.
+      if (isEqual) {
+        return {
+          equation: {
+            slots: [round.a, "=", round.b],
+            colors: [COL_BIG, COL_NEED, COL_SMALL],
+          },
+          equationOpts: { y: 660, size: 82 },
+          noQuestionDelay: 1.0,
+        };
+      }
       // Per-step audio prompt. "我们来计算 a 加 b 等于几，先比一比，
       // a 还是 b 谁大" — uses round.a / round.b in their original
       // order so the prompt matches the visible equation above.

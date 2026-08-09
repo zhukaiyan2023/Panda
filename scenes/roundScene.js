@@ -400,20 +400,15 @@ export default function createRoundScene(config) {
         k.go(config.sceneName);
         return;
       }
-      // Last round over — play "lvl-done" then navigate. Chain via
-      // playAfter("panda-celebrate", ...) so we never cut lvl-done
-      // short with an immediate k.go (the old playCue + k.go two-
-      // liner pattern cropped the cue to its first syllable). The
-      // panda-celebrate cue already ended by the time we got here
-      // (advance was gated on it), so playAfter kicks off immediately.
+      // Last round over — navigate to the level picker. The previous
+      // "lvl-done" cue ("all done") was removed per user feedback;
+      // the kid just gets back to the level map after the celebration
+      // audio. panda-celebrate has already ended by the time we get
+      // here (advance was gated on it), so navigating immediately is
+      // a clean exit.
       saveProgress(config.levelId);
       roundIdx = 0;
-      window.PandaAudio.playAfter(
-        "panda-celebrate",
-        ["lvl-done"],
-        { gapMs: 200, seqGapMs: 0 },
-        () => k.go("levelPicker"),
-      );
+      k.go("levelPicker");
     }
 
     let autoAdvanceTimer = null;
