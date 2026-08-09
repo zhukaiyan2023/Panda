@@ -214,26 +214,30 @@ function mergedRow(ctx, nums, opts = {}) {
 // ends with the step-1 sub-question, so adding another spoken prompt would
 // just repeat it.
 //
-// When called after a correct pick, chains off ctx.lastEncourageId so the
-// new prompt waits for the praise cue ("耶！" etc.) to finish plus a
-// 400ms breath — without this, the praise and the new prompt overlap
-// and feel crammed together.
+// When called after a correct pick, chains off "panda-celebrate" — the
+// actual last cue of the cheer audio — so the next step's prompt
+// starts immediately when the celebration ends, with no fixed
+// setTimeout and no overlap with the celebration tail. The previous
+// reference (ctx.lastEncourageId, the "enc-great" cue) was already
+// `ended` by the time buildStep ran, so playAfter would kick off
+// immediately and overlap with panda-celebrate.
 function speakSequence(k, ids, ctx) {
   if (ctx && ctx.lastEncourageId) {
-    window.PandaAudio.playAfter(ctx.lastEncourageId, ids, {
+    window.PandaAudio.playAfter("panda-celebrate", ids, {
       gapMs: 400,
-      seqGapMs: 200,
+      seqGapMs: 40,    // closer to "fluent speech" than the prior 200ms
     });
     return;
   }
-  k.wait(0.1, () => window.PandaAudio.playSequence(ids));
+  k.wait(0.1, () => window.PandaAudio.playSequence(ids, 40));
 }
 
-// Builds the per-round L1 "decompose" sentence as two phases of universal
-// audio cues. The numbers are read from the individual n-0..n-10 cues, the
-// connectors ("加", "等于几") and the fixed chunks are pre-baked — the
-// TTS never re-synthesizes for a new round, and the same set works for
-// any [a, b, c] in L1.
+// Builds the per-round L1 "decompose" sentence as two phases of
+// pre-baked composite audio cues. Each round's full sentence is one
+// mp3 (e.g. "先看下二加三加四等于几...") instead of a chain of
+// single-syllable cues stitched together at play time. The TTS
+// pipeline (tools/build-composite-audio.mjs) synthesizes one mp3 per
+// (a, b, c) combination from data/levels.json.
 //
 // For nums [a, b, c] the sentence reads:
 //
@@ -247,26 +251,14 @@ function speakSequence(k, ids, ctx) {
 // "2+3=?" they're meant to answer, paired with the phase-2 question
 // "2 加 3 等于几". Showing the sub-question immediately (the old
 // behavior) made the screen busy before the kid knew the strategy.
-//
-// (Earlier versions also said "再加上 c" and re-prompted "小朋友
-// a 加 b 等于几" at the end — the user trimmed those as redundant:
-// the equation is already on screen, and the question form at the
-// end is what the child picks, so two prompts of the same question
-// were overkill.)
 function buildL1Phase1Ids(a, b, c) {
-  // "先看下 a 加 b 加 c 等于几，这个问题可以分解成我们先看看前两个数相加。"
-  return [
-    "lvl-1-decomp-pre",
-    `n-${a}`, "q-plus",
-    `n-${b}`, "q-plus",
-    `n-${c}`,
-    "lvl-1-decomp-eq",
-  ];
+  // Single composite mp3 — "先看下 a 加 b 加 c 等于几，这个问题可以分解成..."
+  return [`l1-intro-${a}-${b}-${c}`];
 }
 
 function buildL1Phase2Ids(a, b) {
-  // "a 加 b 等于几" — the actual question for step 1.
-  return [`n-${a}`, "q-plus", `n-${b}`, "q-equals"];
+  // Single composite mp3 — "a 加 b 等于几" (the actual question for step 1).
+  return [`l1-sub-${a}-${b}`];
 }
 
 // Maps a non-negative integer to the cue id(s) that read it aloud in
@@ -283,17 +275,10 @@ function numToCueIds(n) {
 }
 
 // Builds the "X 加 Y 加 Z 等于 答" reward sentence played after the
-// child picks the correct answer on L1 step 2. Universal numbers +
-// universal q-plus + the pre-baked "等于" connector, so the same set
-// of cues handles every L1 round.
+// child picks the correct answer on L1 step 2. One composite mp3
+// per (a, b, c, answer) — see tools/build-composite-audio.mjs.
 function buildL1AnswerIds(a, b, c, answer) {
-  return [
-    `n-${a}`, "q-plus",
-    `n-${b}`, "q-plus",
-    `n-${c}`,
-    "equals",
-    ...numToCueIds(answer),
-  ];
+  return [`l1-rwd-${a}-${b}-${c}-${answer}`];
 }
 
 export default createRoundScene({
@@ -345,7 +330,7 @@ export default createRoundScene({
           colors: [COLORS[aIdx], undefined, COLORS[bIdx], undefined, undefined],
         }, { y: 340, size: 82 });
         // Play the question right after the equation appears.
-        window.PandaAudio.playSequence(phase2Ids, 260, 100);
+        window.PandaAudio.playSequence(phase2Ids, 40, 100);
       };
 
       if (ctx.ri === 0) {
@@ -353,7 +338,9 @@ export default createRoundScene({
           "lvl-1-greeting", phase1Ids,
           {
             gapMs: 1000,    // "停顿1s" between greeting and phase 1
-            seqGapMs: 260,  // breathing room between words in the sentence
+            seqGapMs: 40,   // tighter rhythm — 260ms made the per-round
+                            // sentence feel like a word list, not a
+                            // sentence (per user feedback 2026-08-09)
           },
           firePhase2,
         );
@@ -361,7 +348,7 @@ export default createRoundScene({
         // Subsequent rounds: no greeting, just play phase 1 and chain
         // phase 2. 100 ms delay so the first render lands before the
         // audio starts.
-        window.PandaAudio.playSequence(phase1Ids, 260, 100, firePhase2);
+        window.PandaAudio.playSequence(phase1Ids, 40, 100, firePhase2);
       }
 
       return {
@@ -466,19 +453,16 @@ export default createRoundScene({
           // Read the full equation back as the reward: "X 加 Y 加 Z
           // 等于 答". Return a Promise that resolves when the audio
           // chain finishes — roundScene awaits it before advancing
-          // to the next round. playAfter hooks the encouragement's
-          // `ended` event (roundScene stashed the id on ctx) so the
-          // equation starts AFTER the encouragement lands, regardless
-          // of which encouragement was picked — the longest cue
-          // "太棒啦！" is 1.3s, the shortest "耶！" is 1s, and the
-          // 100ms gapMs gives a tiny breath between them. No more
-          // guessing with a fixed setTimeout.
+          // to the next round. playAfter hooks "panda-celebrate"'s
+          // `ended` event so the reward starts AFTER the celebration
+          // (not after `enc-great`, which had already ended and would
+          // have caused the reward to fire on top of panda-celebrate).
           const answerIds = buildL1AnswerIds(a, b, c, round.answer);
           return new Promise((resolve) => {
             window.PandaAudio.playAfter(
-              ctx.lastEncourageId,
+              "panda-celebrate",
               answerIds,
-              { gapMs: 400, seqGapMs: 200 },
+              { gapMs: 200, seqGapMs: 200 },
               resolve,
             );
           });
