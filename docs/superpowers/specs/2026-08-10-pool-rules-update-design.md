@@ -30,11 +30,10 @@ concatenated:
   Count: 120 ordered triples.
 - Loop 2 — two-of-three sum to 10: a, b, c ∈ {1..9}, and at least one of
   (a+b)=10, (a+c)=10, (b+c)=10. Same round shape.
-  Count: 243 ordered triples (5 pairs × 9 third values × orderings;
-  see Derivation below).
+  Count: 217 ordered triples (inclusion-exclusion; see Derivation below).
 - Loop 1 and Loop 2 never overlap: if two addends sum to 10 and the
   third is ≥ 1, the total is > 10.
-- Total: **363 ordered triples**. No curation.
+- Total: **337 ordered triples**. No curation.
 
 **L2 — `generateL2Pool()`** (currently 200 ordered pairs across 5
 sub-pools)
@@ -77,7 +76,7 @@ Update the table to reflect the new pool sizes:
 
 | Level | Title | Pool | Sample |
 | ----- | ----- | ---- | ------ |
-| L1    | 三数相加 | **363** triples | 10 |
+| L1    | 三数相加 | **337** triples | 10 |
 | L2    | 凑十法   | **36** ordered pairs | 10 |
 | L3    | 二十以内 | **54** ordered pairs | 10 |
 
@@ -112,22 +111,22 @@ valid.
 | **Total** | **120** |
 
 **Loop 2 — two of three sum to 10:**
-Pairs (x, y) with x+y=10 and x, y ∈ {1..9}: {1,9}, {2,8}, {3,7},
-{4,6}, {5,5}. Five pair templates (one is self-pair).
+By inclusion-exclusion on the three events E_ab=(a+b=10), E_ac=(a+c=10),
+E_bc=(b+c=10):
 
-For each pair template, the third addend z can be any of {1..9}:
+- |E_ab| = |E_ac| = |E_bc| = 81 (a, b, c each ∈ {1..9}, choose addend
+  ranging over {1..9}, the other is determined by sum=10).
+- |E_ab ∩ E_ac| = |E_ab ∩ E_bc| = |E_ac ∩ E_bc| = 9 (e.g. E_ab ∩ E_ac
+  ⇒ b = 10-a = c, so for each a there is exactly one (b, c) pair).
+- |E_ab ∩ E_ac ∩ E_bc| = 1 (the triple (5, 5, 5)).
 
-- Self-pair (5, 5): the pair has 3 orderings when the third is
-  distinct, so 3 × 9 = 27 ordered triples.
-- 4 other pairs (1,9), (2,8), (3,7), (4,6): each has 6 orderings
-  when the third is distinct, so 4 × 6 × 9 = 216 ordered triples.
-- Total: 27 + 216 = **243**.
+Union: 3 × 81 − 3 × 9 + 1 = 243 − 27 + 1 = **217 ordered triples**.
 
-**Overlap:** A triple in both loops requires a+b+c ≤ 10 AND two of
-{a,b,c} sum to 10. Then the third addend is ≤ 0, but all addends are
-≥ 1. Zero overlap.
+**Overlap with Loop 1:** A triple in both loops requires a+b+c ≤ 10 AND
+two of {a,b,c} sum to 10. Then the third addend is ≤ 0, but all addends
+are ≥ 1. Zero overlap.
 
-**Total L1: 120 + 243 = 363 ordered triples.**
+**Total L1: 120 + 217 = 337 ordered triples.**
 
 ### L2 derivation
 
@@ -159,7 +158,7 @@ applies to every round, with no scaffolding mismatch.
 
 ## Sample variety
 
-- L1: P(363, 10) ≈ 8.5 × 10²¹ — effectively infinite per-session
+- L1: P(337, 10) ≈ 5.9 × 10²¹ — effectively infinite per-session
   variety, even at 10 rounds per session.
 - L2: P(36, 10) ≈ 1.0 × 10¹⁴ — also effectively infinite.
 
