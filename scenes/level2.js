@@ -394,7 +394,7 @@ export default createRoundScene({
       fireL2StepAudio(ctx, buildL2Step4Ids(big, small, round.need, round.rest), 4);
       return {
         equation: {
-          slots: [round.a, "+", "(", round.need, "+", round.rest, ")", "=", "?"],
+          slots: [big, "+", "(", round.need, "+", round.rest, ")", "=", "?"],
           colors: [COL_BIG, undefined, undefined, COL_NEED, undefined, COL_REST, undefined, undefined, undefined],
         },
         equationOpts: { y: 660, size: 80 },
@@ -412,7 +412,7 @@ export default createRoundScene({
         onAdvance: () => {
           ctx.setAnchorEquation(anchorSlots(round, round.answer), { y: 260 });
           ctx.setEquation({
-            slots: [round.a, "+", "(", round.need, "+", round.rest, ")", "=", round.answer],
+            slots: [big, "+", "(", round.need, "+", round.rest, ")", "=", round.answer],
             colors: [COL_BIG, undefined, undefined, COL_NEED, undefined, COL_REST, undefined, undefined, INK],
           }, { y: 660, size: 80 });
           return new Promise((resolve) => {
