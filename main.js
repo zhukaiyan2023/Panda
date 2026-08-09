@@ -614,26 +614,58 @@ function loadArt() {
 
 function tryLockLandscape() {
   if (!screen.orientation || typeof screen.orientation.lock !== "function") return;
-  screen.orientation.lock("landscape").catch(() => {});
+  screen.orientation.lock("landscape").catch((err) => {
+    // Common on iPad Safari without user activation; will retry on first
+    // pointerdown below. Don't spam the console — log only the first miss.
+    console.debug("[panda] screen.orientation.lock rejected:", err?.message || err);
+  });
+}
+
+// True when the viewport is taller than wide. screen.orientation.type is
+// the most reliable signal where available; iPad Safari's matchMedia
+// "(orientation: portrait)" can lag behind the actual rotation, so we
+// also fall back to window dimensions.
+function isPortrait() {
+  const t = screen.orientation && screen.orientation.type;
+  if (typeof t === "string") return t.startsWith("portrait");
+  return window.innerHeight > window.innerWidth;
 }
 
 function watchOrientation() {
   const hint = document.getElementById("rotate-hint");
   if (!hint) return;
-  const portrait = () => window.matchMedia("(orientation: portrait)").matches;
+  const isCoarse = window.matchMedia("(pointer: coarse)").matches;
   const apply = () => {
-    const isCoarse = window.matchMedia("(pointer: coarse)").matches;
-    hint.hidden = !(isCoarse && portrait());
+    if (!isCoarse) { hint.hidden = true; return; }
+    hint.hidden = !isPortrait();
   };
   apply();
   window.addEventListener("resize", apply);
   window.addEventListener("orientationchange", apply);
 }
 
+// Fire on page load so browsers that don't gate orientation.lock on
+// user activation (Chrome on desktop, some Android browsers) snap to
+// landscape immediately. iPad Safari will reject this — that's fine,
+// the pointerdown handler below retries inside the user gesture.
+tryLockLandscape();
+
+// Tap-anywhere to unlock audio + attempt orientation lock. The lock
+// succeeds inside this handler on iPad Safari because the pointerdown
+// is a user activation. The hint overlay is also wired to call
+// tryLockLandscape explicitly so tapping the hint's button works
+// even if the canvas doesn't see the event.
 document.addEventListener("pointerdown", () => {
   unlockAudio();
   tryLockLandscape();
 }, { passive: true, once: false });
+
+const rotateHint = document.getElementById("rotate-hint");
+if (rotateHint) {
+  rotateHint.addEventListener("click", () => {
+    tryLockLandscape();
+  });
+}
 
 watchOrientation();
 

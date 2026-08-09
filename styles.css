@@ -88,6 +88,26 @@ html, body {
   margin-top: 4px;
 }
 
+.rotate-btn {
+  display: inline-block;
+  margin-top: 20px;
+  padding: 14px 28px;
+  border: none;
+  border-radius: 999px;
+  background: var(--c-orange);
+  color: #fff;
+  font-size: 22px;
+  font-weight: 1000;
+  font-family: inherit;
+  cursor: pointer;
+  box-shadow: 0 6px 18px rgba(217, 106, 31, 0.35);
+  transition: transform 0.15s ease, background 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.rotate-btn:hover { background: var(--c-orange-deep); }
+.rotate-btn:active { transform: scale(0.96); }
+
 @keyframes rotate-spin {
   0%   { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
