@@ -29,20 +29,22 @@ module.exports = [
   { id: "lvl-1-greeting", text: "你好，小朋友，我们来学习三数相加。准备好了吗？" },
   // Chunks of the per-round decompose sentence. The full sentence for
   // a round with nums [a,b,c] reads:
-  //   先看下 a 加 b 加 c 等于几，这个问题可以分解成我们先看看前两个数相加
-  //   a 加 b 等于几，再加上 c，小朋友 a 加 b 等于几
+  //   先看下 a 加 b 加 c 等于几，这个问题可以分解成我们先看看前两个数相加。
+  //   a 加 b 等于几
+  // (Earlier versions also prompted "再加上 c" and a repeat
+  // "小朋友 a 加 b 等于几" — the user found those redundant. The
+  // simplified sentence ends at the actual question for step 1.)
   { id: "lvl-1-decomp-pre",      text: "先看下" },
-  { id: "lvl-1-decomp-eq",       text: "等于几，这个问题可以分解成我们先看看前两个数相加" },
-  { id: "lvl-1-decomp-after-b",  text: "等于几，再加上" },
-  { id: "lvl-1-decomp-q-pre",    text: "小朋友" },
+  { id: "lvl-1-decomp-eq",       text: "等于几，这个问题可以分解成我们先看看前两个数相加。" },
 
   // ===== other level intros =====
   // L2 (凑十法) plays a one-time entry greeting on round 0, then per-step
   // contextual sentences take over (see the lvl-2-step-N-* chunks below).
-  // L3 still uses the one-syllable framing while its own per-round
-  // intros are designed.
+  // L3 (二十以内) follows the same pattern — extended entry greeting on
+  // round 0, then per-step contextual sentences take over (see the
+  // lvl-3-step-N-* chunks below).
   { id: "lvl-2-intro", text: "小朋友好，现在我们一起学习凑十法" },
-  { id: "lvl-3-intro", text: "二十以内" },
+  { id: "lvl-3-intro", text: "小朋友好，现在我们一起学习二十以内" },
 
   // ===== L2 per-step sentences (凑十法) =====
   // Each teaching beat is a long contextual sentence that walks the
@@ -79,13 +81,25 @@ module.exports = [
   { id: "lvl-2-step-4-split", text: "分成" },
   { id: "lvl-2-step-4-calc",  text: "，算一算" },
 
-  // ===== math round step transitions =====
-  // Each step is one teaching beat. The panda says one phrase per beat.
-  // L2 = 凑十法 (Make a Ten) — 4 beats.
-  { id: "step-1", text: "比一比" },   // big ? small
-  { id: "step-2", text: "凑成十" },   // big + ? = 10
-  { id: "step-3", text: "拆一拆" },   // ? + ? = small
-  { id: "step-4", text: "算一算" },   // a + (need+rest) = ?
+  // ===== L3 per-step sentences (二十以内) =====
+  // L3 teaches the "split 2-digit into 10 + ones, add the ones, add 10
+  // and the sum" strategy in 3 teaching beats. Built at runtime by
+  // scenes/level3.js from these number-agnostic chunks plus the
+  // universal n-0..n-10 + q-plus + q-equals cues. Same set works for
+  // every L3 round (a is always 11-19, ones = a % 10, b is 1-9, and
+  // ones + b <= 10 — no carrying).
+  //
+  // Step 1 — Split the 2-digit:
+  //   "先把 [a] 拆成十加几"
+  // (The literal "10" in the sentence is read as "十" by TTS, same as
+  //  the visual "10" the child sees. n-a carries the actual a value.)
+  { id: "lvl-3-step-1-pre", text: "先把" },
+  { id: "lvl-3-step-1-q",   text: "拆成十加几" },
+  //
+  // Step 2 — Add the two ones: "[ones] 加 [b] 等于几"
+  // Step 3 — Add 10 and the sum: "十 加 [sum] 等于几"
+  // Both steps use only universal cues (n-*, q-plus, q-equals) — no
+  // number-agnostic chunks needed.
 
   // L1 = 三数相加 (mixed-addition) — only 2 beats.
   { id: "lvl1-step-1", text: "找一对" },     // step 1: 找出相加得 10 的一对
@@ -153,9 +167,11 @@ module.exports = [
   { id: "back",         text: "返回" },
 
   // ===== panda-park migrated games =====
-  // Boat — 凑十过河. The first round opens with a friendly prompt; each
-  // correct pair gets a small celebration.
-  { id: "boat-intro", text: "凑十过河" },
+  // Boat — 凑十过河. The first round opens with a friendly greeting that
+  // walks the child through what's about to happen (panda wants to cross,
+  // pick two boats that sum to ten, help the panda). Replaces the original
+  // terse "凑十过河" — kids didn't know what the game was asking of them.
+  { id: "boat-intro", text: "小朋友，小熊猫要过河，必须把相加等于十的小船选出来，才能过河，帮帮小熊猫吧。" },
   { id: "boat-pair",  text: "凑十啦" },
   { id: "boat-done",  text: "过河啦" },
 

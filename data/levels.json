@@ -30,12 +30,12 @@
       "title": "Up to 20",
       "intro": "lvl-3-intro",
       "rounds": [
-        { "a": 9,  "b": 8, "answer": 17, "missing": 8 },
-        { "a": 11, "b": 4, "answer": 15, "missing": 4 },
-        { "a": 12, "b": 5, "answer": 17, "missing": 5 },
-        { "a": 13, "b": 6, "answer": 19, "missing": 6 },
-        { "a": 14, "b": 4, "answer": 18, "missing": 4 },
-        { "a": 15, "b": 5, "answer": 20, "missing": 5 }
+        { "a": 11, "b": 8, "answer": 19 },
+        { "a": 11, "b": 4, "answer": 15 },
+        { "a": 12, "b": 5, "answer": 17 },
+        { "a": 13, "b": 6, "answer": 19 },
+        { "a": 14, "b": 4, "answer": 18 },
+        { "a": 15, "b": 5, "answer": 20 }
       ]
     }
   ]

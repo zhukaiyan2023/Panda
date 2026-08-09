@@ -42,19 +42,22 @@ const levelsData = {
       "title": "Up to 20",
       "intro": "lvl-3-intro",
       "rounds": [
-        { "a": 9,  "b": 8, "answer": 17, "missing": 8 },
-        { "a": 11, "b": 4, "answer": 15, "missing": 4 },
-        { "a": 12, "b": 5, "answer": 17, "missing": 5 },
-        { "a": 13, "b": 6, "answer": 19, "missing": 6 },
-        { "a": 14, "b": 4, "answer": 18, "missing": 4 },
-        { "a": 15, "b": 5, "answer": 20, "missing": 5 }
+        // L3 (二十以内) redesigned: a is a 2-digit (tens digit = 1) and
+        // b is a 1-digit, with ones(a) + b ≤ 10 (no carrying). Taught
+        // in 3 steps — split a into 10 + ones, add ones + b, add 10 +
+        // the sum. ones = a % 10, sum = ones + b. answer = 10 + sum.
+        { "a": 11, "b": 8, "answer": 19 },
+        { "a": 11, "b": 4, "answer": 15 },
+        { "a": 12, "b": 5, "answer": 17 },
+        { "a": 13, "b": 6, "answer": 19 },
+        { "a": 14, "b": 4, "answer": 18 },
+        { "a": 15, "b": 5, "answer": 20 }
       ]
     }
   ]
 };
 
 const CUE_IDS = [
-  "step-1", "step-2", "step-3", "step-4",
   "lvl1-step-1", "lvl1-step-2",
   "enc-great", "enc-awesome", "enc-amazing", "enc-nice", "enc-try",
   "n-0", "n-1", "n-2", "n-3", "n-4", "n-5", "n-6", "n-7", "n-8", "n-9", "n-10",
@@ -67,7 +70,7 @@ const CUE_IDS = [
   // per-round "decompose" sentence is built at runtime by chaining
   // these number-agnostic chunks with the universal n-* / q-* cues.
   "lvl-1-greeting",
-  "lvl-1-decomp-pre", "lvl-1-decomp-eq", "lvl-1-decomp-after-b", "lvl-1-decomp-q-pre",
+  "lvl-1-decomp-pre", "lvl-1-decomp-eq",
   "lvl-2-intro", "lvl-3-intro", "lvl-done",
   // L2 (凑十法) per-step contextual sentence chunks — see tools/cues.cjs.
   // The 4 teaching beats (compare / find friend / split / calculate) are
@@ -77,6 +80,11 @@ const CUE_IDS = [
   "lvl-2-step-2-big-pre", "lvl-2-step-2-find", "lvl-2-step-2-friend-pre", "lvl-2-step-2-q",
   "lvl-2-step-3-split-pre", "lvl-2-step-3-friend-pre", "lvl-2-step-3-then", "lvl-2-step-3-can-split", "lvl-2-step-3-q",
   "lvl-2-step-4-split", "lvl-2-step-4-calc",
+  // L3 (二十以内) per-step contextual sentence chunks. The 3 teaching
+  // beats (split / add ones / add 10 + sum) are built at runtime in
+  // scenes/level3.js. Step 1 uses two number-agnostic chunks; steps 2
+  // and 3 use only universal n-* / q-* cues (no chunks needed).
+  "lvl-3-step-1-pre", "lvl-3-step-1-q",
   "panda-hi", "panda-celebrate",
   "tap-unlock", "level-locked", "next", "back",
   "boat-intro", "boat-pair", "boat-done",

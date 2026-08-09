@@ -161,7 +161,14 @@ async function roundData(levelId, roundIdx) {
         answers.push(`${r.need}+${r.rest}`);
         answers.push(r.answer);
       } else {
-        answers.push(r.missing ?? r.b);
+        // L3 (二十以内) redesigned: split 2-digit → add ones → add 10+sum.
+        // Step 1: pick the ones digit (a % 10).
+        // Step 2: pick the sum of ones + b.
+        // Step 3: pick the total a + b (== round.answer).
+        const ones = r.a % 10;
+        answers.push(ones);
+        answers.push(ones + r.b);
+        answers.push(r.answer);
       }
       return { answers, totalSteps: lvl.rounds.length };
     },

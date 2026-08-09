@@ -55,6 +55,19 @@ export default function item(parent, opts) {
     k.anchor("center"),
   ]);
 
+  // Orange selection ring drawn BEHIND the face. Only the 8 px of ring that
+  // extends beyond the face shows, so the kid sees a bright border around the
+  // item they've selected — the original ordering drew it on top, which
+  // either covered the face or never appeared (opacity 0 was never cleared).
+  const ring = root.add([
+    k.rect(w + 16, h + 16, { radius: 32 }),
+    k.color(...ORANGE),
+    k.outline(4, k.rgb(...INK)),
+    k.pos(x, y),
+    k.anchor("center"),
+  ]);
+  ring.hidden = true;
+
   const face = root.add([
     k.rect(w, h, { radius: 28 }),
     k.color(...fill),
@@ -74,25 +87,26 @@ export default function item(parent, opts) {
     ]);
   }
 
+  // White circle behind the number so the digit reads clearly no matter what
+  // colour the sprite is. Without this, a brown boat hull swallowed the
+  // black digit and kids couldn't tell what number was on which boat.
+  const labelY = y + (hasSprite ? 44 : 0);
+  const labelBg = root.add([
+    k.circle(40),
+    k.color(255, 255, 255),
+    k.outline(3, k.rgb(...INK)),
+    k.pos(x, labelY),
+    k.anchor("center"),
+    k.z(1.5),
+  ]);
+
   const label = root.add([
     k.text(String(value), { size: 64, font: FONT }),
     k.color(...INK),
-    k.pos(x, y + (hasSprite ? 44 : 0)),
+    k.pos(x, labelY),
     k.anchor("center"),
     k.z(2),
   ]);
-
-  // Yellow highlight ring drawn under the face so the "selected first" state
-  // doesn't shift the face or the sprite.
-  const ring = root.add([
-    k.rect(w + 16, h + 16, { radius: 32 }),
-    k.color(...ORANGE),
-    k.outline(4, k.rgb(...INK)),
-    k.pos(x, y),
-    k.anchor("center"),
-    k.opacity(0),
-  ]);
-  ring.hidden = true;
 
   let disabled = false;
 
@@ -103,6 +117,7 @@ export default function item(parent, opts) {
       disabled = !!on;
       face.opacity = on ? 0.35 : 1;
       label.opacity = on ? 0.35 : 1;
+      labelBg.opacity = on ? 0.35 : 1;
       ring.hidden = on || !ring.userVisible;
     },
     shake() {

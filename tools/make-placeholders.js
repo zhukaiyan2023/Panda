@@ -11,7 +11,6 @@ const fs = require("fs");
 const path = require("path");
 
 const CUE_IDS = [
-  "step-1", "step-2", "step-3", "step-4",
   "enc-great", "enc-awesome", "enc-amazing", "enc-nice", "enc-try",
   "n-1", "n-2", "n-3", "n-4", "n-5", "n-6", "n-7", "n-8", "n-9", "n-10",
   "round-start", "round-end",

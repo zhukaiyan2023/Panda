@@ -220,8 +220,14 @@ function speakSequence(k, ids, ctx) {
 //
 // For nums [a, b, c] the sentence reads:
 //
-//   先看下 a 加 b 加 c 等于几，这个问题可以分解成我们先看看前两个数相加
-//   a 加 b 等于几，再加上 c，小朋友 a 加 b 等于几
+//   先看下 a 加 b 加 c 等于几，这个问题可以分解成我们先看看前两个数相加。
+//   a 加 b 等于几
+//
+// (Earlier versions also said "再加上 c" and re-prompted "小朋友
+// a 加 b 等于几" at the end — the user trimmed those as redundant:
+// the equation is already on screen, and the question form at the
+// end is what the child picks, so two prompts of the same question
+// were overkill.)
 //
 // startDelayMs lets the caller delay the sentence until the level-entry
 // greeting has finished playing (round 0 only — the greeting is one-time).
@@ -232,11 +238,6 @@ function buildL1DecomposeIds(a, b, c) {
     `n-${b}`, "q-plus",
     `n-${c}`,
     "lvl-1-decomp-eq",
-    `n-${a}`, "q-plus",
-    `n-${b}`,
-    "lvl-1-decomp-after-b",
-    `n-${c}`,
-    "lvl-1-decomp-q-pre",
     `n-${a}`, "q-plus",
     `n-${b}`,
     "q-equals",
