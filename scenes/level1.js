@@ -386,10 +386,13 @@ export default createRoundScene({
           values: options(round.answer, { min: 0, max: 16, count: 4 }),
         },
         // Step 2 is the last step AND the one that reads back the
-        // full equation on a correct pick. Bump the post-advance
-        // pause so the audio has time to land before the round
-        // transitions (the equation chain is ~3-4s).
-        advancePauseMs: 4000,
+        // full equation on a correct pick. The advance is gated on
+        // the equation audio finishing (see onAdvance below) instead
+        // of a hardcoded pause — the equation chain's actual length
+        // varies with the round's numbers (single-digit answers need
+        // 7 cues; two-digit answers need 8). advancePauseMs stays as
+        // a safety ceiling in case the audio chain gets stuck.
+        advancePauseMs: 12000,
         onAdvance: () => {
           // Reveal the persistent anchor at the top.
           ctx.setAnchorEquation(anchorSlots(round.nums, round.answer));
@@ -402,13 +405,24 @@ export default createRoundScene({
           parenthesizedForm(ctx, pair, third, aIdx, bIdx, thirdIdx, round.answer);
           ctx.cellRow?.pulse?.();
           // Read the full equation back as the reward: "X 加 Y 加 Z
-          // 等于 答". 600ms delay so the encouragement cue ("耶！"
-          // etc.) lands first without the equation dropping on top
-          // of it.
+          // 等于 答". Return a Promise that resolves when the audio
+          // chain finishes — roundScene awaits it before advancing
+          // to the next round. playAfter hooks the encouragement's
+          // `ended` event (roundScene stashed the id on ctx) so the
+          // equation starts AFTER the encouragement lands, regardless
+          // of which encouragement was picked — the longest cue
+          // "太棒啦！" is 1.3s, the shortest "耶！" is 1s, and the
+          // 100ms gapMs gives a tiny breath between them. No more
+          // guessing with a fixed setTimeout.
           const answerIds = buildL1AnswerIds(a, b, c, round.answer);
-          setTimeout(() => {
-            window.PandaAudio.playSequence(answerIds, 200, 0);
-          }, 600);
+          return new Promise((resolve) => {
+            window.PandaAudio.playAfter(
+              ctx.lastEncourageId,
+              answerIds,
+              { gapMs: 100, seqGapMs: 200 },
+              resolve,
+            );
+          });
         },
       };
     },

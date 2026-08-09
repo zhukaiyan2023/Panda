@@ -267,16 +267,40 @@ export default function createRoundScene(config) {
         state.locked.add(idx);
         state.buttons[idx].btn.setCorrect();
         buddy.setMood("cheer", { silent: true });
-        window.PandaAudio.playCue(ENCOURAGE[(ri + config.levelId) % ENCOURAGE.length]);
-        if (stepCfg.onAdvance) stepCfg.onAdvance(ctx);
-        // advancePauseMs lets a step's onAdvance audio (e.g. the L1
-        // step-2 "X 加 Y 加 Z 等于 答" reward) finish before the round
-        // transitions. Default 400ms matches the original
-        // visual-feedback-only timing.
-        const d = window.__skipTimers
-          ? TEST_DELAY
-          : (stepCfg.advancePauseMs ?? 400) / 1000;
-        k.wait(d, () => advance(prev));
+        const encourageId = ENCOURAGE[(ri + config.levelId) % ENCOURAGE.length];
+        // Stash on ctx so a step's onAdvance can chain audio after
+        // the encouragement's `ended` event (e.g. L1 step 2 reads
+        // the equation reward off the encouragement rather than
+        // guessing with a setTimeout).
+        ctx.lastEncourageId = encourageId;
+        window.PandaAudio.playCue(encourageId);
+        // stepCfg.onAdvance may return a thenable (Promise) — for
+        // audio-gated advances like L1 step 2's equation read-back,
+        // the promise resolves when the audio chain finishes, and
+        // roundScene waits on it instead of guessing with
+        // advancePauseMs. The time-based advancePauseMs is kept as
+        // a safety ceiling in case the audio chain never resolves.
+        const advanceResult = stepCfg.onAdvance ? stepCfg.onAdvance(ctx) : null;
+        if (advanceResult && typeof advanceResult.then === 'function') {
+          let advanced = false;
+          const adv = () => {
+            if (advanced) return;
+            advanced = true;
+            advance(prev);
+          };
+          advanceResult.then(adv);
+          if (stepCfg.advancePauseMs != null) {
+            const d = window.__skipTimers
+              ? TEST_DELAY
+              : stepCfg.advancePauseMs / 1000;
+            k.wait(d, adv);
+          }
+        } else {
+          const d = window.__skipTimers
+            ? TEST_DELAY
+            : (stepCfg.advancePauseMs ?? 400) / 1000;
+          k.wait(d, () => advance(prev));
+        }
       } else {
         state.buttons[idx].btn.setDisabled(true);
         buddy.setMood("think");

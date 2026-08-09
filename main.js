@@ -168,23 +168,53 @@ function stopAllAudio() {
 // the audio's `ended` event for the wait, then hands the gapMs to
 // playSequence as startDelayMs.
 //
+// onComplete (optional) fires once the entire chain has played through
+// — specifically, after the LAST cue's `ended` event. Callers that need
+// to gate UI on the audio finishing (e.g. roundScene waiting to
+// transition to the next round) pass a callback here instead of
+// estimating audio durations. The callback does NOT fire if the chain
+// is cancelled by stopAllAudio — the caller is responsible for a
+// fallback timeout if the user might navigate mid-sequence.
+//
+// In test mode (window.__skipTimers), the chain is bypassed and
+// onComplete fires immediately, so verifiers don't hang waiting on
+// audio events that never fire in headless browsers.
+//
 // Each sequence is tracked in activeSequences so stopAllAudio can
 // cancel the whole chain (e.g. a kid who taps an answer mid-sentence
 // should hear silence, not the remaining 12 words).
 const activeSequences = new Set();
 
-function playSequence(ids, seqGapMs = 90, startDelayMs = 0) {
-  if (!Array.isArray(ids) || ids.length === 0) return;
+function playSequence(ids, seqGapMs = 90, startDelayMs = 0, onComplete) {
+  if (!Array.isArray(ids) || ids.length === 0) {
+    if (onComplete) onComplete();
+    return;
+  }
+  // Verifier mode: skip playback and resolve immediately so audio-gated
+  // advances don't hang waiting on events that never fire.
+  if (window.__skipTimers) {
+    if (onComplete) onComplete();
+    return;
+  }
   const seq = { cancelled: false };
   activeSequences.add(seq);
 
   const playIdx = (i) => {
     if (seq.cancelled || i >= ids.length) {
-      if (i >= ids.length) activeSequences.delete(seq);
+      if (i >= ids.length) {
+        activeSequences.delete(seq);
+        // If the chain finished naturally (not via stopAllAudio
+        // cancellation), signal completion so the caller can advance.
+        if (!seq.cancelled && onComplete) onComplete();
+      }
       return;
     }
     const el = audio[ids[i]];
-    if (!el) { activeSequences.delete(seq); return; }
+    if (!el) {
+      activeSequences.delete(seq);
+      if (onComplete) onComplete();
+      return;
+    }
     playCue(ids[i]);
     if (i + 1 < ids.length) {
       el.addEventListener("ended", function onEnded() {
@@ -193,7 +223,16 @@ function playSequence(ids, seqGapMs = 90, startDelayMs = 0) {
         setTimeout(() => playIdx(i + 1), seqGapMs);
       });
     } else {
-      activeSequences.delete(seq);
+      // Last cue: fire onComplete AFTER its `ended` event so the
+      // caller can chain a UI transition on the audio actually
+      // finishing. (Without the wrapper, onComplete would fire when
+      // the last cue STARTS, not when it ENDS.)
+      el.addEventListener("ended", function onEnded() {
+        el.removeEventListener("ended", onEnded);
+        if (seq.cancelled) return;
+        activeSequences.delete(seq);
+        if (onComplete) onComplete();
+      });
     }
   };
 
@@ -212,23 +251,36 @@ function playSequence(ids, seqGapMs = 90, startDelayMs = 0) {
 // Plays a sequence of cues after another cue's audio finishes, with a
 // configurable gap. Uses the audio element's 'ended' event so the timing
 // tracks reality (no race with audio.duration) — the L1 entry relies on
-// this for the "greeting → 1s pause → decompose" transition.
+// this for the "greeting → 1s pause → decompose" transition, and L1
+// step 2 uses it for the "encouragement → equation reward" handoff so
+// the equation never starts mid-encouragement.
 //
 // If the reference cue has already ended (e.g. we re-entered a scene
 // after the cue already played), the sequence fires immediately so the
 // caller doesn't have to special-case the "already-played" branch.
-function playAfter(referenceId, ids, { gapMs = 1000, seqGapMs = 90 } = {}) {
+//
+// onComplete (optional) is forwarded to the underlying playSequence
+// call — it fires when the FOLLOWING chain finishes, not when the
+// reference cue ends. Use it to chain a UI action onto the audio
+// fully landing (e.g. roundScene awaiting audio before advancing).
+function playAfter(referenceId, ids, { gapMs = 1000, seqGapMs = 90 } = {}, onComplete) {
+  // Test mode short-circuit — audio events never fire in headless
+  // browsers, so don't block on `ref.ended` (it stays false forever).
+  if (window.__skipTimers) {
+    playSequence(ids, seqGapMs, 0, onComplete);
+    return;
+  }
   const ref = audio[referenceId];
   if (!ref) {
     // Reference cue doesn't exist — just play the sequence after a
     // generous fixed delay so the user still hears something.
-    playSequence(ids, seqGapMs, 4000);
+    playSequence(ids, seqGapMs, 4000, onComplete);
     return;
   }
   // After the reference cue's 'ended' event fires, kick off the
   // sequence with `gapMs` ms before the first cue lands; the rest are
   // chained by playSequence using the now-known audio.duration.
-  const kickoff = () => playSequence(ids, seqGapMs, gapMs);
+  const kickoff = () => playSequence(ids, seqGapMs, gapMs, onComplete);
   if (ref.ended) {
     kickoff();
     return;
