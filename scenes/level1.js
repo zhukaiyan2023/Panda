@@ -59,15 +59,19 @@ function anchorSlots(nums, sumSlot) {
 // Custom parenthesized-form text node rendered above the cells. Lives
 // independently of the round scaffold's "active equation" so the buildStep
 // path doesn't overwrite it. The child never picks this — it's a visual aid
-// showing how the pair becomes the running sum.
+// showing the pair reducing to its running sum, with the final answer left
+// as "?" (the sub-question below is the simplified form to pick).
+//
+// Reads as "(pair) + pairSum = ?" — i.e. "two plus three, which is five,
+// plus the third — what's the total?"
 function parenthesizedForm(ctx, pair, third, pairSum, aIdx, bIdx, thirdIdx) {
   ctx.k.add([
-    ctx.k.text(["(", pair[0], "+", pair[1], ")", "+", third, "=", pairSum].join(" "), {
+    ctx.k.text(["(", pair[0], "+", pair[1], ")", "+", pairSum, "=", "?"].join(" "), {
       size: 56, font: FONT,
     }),
     ctx.k.color(...INK),
     ctx.k.opacity(0.7),
-    ctx.k.pos(LAYOUT.barX, 380),
+    ctx.k.pos(LAYOUT.barX, 340),
     ctx.k.anchor("center"),
   ]);
 }
@@ -219,7 +223,10 @@ export default createRoundScene({
           slots: [pair[0], "+", pair[1], "=", "?"],
           colors: [COLORS[aIdx], undefined, COLORS[bIdx], undefined, undefined],
         },
-        equationOpts: { y: 700, size: 82 },
+        // Step 1 sub-question sits directly below the anchor so the child
+        // reads "2+3+4=?" then "2+3=?" as a single thought. The cells row
+        // sits below as the visual aid.
+        equationOpts: { y: 340, size: 82 },
         cue: "step-1",
         question: {
           correct: pairSum,
@@ -229,7 +236,7 @@ export default createRoundScene({
           ctx.setEquation({
             slots: [pair[0], "+", pair[1], "=", pairSum],
             colors: [COLORS[aIdx], undefined, COLORS[bIdx], undefined, ORANGE],
-          }, { y: 700, size: 82 });
+          }, { y: 340, size: 82 });
         },
       };
     },
@@ -242,9 +249,12 @@ export default createRoundScene({
       const bIdx = round.nums.indexOf(pair[1], aIdx + 1);
       const thirdIdx = round.nums.findIndex((n) => n === third);
 
-      // Body: cells row (no pair highlight — the pair is now expressed in
-      // the parenthesized form above the cells).
-      const body = mergedRow(ctx, round.nums);
+      // Body: cells row with the third addend visually separated from the pair
+      // by an extra-wide gap. The pair (2+3) reads as 5 cells grouped
+      // together, then a gap, then the third (4). Mirrors the
+      // "(pair) + pairSum = ?" parenthesized form above and the "5 + 4 = ?"
+      // sub-question below.
+      const body = mergedRow(ctx, round.nums, { boundary: thirdIdx });
       ctx.cellRow = body;
 
       // Anchor stays put (still "?" until step 2 is answered).
