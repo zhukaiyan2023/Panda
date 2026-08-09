@@ -261,17 +261,23 @@ export default createRoundScene({
       // it's chained after the one-time greeting + 1s pause, on later
       // rounds it starts immediately. We rely on universal number +
       // connector cues so the same set works for any L1 round.
+      //
+      // playAfter() hooks the greeting's `ended` event so the 1s pause
+      // tracks the greeting's real finish time, not a setTimeout
+      // estimate — if the audio.duration wasn't ready when we scheduled
+      // it, the old code would start the decompose mid-greeting.
       const [a, b, c] = round.nums;
       const decompIds = buildL1DecomposeIds(a, b, c);
-      let startDelayMs = 100; // small delay so the first render lands
       if (ctx.ri === 0) {
-        const greeting = window.PandaAudio.audio["lvl-1-greeting"];
-        // 1s pause after the greeting ends — matches the spec
-        // "停顿1s" between greeting and decompose.
-        const greetingDur = Number.isFinite(greeting?.duration) ? greeting.duration : 3.0;
-        startDelayMs = Math.round(greetingDur * 1000) + 1000;
+        window.PandaAudio.playAfter("lvl-1-greeting", decompIds, {
+          gapMs: 1000,    // "停顿1s" between greeting and decompose
+          seqGapMs: 260,  // breathing room between words in the sentence
+        });
+      } else {
+        // Subsequent rounds: no greeting, just play the decompose.
+        // 100ms delay so the first render lands before the audio starts.
+        window.PandaAudio.playSequence(decompIds, 260, 100);
       }
-      window.PandaAudio.playSequence(decompIds, 260, startDelayMs);
 
       return {
         body,

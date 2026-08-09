@@ -121,22 +121,100 @@ function playCue(id) {
   } catch (_) {}
 }
 
+// Every scheduled cue (from playSequence, playAfter, or anywhere that uses
+// scheduleCue) is tracked here so a correct pick can cancel all of them
+// at once. Without this, a child who answers mid-sentence would hear the
+// remaining words of the L1 decompose overlap with the encouragement +
+// the next step's audio prompt — a wall of sound.
+const pendingCueTimers = new Set();
+function scheduleCue(id, delayMs) {
+  const tid = setTimeout(() => {
+    pendingCueTimers.delete(tid);
+    playCue(id);
+  }, delayMs);
+  pendingCueTimers.add(tid);
+  return tid;
+}
+
+// Cancels all queued cues and pauses every currently-playing audio
+// element. Used when a child answers correctly so the rest of the spoken
+// sentence doesn't fight with the encouragement + the next-step prompt.
+function stopAllAudio() {
+  pendingCueTimers.forEach((tid) => clearTimeout(tid));
+  pendingCueTimers.clear();
+  for (const el of Object.values(audio)) {
+    if (!el.paused) {
+      try { el.pause(); } catch (_) {}
+    }
+  }
+}
+
 // Plays a series of cue ids back-to-back with a small gap so each word is
 // distinct. Used for "what is two plus three plus four" — chained from the
 // individual number cues and a couple of glue words ("what is", "plus").
 // The verifier bypasses audio entirely so sequence length is fine in tests.
 //
-// startDelayMs (optional) lets the caller wait for a previous cue to finish
-// before starting this sequence — e.g. wait for the L1 greeting to land,
-// then play the per-round decompose sentence.
-function playSequence(ids, gapMs = 90, startDelayMs = 0) {
+// Each cue is scheduled to start AFTER the previous cue's actual duration
+// (audio.duration) plus a small gap. The earlier implementation used a
+// fixed 140ms "tail" that assumed every cue was ~1 word; the L1
+// decompose sentence includes a 5s chunk ("等于几，这个问题可以分解成
+// 我们先看看前两个数相加") and the fixed tail caused the next number
+// cue to fire mid-chunk — overlapping by 4+ seconds.
+//
+// startDelayMs (optional) lets the caller wait for a previous cue to
+// finish before starting this sequence. Prefer playAfter() for that — it
+// uses the audio's 'ended' event so the timing stays correct even when
+// the reference cue's duration isn't known yet.
+//
+// seqGapMs (default 90) is the gap between consecutive cues in the
+// sequence. Pass a larger value for more breathing room between words.
+function playSequence(ids, seqGapMs = 90, startDelayMs = 0) {
   if (!Array.isArray(ids) || ids.length === 0) return;
   let delay = startDelayMs;
-  ids.forEach((id, i) => {
-    setTimeout(() => playCue(id), delay);
-    // First cue waits for itself to mostly finish; later cues chain on the
-    // gap. Using a small fixed gap keeps the rhythm predictable.
-    delay += gapMs + (i === 0 ? 220 : 140);
+  ids.forEach((id) => {
+    scheduleCue(id, delay);
+    // Schedule the next cue to start when this one ends. If the audio's
+    // duration isn't known yet (still loading) fall back to a short tail
+    // so the sequence still flows — the next audio.loadedmetadata event
+    // will be too late to fix this iteration but subsequent sequences
+    // will use real durations. The fallback is intentionally small
+    // (0.4s) to bias toward overlap on a cold start, which is still
+    // better than a 5s+ overlap from a wrong guess.
+    const el = audio[id];
+    const dur = (el && Number.isFinite(el.duration) && el.duration > 0)
+      ? el.duration
+      : 0.4;
+    delay += (dur * 1000) + seqGapMs;
+  });
+}
+
+// Plays a sequence of cues after another cue's audio finishes, with a
+// configurable gap. Uses the audio element's 'ended' event so the timing
+// tracks reality (no race with audio.duration) — the L1 entry relies on
+// this for the "greeting → 1s pause → decompose" transition.
+//
+// If the reference cue has already ended (e.g. we re-entered a scene
+// after the cue already played), the sequence fires immediately so the
+// caller doesn't have to special-case the "already-played" branch.
+function playAfter(referenceId, ids, { gapMs = 1000, seqGapMs = 90 } = {}) {
+  const ref = audio[referenceId];
+  if (!ref) {
+    // Reference cue doesn't exist — just play the sequence after a
+    // generous fixed delay so the user still hears something.
+    playSequence(ids, seqGapMs, 4000);
+    return;
+  }
+  // After the reference cue's 'ended' event fires, kick off the
+  // sequence with `gapMs` ms before the first cue lands; the rest are
+  // chained by playSequence using the now-known audio.duration.
+  const kickoff = () => playSequence(ids, seqGapMs, gapMs);
+  if (ref.ended) {
+    kickoff();
+    return;
+  }
+  ref.addEventListener("ended", function onEnded() {
+    ref.removeEventListener("ended", onEnded);
+    kickoff();
   });
 }
 
@@ -152,7 +230,7 @@ const k = kaplay({
 });
 
 window.kaplay = k;
-window.PandaAudio = { audio, unlockAudio, playCue, playSequence, isUnlocked: () => audioUnlocked };
+window.PandaAudio = { audio, unlockAudio, playCue, playSequence, playAfter, stopAllAudio, isUnlocked: () => audioUnlocked };
 
 // Art assets are hand-authored SVG under assets/art/. Unlike the level data
 // above, these are fetched over HTTP, so the game must be served (see README) —

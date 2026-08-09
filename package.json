@@ -8,6 +8,7 @@
     "smoke": "node tools/smoke.cjs",
     "verify:math": "node tools/verify-math.mjs",
     "verify:games": "node tools/verify-games.mjs",
+    "verify:audio": "node tools/verify-audio-timing.mjs",
     "placeholders": "node tools/make-placeholders.js",
     "audio:build": "node tools/build-audio.js",
     "audio:build:edge": "node tools/build-audio-edge.mjs",

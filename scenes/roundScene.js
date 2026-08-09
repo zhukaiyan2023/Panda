@@ -260,6 +260,12 @@ export default function createRoundScene(config) {
         state.locked.add(idx);
         state.buttons[idx].btn.setCorrect();
         buddy.setMood("cheer", { silent: true });
+        // Hush everything that's still speaking — the L1 decompose
+        // sentence keeps going for ~14s and a kid who answers in the
+        // first 2s would otherwise hear the rest of the sentence
+        // stacked on top of the encouragement and the next step's
+        // audio prompt. Then play the encouragement.
+        window.PandaAudio.stopAllAudio();
         window.PandaAudio.playCue(ENCOURAGE[(ri + config.levelId) % ENCOURAGE.length]);
         if (stepCfg.onAdvance) stepCfg.onAdvance(ctx);
         const d = window.__skipTimers ? TEST_DELAY : 0.4;
