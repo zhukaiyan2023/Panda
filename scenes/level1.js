@@ -516,7 +516,14 @@ export default createRoundScene({
         // above ("几加 X 加 Y"), chained event-by-event.
         question: {
           correct: round.answer,
-          values: options(round.answer, { min: 0, max: 16, count: 4 }),
+          // L1 answer range: sum ≤ 10 path yields answers in [3, 10];
+          // make-a-ten path yields 10 + third ∈ [11, 19]. max: 20
+          // covers the worst case (10 + 9 = 19) with one slot of
+          // headroom. The previous `max: 16` silently dropped answers
+          // 17, 18, 19 — for triples like 7+7+3 (answer 17) the kid
+          // saw options [16, 15, 14, 13] with no correct answer to
+          // pick.
+          values: options(round.answer, { min: 0, max: 20, count: 4 }),
         },
         // Step 2 is the last step AND the one that reads back the
         // full equation on a correct pick. The advance is gated on
