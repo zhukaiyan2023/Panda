@@ -203,7 +203,7 @@ export default createRoundScene({
   sceneName: "level1",
   // No introCue: the spoken equation intro already introduces the round.
   // Two teaching beats: add the first pair, then add the rest.
-  stepLabels: ["先加一对", "加上剩下的"],
+  stepLabels: ["两数相加", "计算结果"],
 
   steps: [
     // Step 1 — Pair: "pair[0] + pair[1] = ?"

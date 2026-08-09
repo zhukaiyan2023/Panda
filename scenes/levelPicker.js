@@ -15,7 +15,7 @@ const LOCKED_BG = [220, 213, 230];
 const LOCKED_INK = [150, 140, 170];
 
 const SHORT_TITLES = {
-  1: "三个好朋友",
+  1: "三数相加",
   2: "凑十法",
   3: "二十以内",
 };

@@ -57,9 +57,10 @@ const CUE_IDS = [
   "step-1", "step-2", "step-3", "step-4",
   "lvl1-step-1", "lvl1-step-2",
   "enc-great", "enc-awesome", "enc-amazing", "enc-nice", "enc-try",
-  "n-1", "n-2", "n-3", "n-4", "n-5", "n-6", "n-7", "n-8", "n-9", "n-10",
+  "n-0", "n-1", "n-2", "n-3", "n-4", "n-5", "n-6", "n-7", "n-8", "n-9", "n-10",
   // spoken equation intro — chained by PandaAudio.playSequence so the child
-  // hears "what is two plus three plus four" instead of just "count!"
+  // hears "几加三加五" instead of just "算一算". The Mandarin chain reads
+  // naturally: "what is three plus five?" in three concatenated words.
   "q-what-is", "q-plus", "q-equals",
   "round-start", "round-end",
   "lvl-1-intro", "lvl-2-intro", "lvl-3-intro", "lvl-done",
@@ -74,7 +75,7 @@ const CUE_IDS = [
 
 const audio = {};
 for (const id of CUE_IDS) {
-  const el = new Audio(`assets/audio/${id}.mp3`);
+  const el = new Audio(`assets/audio/${id}.m4a`);
   el.preload = "auto";
   el.dataset.cue = id;
   audio[id] = el;
