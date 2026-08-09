@@ -41,7 +41,7 @@ export const LAYOUT = {
   barX: 748,
   barY: 84,
   barW: 1060,
-  counterY: 196,
+  counterY: 152,
   equationY: 310,
   contextY: 392,
   bodyY: 500,
@@ -187,7 +187,7 @@ export default function createRoundScene(config) {
       if (anchorEqNode) anchorEqNode.destroy();
       const props = {
         x: opts.x ?? LAYOUT.barX,
-        y: opts.y ?? 260,
+        y: opts.y ?? 220,
         size: opts.size ?? 100,
       };
       if (eq.slots) {

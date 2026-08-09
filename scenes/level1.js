@@ -67,7 +67,7 @@ function parenthesizedForm(ctx, pair, third, pairSum, aIdx, bIdx, thirdIdx) {
     }),
     ctx.k.color(...INK),
     ctx.k.opacity(0.7),
-    ctx.k.pos(LAYOUT.barX, 380),
+    ctx.k.pos(LAYOUT.barX, 340),
     ctx.k.anchor("center"),
   ]);
 }
@@ -75,15 +75,45 @@ function parenthesizedForm(ctx, pair, third, pairSum, aIdx, bIdx, thirdIdx) {
 // Renders one merged cell row: total cells = sum of nums; each addend fills
 // its own contiguous block of cells with that addend's color. When
 // `highlight` is given (a pair to add first) the matching cells pulse so the
-// child sees which two to add.
-function mergedRow(ctx, nums, highlight = null) {
+// child sees which two to add. When `boundary` (a group index) is given, an
+// extra-wide gap is inserted on either side of that group so it reads as a
+// visually separate "third" instead of one continuous row — used on step 2
+// after the pair is taught, to mirror the "(pair) + third" grouping.
+function mergedRow(ctx, nums, opts = {}) {
   const { k } = ctx;
+  const { highlight = null, boundary = null } = opts;
   const total = nums.reduce((a, b) => a + b, 0);
   const cell = 72;
   const gap = 8;
-  const totalW = total * cell + (total - 1) * gap;
+  const extraGap = 40;
+
+  // Compute each cell's x offset from the first cell. `boundary` widens the
+  // gap immediately before and after that group.
+  const offsets = new Array(total);
+  let cursor = 0;
+  for (let g = 0, idx = 0; g < nums.length; g++) {
+    for (let c = 0; c < nums[g]; c++) {
+      offsets[idx++] = cursor;
+      cursor += cell;
+      if (idx < total) {
+        const isLastInGroup = c === nums[g] - 1;
+        const isFirstInGroup = c === 0;
+        let gSize = gap;
+        if (boundary != null) {
+          // Extra gap only on the immediate left and right of the boundary
+          // group (the "third"), so the pair stays contiguous and only the
+          // third is visually separated.
+          const isBoundaryLeft = isLastInGroup && g === boundary - 1;
+          const isBoundaryRight = isFirstInGroup && g === boundary;
+          if (isBoundaryLeft || isBoundaryRight) gSize = extraGap;
+        }
+        cursor += gSize;
+      }
+    }
+  }
+  const totalW = offsets[total - 1] - offsets[0] + cell;
   const startX = LAYOUT.barX - totalW / 2 + cell / 2;
-  const y = 480;
+  const y = 440;
 
   const root = k.add([k.pos(0, 0)]);
   const cellNodes = [];
@@ -91,9 +121,9 @@ function mergedRow(ctx, nums, highlight = null) {
   let cellIdx = 0;
   nums.forEach((n, colorIdx) => {
     const color = COLORS[colorIdx];
-    const groupStart = cellIdx;
+    const groupFirstIdx = cellIdx;
     for (let c = 0; c < n; c++) {
-      const cx = startX + cellIdx * (cell + gap);
+      const cx = offsets[cellIdx] + startX;
       const isHighlighted = highlight && highlight.includes(n);
       const box = root.add([
         k.rect(cell, cell, { radius: 14 }),
@@ -125,8 +155,8 @@ function mergedRow(ctx, nums, highlight = null) {
     }
 
     // Number label centered under this color's group.
-    const groupEnd = cellIdx - 1;
-    const groupCenterX = (startX + groupStart * (cell + gap) + startX + groupEnd * (cell + gap)) / 2;
+    const groupLastIdx = cellIdx - 1;
+    const groupCenterX = (offsets[groupFirstIdx] + offsets[groupLastIdx]) / 2 + startX;
     root.add([
       k.text(String(n), { size: 56, font: FONT }),
       k.color(...color),
@@ -172,7 +202,7 @@ export default createRoundScene({
       const pairSum = pair[0] + pair[1];
 
       // Body: cells row with the pair highlighted.
-      const body = mergedRow(ctx, round.nums, pair);
+      const body = mergedRow(ctx, round.nums, { highlight: pair });
       ctx.cellRow = body;
 
       // Persistent anchor at top.
@@ -184,11 +214,12 @@ export default createRoundScene({
       speakSequence(ctx.k, ["q-what-is", `n-${pair[0]}`, "q-plus", `n-${pair[1]}`]);
 
       return {
+        body,
         equation: {
           slots: [pair[0], "+", pair[1], "=", "?"],
           colors: [COLORS[aIdx], undefined, COLORS[bIdx], undefined, undefined],
         },
-        equationOpts: { y: 720, size: 82 },
+        equationOpts: { y: 660, size: 82 },
         cue: "step-1",
         question: {
           correct: pairSum,
@@ -198,7 +229,7 @@ export default createRoundScene({
           ctx.setEquation({
             slots: [pair[0], "+", pair[1], "=", pairSum],
             colors: [COLORS[aIdx], undefined, COLORS[bIdx], undefined, ORANGE],
-          }, { y: 720, size: 82 });
+          }, { y: 660, size: 82 });
         },
       };
     },
@@ -212,8 +243,10 @@ export default createRoundScene({
       const thirdIdx = round.nums.findIndex((n) => n === third);
 
       // Body: cells row (no pair highlight — the pair is now expressed in
-      // the parenthesized form above the cells).
-      const body = mergedRow(ctx, round.nums);
+      // the parenthesized form above the cells). The third addend is
+      // visually separated from the pair via an extra-wide gap on either
+      // side, mirroring the "(pair) + third" grouping.
+      const body = mergedRow(ctx, round.nums, { boundary: thirdIdx });
       ctx.cellRow = body;
 
       // Anchor stays put (still "?" until step 2 is answered).
@@ -226,11 +259,12 @@ export default createRoundScene({
       speakSequence(ctx.k, ["q-what-is", `n-${pairSum}`, "q-plus", `n-${third}`]);
 
       return {
+        body,
         equation: {
           slots: [pairSum, "+", third, "=", "?"],
           colors: [ORANGE, undefined, COLORS[thirdIdx], undefined, undefined],
         },
-        equationOpts: { y: 720, size: 82 },
+        equationOpts: { y: 660, size: 82 },
         cue: "step-2",
         question: {
           correct: round.answer,
@@ -243,7 +277,7 @@ export default createRoundScene({
           ctx.setEquation({
             slots: [pairSum, "+", third, "=", round.answer],
             colors: [ORANGE, undefined, COLORS[thirdIdx], undefined, INK],
-          }, { y: 720, size: 82 });
+          }, { y: 660, size: 82 });
           ctx.cellRow?.pulse?.();
         },
       };
