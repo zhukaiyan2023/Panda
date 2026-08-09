@@ -75,7 +75,9 @@ const CUE_IDS = [
 
 const audio = {};
 for (const id of CUE_IDS) {
-  const el = new Audio(`assets/audio/${id}.m4a`);
+  // MP3 from Edge TTS (see tools/build-audio-edge.mjs). Safari on iPad
+  // and Chromium on desktop both handle MP3 in <audio> natively.
+  const el = new Audio(`assets/audio/${id}.mp3`);
   el.preload = "auto";
   el.dataset.cue = id;
   audio[id] = el;

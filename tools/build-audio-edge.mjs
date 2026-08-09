@@ -1,19 +1,26 @@
 #!/usr/bin/env node
 // tools/build-audio-edge.mjs — synthesize Mandarin audio cues for the Panda
-// math game using macOS's built-in `say` command and a Chinese voice.
+// math game using Microsoft Edge's free online TTS service (no API key).
 //
-// Why macOS `say` and not Edge / Azure / ElevenLabs:
-//   * Edge's free online TTS service (used by the npm `edge-tts` package)
-//     rate-limits unauthenticated traffic with HTTP 403, so the package is
-//     no longer usable without a Microsoft account.
-//   * Azure Speech and ElevenLabs both require API keys the user has not
-//     provided.
-//   * macOS ships high-quality Mandarin voices (Tingting, Sin-ji, Mei-Jia,
-//     plus the Eddy / Flo / Sandy family) with zero setup and no auth.
+// Why Edge TTS and not the macOS `say` command:
+//   * Tingting (the only comfortable Mandarin voice on macOS) sounds flat
+//     and monotone — bad for an upbeat 3-6 year-old audience.
+//   * Edge ships neural voices (Xiaoxiao, Yunjian, Yunxi …) that are
+//     dramatically more expressive, with natural Mandarin prosody and
+//     proper intonation for kid-appropriate phrases.
 //
-// Voice: SAY_VOICE env var, default "Tingting" (zh_CN female, warm, kid-clear).
-// Format: AAC in an MPEG-4 container (.m4a) — the only MP3-equivalent format
-// macOS `say` writes directly. main.js loads assets/audio/<id>.m4a.
+// We shell out to the Python `edge-tts` CLI (pip package, ~pip3 install
+// edge-tts) because the npm `edge-tts` package (v1.0.1) ships an
+// outdated auth token that Microsoft has blocked with HTTP 403. The
+// Python package is up to date and works against the same public
+// readaloud endpoint. No API key, no billing.
+//
+// Voice: EDGE_VOICE env var, default "zh-CN-XiaoxiaoNeural" — Mandarin
+// female, cheerful and lively, the canonical Edge Chinese voice.
+//
+// Format: MP3 (what Edge returns natively). main.js loads
+// assets/audio/<id>.mp3 directly — both Safari and Chromium handle MP3
+// for <audio> tags.
 //
 // Usage:
 //   node tools/build-audio-edge.mjs            # generate all cues
@@ -23,7 +30,6 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { execFileSync } from "node:child_process";
-import os from "node:os";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, "..");
@@ -31,52 +37,48 @@ const ROOT = path.resolve(__dirname, "..");
 // tools/cues.cjs is CommonJS; dynamic import works in ESM scripts.
 const { default: CUES } = await import("./cues.cjs");
 
-const VOICE = process.env.SAY_VOICE || "Tingting";
+const VOICE = process.env.EDGE_VOICE || "zh-CN-XiaoxiaoNeural";
+// Mild rate boost so the cues feel snappy without being rushed. Pitch is
+// left at default — Edge's neural prosody already sounds lively.
+const RATE = process.env.EDGE_RATE || "+5%";
 const OUT_DIR = path.join(ROOT, "assets", "audio");
-const TMP_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "panda-tts-"));
 const DRY = process.argv.includes("--dry-run");
 
-function escapeShellArg(s) {
-  // Wrap in single quotes; escape any embedded single quotes.
-  return "'" + String(s).replace(/'/g, "'\\''") + "'";
-}
-
-function synthesize(text) {
-  const aiff = path.join(TMP_DIR, "cue.aiff");
-  execFileSync("say", [
-    "-v", VOICE,
-    "--file-format=m4af",
-    "--data-format=aac",
-    "-o", aiff,
-    text,
-  ], { stdio: ["ignore", "ignore", "pipe"] });
-  return fs.readFileSync(aiff);
+function synthesize(id, text) {
+  const out = path.join(OUT_DIR, `${id}.mp3`);
+  execFileSync(
+    "edge-tts",
+    [
+      "--voice", VOICE,
+      "--rate", RATE,
+      "--text", text,
+      "--write-media", out,
+    ],
+    { stdio: ["ignore", "pipe", "pipe"] },
+  );
+  return fs.statSync(out).size;
 }
 
 console.log(
-  `[say-tts] voice=${VOICE}  cues=${CUES.length}  dry=${DRY}  tmp=${TMP_DIR}`,
+  `[edge-tts] voice=${VOICE}  rate=${RATE}  cues=${CUES.length}  dry=${DRY}`,
 );
 
 let ok = 0;
 let failed = 0;
 for (const cue of CUES) {
-  const out = path.join(OUT_DIR, `${cue.id}.m4a`);
+  const text = String(cue.text).replace(/[\r\n]+/g, " ").trim();
   try {
-    const buf = synthesize(String(cue.text).replace(/[\r\n]+/g, " ").trim());
-    if (buf.length < 256) {
-      throw new Error(`only ${buf.length} bytes — looks like an empty/error payload`);
+    const size = synthesize(cue.id, text);
+    if (size < 256) {
+      throw new Error(`only ${size} bytes — looks like an empty payload`);
     }
-    if (!DRY) fs.writeFileSync(out, buf);
     ok += 1;
-    console.log(`  ok  ${cue.id.padEnd(18)} ${String(buf.length).padStart(6)} B  ${cue.text}`);
+    console.log(`  ok  ${cue.id.padEnd(18)} ${String(size).padStart(6)} B  ${text}`);
   } catch (e) {
     failed += 1;
     console.error(`  FAIL ${cue.id}: ${e.message}`);
   }
 }
 
-// Clean up the temp scratch directory.
-try { fs.rmSync(TMP_DIR, { recursive: true, force: true }); } catch (_) {}
-
-console.log(`\n[say-tts] ${ok}/${CUES.length} cues (${failed} failed)`);
+console.log(`\n[edge-tts] ${ok}/${CUES.length} cues (${failed} failed)`);
 if (failed > 0) process.exit(1);
