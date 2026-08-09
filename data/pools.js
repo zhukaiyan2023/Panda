@@ -7,12 +7,10 @@
 // next time they enter the level, a fresh sample is drawn.
 //
 // Pool sizes (per the project goal):
-//   L1 三数相加  — 200 triples, sample 10
-//   L2 凑十法    — 200 ordered (a, b) pairs spanning strict make-a-ten
-//                  (63 rounds) + simple single-digit (36) + no-carry
-//                  2-digit (54) + carry 2-digit (36) + trivial a+0 (11).
+//   L1 三数相加  — 337 triples (sum ≤ 10 OR two-sum-to-10), sample 10
+//   L2 凑十法    — 36 ordered (a, b) pairs, both single digits, sum > 10.
 //                  Sample 10 per session. See generateL2Pool for the
-//                  breakdown.
+//                  derivation.
 //   L3 二十以内  — full enumeration (54), sample 10
 //
 // All generators are pure functions of the level schema — no I/O, no
@@ -20,50 +18,39 @@
 // diffed in tests without random noise.
 
 // L1 — 三数相加.
-// Enumerate ordered triples (a, b, c) with each ∈ [0, 10] and
-// sum ∈ [3, 15]. That's the range the kid can count on their fingers
-// without going past twenty. We then prefer triples with at least one
-// pair summing to 10 (so the make-a-ten strategy always applies), and
-// fill any remaining slots from the unrestricted pool. The result is
-// a curated 200 with a real make-a-ten hook on most rounds.
+// Enumerate ordered triples (a, b, c) with each ∈ {1..9} that satisfy
+// EITHER (a) a+b+c ≤ 10 (kid can count on fingers) OR (b) two of the
+// three addends sum to 10 (the make-a-ten strategy applies). The two
+// sets are disjoint (sum ≤ 10 + two-sum-to-10 forces the third to be
+// ≤ 0, but all addends ≥ 1, so no overlap).
+//
+// Count: 120 (sum ≤ 10) + 217 (≥ one pair sums to 10, by
+// inclusion-exclusion) = 337 ordered triples. See
+// docs/superpowers/specs/2026-08-10-pool-rules-update-design.md for
+// the full derivation.
 function generateL1Pool() {
   const pool = [];
-  for (let a = 0; a <= 10; a++) {
-    for (let b = 0; b <= 10; b++) {
-      for (let c = 0; c <= 10; c++) {
+  // Loop 1 — sum ≤ 10 (no 0s, all positive addends).
+  for (let a = 1; a <= 9; a++) {
+    for (let b = 1; b <= 9; b++) {
+      for (let c = 1; c <= 9; c++) {
         const sum = a + b + c;
-        if (sum < 3 || sum > 15) continue;
+        if (sum > 10) continue;
         pool.push({ kind: "three-sum", nums: [a, b, c], answer: sum });
       }
     }
   }
-  const hasMakeTen = (r) => {
-    const [a, b, c] = r.nums;
-    return a + b === 10 || a + c === 10 || b + c === 10;
-  };
-  // Local choosePair — mirrors scenes/level1.js's logic but is safe
-  // for triples with duplicates (e.g. [3, 2, 2]). When no pair sums to
-  // 10, the third is whichever index is left out of {0, 1}.
-  const choosePair = (nums) => {
-    for (let i = 0; i < nums.length; i++) {
-      for (let j = i + 1; j < nums.length; j++) {
-        if (nums[i] + nums[j] === 10) {
-          const thirdIdx = nums.findIndex((_, k) => k !== i && k !== j);
-          return { pair: [nums[i], nums[j]], third: nums[thirdIdx] };
-        }
+  // Loop 2 — at least one pair sums to 10.
+  for (let a = 1; a <= 9; a++) {
+    for (let b = 1; b <= 9; b++) {
+      for (let c = 1; c <= 9; c++) {
+        const ten = a + b === 10 || a + c === 10 || b + c === 10;
+        if (!ten) continue;
+        pool.push({ kind: "three-sum", nums: [a, b, c], answer: a + b + c });
       }
     }
-    return { pair: [nums[0], nums[1]], third: nums[2] };
-  };
-  const makeTenRounds = pool.filter(hasMakeTen);
-  const otherRounds = pool.filter((r) => !hasMakeTen(r));
-  // Curated 200 — make-ten first (the strategy applies), then fill from
-  // the rest so the kid still sees rounds where no pair sums to 10 (the
-  // fallback "any two + the rest" path in scenes/level1.js's choosePair).
-  const target = 200;
-  const out = makeTenRounds.slice(0, target);
-  if (out.length < target) out.push(...otherRounds.slice(0, target - out.length));
-  return out;
+  }
+  return pool;
 }
 
 // L2 — 凑十法.
