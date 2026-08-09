@@ -26,6 +26,7 @@
 
 import tenFrame from "../components/tenFrame.js";
 import createRoundScene, { LAYOUT, options } from "./roundScene.js";
+import { poolGens } from "../data/pools.js";
 import {
   INK, FONT, YELLOW, BLUE, PINK, PURPLE, ORANGE,
 } from "../components/theme.js";
@@ -206,6 +207,10 @@ function fireL2StepAudio(ctx, ids, stepNumber) {
 export default createRoundScene({
   levelId: 2,
   sceneName: "level2",
+  // 200 ordered (a, b) pairs from data/pools.js. roundScene samples 10
+  // on first entry; each play sees a different mix.
+  poolGen: () => poolGens[2](),
+  sampleSize: 10,
   // No intro cue — the persistent anchor ("a + b = ?") IS the introduction.
   // A "make ten" voice on entry would just say the same thing twice.
   stepLabels: ["比一比", "凑成十", "拆一拆", "算一算"],

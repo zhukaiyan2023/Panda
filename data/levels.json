@@ -2,41 +2,17 @@
   "levels": [
     {
       "id": 1,
-      "title": "三数相加",
-      "rounds": [
-        { "kind": "three-sum",  "nums": [2, 3, 4], "answer": 9 },
-        { "kind": "three-sum",  "nums": [1, 5, 3], "answer": 9 },
-        { "kind": "three-ten",   "nums": [3, 7, 2], "answer": 12 },
-        { "kind": "three-sum",  "nums": [4, 2, 1], "answer": 7 },
-        { "kind": "three-ten",   "nums": [6, 4, 5], "answer": 15 },
-        { "kind": "three-sum",  "nums": [2, 2, 3], "answer": 7 }
-      ]
+      "title": "三数相加"
     },
     {
       "id": 2,
       "title": "凑十法",
-      "intro": "lvl-2-intro",
-      "rounds": [
-        { "kind": "make-ten", "a": 8, "b": 5, "need": 2, "rest": 3, "answer": 13 },
-        { "kind": "make-ten", "a": 7, "b": 6, "need": 3, "rest": 3, "answer": 13 },
-        { "kind": "make-ten", "a": 9, "b": 4, "need": 1, "rest": 3, "answer": 13 },
-        { "kind": "make-ten", "a": 7, "b": 6, "need": 3, "rest": 3, "answer": 13 },
-        { "kind": "make-ten", "a": 8, "b": 6, "need": 2, "rest": 4, "answer": 14 },
-        { "kind": "make-ten", "a": 9, "b": 7, "need": 1, "rest": 6, "answer": 16 }
-      ]
+      "intro": "lvl-2-intro"
     },
     {
       "id": 3,
       "title": "二十以内",
-      "intro": "lvl-3-intro",
-      "rounds": [
-        { "a": 11, "b": 8, "answer": 19 },
-        { "a": 11, "b": 4, "answer": 15 },
-        { "a": 12, "b": 5, "answer": 17 },
-        { "a": 13, "b": 6, "answer": 19 },
-        { "a": 14, "b": 4, "answer": 18 },
-        { "a": 15, "b": 5, "answer": 20 }
-      ]
+      "intro": "lvl-3-intro"
     }
   ]
 }

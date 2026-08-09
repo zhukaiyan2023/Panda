@@ -29,6 +29,7 @@
 import { INK, FONT, NUM_BLUE, NUM_YELLOW, NUM_PINK, ORANGE } from "../components/theme.js";
 import expression from "../components/expression.js";
 import createRoundScene, { LAYOUT, options } from "./roundScene.js";
+import { poolGens } from "../data/pools.js";
 
 const COLORS = [NUM_BLUE, NUM_YELLOW, NUM_PINK];
 const TEN = 10;
@@ -284,6 +285,10 @@ function buildL1AnswerIds(a, b, c, answer) {
 export default createRoundScene({
   levelId: 1,
   sceneName: "level1",
+  // Pull the 200-round pool from data/pools.js. roundScene samples 10
+  // of them on first entry and walks through in random order.
+  poolGen: () => poolGens[1](),
+  sampleSize: 10,
   // Greeting plays once when the user first opens L1. The per-round
   // decompose sentence (fired inside step 1) waits for it to finish
   // plus a 1s pause on round 0, then chains on subsequent rounds.

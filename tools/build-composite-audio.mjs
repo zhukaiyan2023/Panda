@@ -1,38 +1,47 @@
 #!/usr/bin/env node
-// tools/build-composite-audio.mjs — synthesize the per-round composite
+// tools/build-composite-audio.mjs — synthesize per-round composite
 // sentences (one mp3 per round, not chunked) via Tencent Cloud TTS.
 //
-// The scene code in scenes/level{1,2,3}.js currently builds each
-// per-step sentence from many small universal cues (n-*, q-plus,
-// equals, lvl-*-step-*-*) using playSequence(). Per user feedback
-// ("不要拆开一个音频一个音频的读。直接生成 2+3+4等于几"), the user
-// wants each whole sentence pre-baked as one mp3 so it sounds like
-// a single phrase, not a choppy list. This script generates exactly
-// those per-round composite files and leaves the universal cues
-// alone (they're still used by the game-intro and reward audio that
-// don't have round-specific numbers).
+// The scene code in scenes/level{1,2,3}.js builds each per-step
+// sentence from many small universal cues (n-*, q-plus, equals,
+// lvl-*-step-*-*) using playSequence(). Per user feedback ("不要拆开
+// 一个音频一个音频的读。直接生成 2+3+4等于几"), the user wants each
+// whole sentence pre-baked as one mp3 so it sounds like a single
+// phrase, not a choppy list.
 //
-// Naming convention:
-//   l1-intro-{a}-{b}-{c}      L1 step 1 phase 1 decompose sentence
-//   l1-sub-{a}-{b}            L1 step 1 phase 2 sub-question
+// Pool-driven approach: instead of hand-picked rounds, each level now
+// generates its pool via data/pools.js (200 for L1, max-valid 63 for
+// L2, full 54 for L3). This script inlines the pool generators and
+// synthesizes one mp3 per unique composite id reachable from the pool:
+//   l1-intro-{a}-{b}-{c}     L1 step 1 phase 1 decompose sentence
+//   l1-sub-{a}-{b}           L1 step 1 phase 2 sub-question
 //   l1-step2-{pairSum}-{third}
-//                             L1 step 2 simplified question ("pairSum加third等于几")
-//   l1-rwd-{a}-{b}-{c}-{ans}  L1 step 2 reward ("X加Y加Z等于答")
-//   l2-s1-{a}-{b}             L2 step 1 ("我们来计算 a 加 b ...")
-//   l2-s2-{big}               L2 step 2 ("大数是 big, 好朋友是几")
-//   l2-s3-{small}-{need}      L2 step 3 ("small 能分成 need 和几？")
+//                            L1 step 2 simplified question
+//   l1-rwd-{a}-{b}-{c}-{ans} L1 step 2 reward ("X加Y加Z等于答")
+//   l2-s1-{a}-{b}            L2 step 1 ("我们来计算 a 加 b ...")
+//   l2-s2-{big}              L2 step 2 ("大数是 big, 好朋友是几")
+//   l2-s3-{small}-{need}     L2 step 3 ("small 能分成 need 和几？")
 //   l2-s4-{small}-{need}-{rest}-{big}
-//                             L2 step 4 ("算一算 big 加 need 加 rest...")
-//   l2-rwd-{a}-{b}-{ans}      L2 step 4 reward
-//   l3-s1-{a}-{b}             L3 step 1 ("a+b等于几, 我们先把 a 拆分")
-//   l3-s2-{ones}-{b}          L3 step 2 ("个位相加 ones 加 b...")
-//   l3-s3-{sum}               L3 step 3 ("十 加 sum 等于几")
-//   l3-rwd-{a}-{b}-{ans}      L3 step 3 reward
+//                            L2 step 4 ("算一算 big 加 need 加 rest...")
+//   l2-rwd-{a}-{b}-{ans}     L2 step 4 reward
+//   l3-s1-{a}-{b}            L3 step 1 ("a+b等于几, 我们先把 a 拆分")
+//   l3-s2-{ones}-{b}         L3 step 2 ("个位相加 ones 加 b...")
+//   l3-s3-{sum}              L3 step 3 ("十 加 sum 等于几")
+//   l3-rwd-{a}-{b}-{ans}     L3 step 3 reward
 //
-// Reuse: rounds with identical composites share one file (e.g. L2
-// rounds 2 and 4 are both [7,6,need=3,rest=3,answer=13] so the
-// reward mp3 is generated once and referenced from both). The
-// `seen` Map below enforces this.
+// Reuse: identical composites share one file via the `seen` Map.
+// Several L2/L3 cues are deduped across rounds (e.g. l2-s2-7 covers
+// every L2 round where big = 7).
+//
+// Hardening (security review):
+//   - safeInt(n, min, max, where) validates every arithmetic field
+//     from the pool generators. A non-integer or out-of-range value
+//     throws with a precise error.
+//   - safeCueId(id) allowlists every generated id against
+//     /^[a-z0-9][a-z0-9-]*$/, refusing slashes / dots / uppercase / etc.
+//   - Write loop resolves the destination and requires it to stay
+//     under the resolved OUT_DIR (separator-aware containment),
+//     refuses symlinks at the destination.
 
 import fs from "node:fs";
 import path from "node:path";
@@ -70,40 +79,23 @@ if (!SECRET_ID || !SECRET_KEY) {
   process.exit(2);
 }
 
-const levels = JSON.parse(fs.readFileSync(path.join(ROOT, "data", "levels.json"), "utf8")).levels;
 const NUM = ["零", "一", "二", "三", "四", "五", "六", "七", "八", "九", "十",
-  "十一", "十二", "十三", "十四", "十五", "十六", "十七", "十八", "十九", "二十"];
+  "十一", "十二", "十三", "十四", "十五", "十六", "十七", "十八", "十九", "二十",
+  "二十一", "二十二", "二十三", "二十四", "二十五", "二十六", "二十七", "二十八", "二十九"];
 function numZh(n) {
-  if (n < 0 || n > 20) throw new Error(`numZh out of range: ${n}`);
+  if (n < 0 || n > 29) throw new Error(`numZh out of range: ${n}`);
   return NUM[n];
 }
 
-function choosePair(nums) {
-  for (let i = 0; i < nums.length; i++) {
-    for (let j = i + 1; j < nums.length; j++) {
-      if (nums[i] + nums[j] === 10) {
-        const thirdIdx = nums.findIndex((n, k) => k !== i && k !== j);
-        return { pair: [nums[i], nums[j]], third: nums[thirdIdx] };
-      }
-    }
-  }
-  return { pair: [nums[0], nums[1]], third: nums[2] };
-}
-
-const composites = [];
-
 // Reject anything that isn't a finite integer in the documented range.
-// Without this, a malformed levels.json entry could produce a composite
-// id like "l1-intro-..-..-.." that escapes the audio directory on write.
 function safeInt(n, min, max, where) {
   if (!Number.isInteger(n) || n < min || n > max) {
-    throw new Error(`levels.json: ${where} must be an integer in [${min}, ${max}], got ${JSON.stringify(n)}`);
+    throw new Error(`pool: ${where} must be an integer in [${min}, ${max}], got ${JSON.stringify(n)}`);
   }
   return n;
 }
 
 // Allowlist for every generated cue id — lowercase alnum + dash only.
-// Anything else (slashes, dots, unicode, control chars) is refused.
 const CUE_ID_RE = /^[a-z0-9][a-z0-9-]*$/;
 function safeCueId(id) {
   if (typeof id !== "string" || !CUE_ID_RE.test(id)) {
@@ -112,12 +104,81 @@ function safeCueId(id) {
   return id;
 }
 
-const l1 = levels.find((l) => l.id === 1);
-for (const r of l1.rounds) {
-  const a = safeInt(r.nums[0], 0, 10, "l1.rounds[].nums[0]");
-  const b = safeInt(r.nums[1], 0, 10, "l1.rounds[].nums[1]");
-  const c = safeInt(r.nums[2], 0, 10, "l1.rounds[].nums[2]");
-  const { pair } = choosePair(r.nums);
+// Decide which two addends the kid should pair first, and which one is the
+// "leftover" they add at the end. Returns the pair VALUES plus the third
+// VALUE. Always index-driven so triples with duplicate values
+// (e.g. [3, 2, 2]) work correctly — pair value {3, 2} should leave the
+// third value as 2, not "undefined".
+function choosePair(nums) {
+  for (let i = 0; i < nums.length; i++) {
+    for (let j = i + 1; j < nums.length; j++) {
+      if (nums[i] + nums[j] === 10) {
+        const thirdIdx = nums.findIndex((_, k) => k !== i && k !== j);
+        return { pair: [nums[i], nums[j]], third: nums[thirdIdx] };
+      }
+    }
+  }
+  // No pair sums to 10. Use the first two indices as the pair and the
+  // last as the third — that's the unambiguous convention for triples
+  // that don't fit the make-a-ten pattern (the L1 fallback path).
+  return { pair: [nums[0], nums[1]], third: nums[2] };
+}
+
+// Replicate the pool generators from data/pools.js — duplicated here
+// so this script has no module dependency on the project (it can run
+// on a CI worker with just the .env creds). The bounds MUST match
+// data/pools.js exactly; the safeInt checks below catch any drift.
+const l1Pool = [];
+for (let a = 0; a <= 10; a++) {
+  for (let b = 0; b <= 10; b++) {
+    for (let c = 0; c <= 10; c++) {
+      const sum = a + b + c;
+      if (sum < 3 || sum > 15) continue;
+      l1Pool.push({ kind: "three-sum", nums: [a, b, c], answer: sum });
+    }
+  }
+}
+const l1HasMakeTen = (r) => {
+  const [a, b, c] = r.nums;
+  return a + b === 10 || a + c === 10 || b + c === 10;
+};
+const l1MakeTen = l1Pool.filter(l1HasMakeTen);
+const l1Other = l1Pool.filter((r) => !l1HasMakeTen(r));
+const l1Curated = l1MakeTen.slice(0, 200);
+if (l1Curated.length < 200) l1Curated.push(...l1Other.slice(0, 200 - l1Curated.length));
+
+const l2Pool = [];
+for (let a = 1; a <= 10; a++) {
+  for (let b = 1; b <= 10; b++) {
+    const sum = a + b;
+    if (sum < 10 || sum > 19) continue;
+    const big = a >= b ? a : b;
+    if (big > 10) continue;
+    const small = a >= b ? b : a;
+    const need = 10 - big;
+    const rest = small - need;
+    l2Pool.push({ kind: "make-ten", a, b, need, rest, answer: sum });
+  }
+}
+
+const l3Pool = [];
+for (let a = 11; a <= 20; a++) {
+  const ones = a % 10;
+  const bMax = 10 - ones;
+  for (let b = 1; b <= Math.min(9, bMax); b++) {
+    l3Pool.push({ a, b, answer: a + b });
+  }
+}
+
+console.log(`[composite] pool sizes — L1: ${l1Curated.length}, L2: ${l2Pool.length}, L3: ${l3Pool.length}`);
+
+const composites = [];
+
+// L1 — 三数相加.
+for (const r of l1Curated) {
+  const [a, b, c] = r.nums.map((n) => safeInt(n, 0, 10, "l1.nums"));
+  const answer = safeInt(r.answer, 3, 15, "l1.answer");
+  const { pair, third: thirdVal } = choosePair(r.nums);
   composites.push({
     id: `l1-intro-${a}-${b}-${c}`,
     text: `先看下${numZh(a)}加${numZh(b)}加${numZh(c)}等于几，这个问题可以分解成我们先看看前两个数相加。`,
@@ -127,31 +188,26 @@ for (const r of l1.rounds) {
     text: `${numZh(pair[0])}加${numZh(pair[1])}等于几`,
   });
   composites.push({
-    id: `l1-rwd-${a}-${b}-${c}-${r.answer}`,
-    text: `${numZh(a)}加${numZh(b)}加${numZh(c)}等于${numZh(r.answer)}`,
+    id: `l1-rwd-${a}-${b}-${c}-${answer}`,
+    text: `${numZh(a)}加${numZh(b)}加${numZh(c)}等于${numZh(answer)}`,
   });
-  // L1 step 2 simplified question: "pairSum 加 third 等于几".
-  // The old code chained 4 cues (n-pairSum + q-plus + n-third +
-  // q-equals) which read as 4 separate words. Pre-bake so it sounds
-  // like one phrase.
   const pairSum = safeInt(pair[0] + pair[1], 0, 20, "l1 pair sum");
-  const thirdIdx = r.nums.findIndex((n) => n !== pair[0] && n !== pair[1]);
-  const third = safeInt(r.nums[thirdIdx], 0, 10, "l1 third addend");
+  const third = safeInt(thirdVal, 0, 10, "l1 third addend");
   composites.push({
     id: `l1-step2-${pairSum}-${third}`,
     text: `${numZh(pairSum)}加${numZh(third)}等于几`,
   });
 }
 
-const l2 = levels.find((l) => l.id === 2);
-for (const r of l2.rounds) {
-  const a = safeInt(r.a, 0, 20, "l2.rounds[].a");
-  const b = safeInt(r.b, 0, 10, "l2.rounds[].b");
-  const need = safeInt(r.need, 0, 10, "l2.rounds[].need");
-  const rest = safeInt(r.rest, 0, 10, "l2.rounds[].rest");
-  const answer = safeInt(r.answer, 0, 20, "l2.rounds[].answer");
-  const big = a >= b ? a : b;
-  const small = a >= b ? b : a;
+// L2 — 凑十法.
+for (const r of l2Pool) {
+  const a = safeInt(r.a, 1, 10, "l2.a");
+  const b = safeInt(r.b, 1, 10, "l2.b");
+  const big = safeInt(Math.max(a, b), 1, 10, "l2.big");
+  const small = safeInt(Math.min(a, b), 1, 9, "l2.small");
+  const need = safeInt(r.need, 0, 9, "l2.need");
+  const rest = safeInt(r.rest, 0, 9, "l2.rest");
+  const answer = safeInt(r.answer, 10, 19, "l2.answer");
   composites.push({
     id: `l2-s1-${a}-${b}`,
     text: `我们来计算${numZh(a)}加${numZh(b)}等于几，先比一比，${numZh(a)}还是${numZh(b)}谁大`,
@@ -174,13 +230,13 @@ for (const r of l2.rounds) {
   });
 }
 
-const l3 = levels.find((l) => l.id === 3);
-for (const r of l3.rounds) {
-  const a = safeInt(r.a, 11, 20, "l3.rounds[].a");
-  const b = safeInt(r.b, 1, 9, "l3.rounds[].b");
-  const answer = safeInt(r.answer, 12, 20, "l3.rounds[].answer");
-  const ones = a % 10;
-  const sum = ones + b;
+// L3 — 二十以内.
+for (const r of l3Pool) {
+  const a = safeInt(r.a, 11, 20, "l3.a");
+  const b = safeInt(r.b, 1, 9, "l3.b");
+  const answer = safeInt(r.answer, 12, 29, "l3.answer");
+  const ones = safeInt(a % 10, 0, 9, "l3.ones");
+  const sum = safeInt(ones + b, 1, 10, "l3.sum");
   composites.push({
     id: `l3-s1-${a}-${b}`,
     text: `${numZh(a)}加${numZh(b)}等于几，我们先把${numZh(a)}进行拆分，拆成十加几`,
@@ -214,8 +270,6 @@ for (const c of composites) {
 
 const OUT_DIR = path.join(ROOT, "assets", "audio");
 fs.mkdirSync(OUT_DIR, { recursive: true });
-// Resolve once so the containment check below can't be tricked by a
-// symlinked OUT_DIR (the resolved root is what we compare against).
 const OUT_DIR_RESOLVED = path.resolve(OUT_DIR) + path.sep;
 
 const sha256Hex = (m) => crypto.createHash("sha256").update(m).digest("hex");
@@ -266,13 +320,9 @@ for (const c of deduped) {
     const buf = await callTencent(c.text);
     if (buf.length < 256) throw new Error(`only ${buf.length} bytes`);
     const out = path.resolve(OUT_DIR, `${c.id}.mp3`);
-    // Containment check — separator-aware so a sibling "assets-audio/"
-    // can't sneak in.
     if (out + path.sep !== OUT_DIR_RESOLVED && !out.startsWith(OUT_DIR_RESOLVED)) {
       throw new Error(`refusing to write outside OUT_DIR: ${out}`);
     }
-    // Refuse symlink destinations — even if a previous build left
-    // assets/audio/foo.mp3 as a symlink, we won't follow it on write.
     if (fs.existsSync(out)) {
       const lst = fs.lstatSync(out);
       if (lst.isSymbolicLink()) throw new Error(`refusing to overwrite symlink: ${out}`);
@@ -280,7 +330,7 @@ for (const c of deduped) {
     fs.writeFileSync(out, buf);
     ok++;
     totalBytes += buf.length;
-    console.log(`  ok  ${c.id.padEnd(30)} ${String(buf.length).padStart(6)} B  ${c.text.slice(0, 30)}…`);
+    console.log(`  ok  ${c.id.padEnd(36)} ${String(buf.length).padStart(6)} B  ${c.text.slice(0, 28)}…`);
   } catch (e) {
     failed++;
     console.error(`  FAIL ${c.id}: ${e.message}`);

@@ -29,6 +29,7 @@
 //                     full equation as a celebration sentence).
 
 import createRoundScene, { LAYOUT, options } from "./roundScene.js";
+import { poolGens } from "../data/pools.js";
 import expression from "../components/expression.js";
 import {
   INK, FONT, YELLOW, BLUE, PINK, ORANGE,
@@ -150,6 +151,10 @@ function fireL3StepAudio(ctx, ids, stepNumber, onComplete) {
 export default createRoundScene({
   levelId: 3,
   sceneName: "level3",
+  // Full enumeration (~54 valid no-carry combos). roundScene samples 10
+  // each session so the kid sees a different subset on every replay.
+  poolGen: () => poolGens[3](),
+  sampleSize: 10,
   introCue: "lvl-3-intro",
   // Three teaching beats. Labels are the visible step-bar text — short,
   // verb-shaped Chinese that names the strategy of each beat.

@@ -92,6 +92,14 @@ function saveProgress(levelId) {
 
 export default function createRoundScene(config) {
   let roundIdx = 0;
+  // Sampled round sequence for this session — drawn once when the scene
+  // starts (roundIdx === 0), then walked through in order. The next time
+  // the kid enters this level, a fresh sample is drawn. Pool comes from
+  // either data/pools.js's poolGens[levelId] (the default) or a custom
+  // config.poolGen. sampleSize defaults to 10.
+  let sampledRounds = null;
+  const poolGen = config.poolGen || null;
+  const sampleSize = config.sampleSize ?? 10;
 
   function drawRound(k, round, ri, totalRounds) {
     const state = { step: 1, locked: new Set(), buttons: [], body: null };
@@ -391,10 +399,20 @@ export default function createRoundScene(config) {
       return;
     }
 
+    // First entry (or after the kid completed the previous sample) —
+    // draw a fresh N rounds from the level's pool. Without this every
+    // replay would see the exact same 6 rounds.
+    if (roundIdx === 0 || !sampledRounds) {
+      const pool = poolGen ? poolGen() : (data.rounds || []);
+      // shuffle() is in this module — pool order is otherwise deterministic.
+      sampledRounds = shuffle(pool).slice(0, sampleSize);
+    }
+
     if (roundIdx === 0) {
       window.PandaAudio.playCue(data.intro || config.introCue);
     }
-    drawRound(k, data.rounds[roundIdx] || data.rounds[0], roundIdx, data.rounds.length);
+    const round = sampledRounds[roundIdx] || sampledRounds[0];
+    drawRound(k, round, roundIdx, sampledRounds.length);
   };
 }
 
