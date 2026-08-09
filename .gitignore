@@ -7,3 +7,5 @@ test-results/
 /tmp/panda-smoke*.png
 /.idea/
 
+
+.claude/worktrees/
