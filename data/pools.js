@@ -8,9 +8,11 @@
 //
 // Pool sizes (per the project goal):
 //   L1 三数相加  — 200 triples, sample 10
-//   L2 凑十法    — 63 ordered pairs (math bound for strict make-a-ten),
-//                  sample 10 — see comment in generateL2Pool for why
-//                  "200 pool" isn't achievable for strict make-a-ten.
+//   L2 凑十法    — 200 ordered (a, b) pairs spanning strict make-a-ten
+//                  (63 rounds) + simple single-digit (36) + no-carry
+//                  2-digit (54) + carry 2-digit (36) + trivial a+0 (11).
+//                  Sample 10 per session. See generateL2Pool for the
+//                  breakdown.
 //   L3 二十以内  — full enumeration (54), sample 10
 //
 // All generators are pure functions of the level schema — no I/O, no
@@ -106,18 +108,56 @@ function generateL1Pool() {
 // prompt would mis-teach (the "friend of big" lookup would lie).
 function generateL2Pool() {
   const pool = [];
+  // (1) Strict make-a-ten rounds — 63 ordered pairs where a, b ∈ [1, 10]
+  //     and a + b ∈ [10, 19]. These are the rounds where the 4-step
+  //     make-a-ten teaching (compare → find-friend → split → count)
+  //     applies and the audio prompt for "big's friend" is honest.
   for (let a = 1; a <= 10; a++) {
     for (let b = 1; b <= 10; b++) {
       const sum = a + b;
       if (sum < 10 || sum > 19) continue;
       const big = a >= b ? a : b;
-      if (big > 10) continue; // need = 10 - big must be ≥ 0
       const small = a >= b ? b : a;
       const need = 10 - big;
       const rest = small - need;
       pool.push({ kind: "make-ten", a, b, need, rest, answer: sum });
     }
   }
+  // (2) Simple single-digit additions — 36 ordered pairs where a, b ∈ [1, 10]
+  //     and a + b ∈ [2, 9]. No make-a-ten strategy needed; the kid just
+  //     counts. Teaches: addition fluency for sums below 10.
+  for (let a = 1; a <= 10; a++) {
+    for (let b = 1; b <= 10; b++) {
+      const sum = a + b;
+      if (sum < 2 || sum > 9) continue;
+      pool.push({ kind: "simple", a, b, answer: sum });
+    }
+  }
+  // (3) No-carry 2-digit additions — 54 ordered pairs where a ∈ [11, 20],
+  //     b ∈ [1, 9], ones(a) + b ≤ 10. The strategy is "split a into 10 +
+  //     ones(a), then ones(a) + b, then 10 + sum" — same as L3's lesson.
+  for (let a = 11; a <= 20; a++) {
+    for (let b = 1; b <= 9; b++) {
+      if (a % 10 + b > 10) continue;
+      pool.push({ kind: "no-carry-2d", a, b, answer: a + b });
+    }
+  }
+  // (4) Carry 2-digit additions — 36 ordered pairs where a ∈ [11, 19],
+  //     b ∈ [1, 9], ones(a) + b > 10. Answer ≥ 21. The kid needs to
+  //     carry — advanced; the audio just asks "a + b = ?".
+  for (let a = 11; a <= 19; a++) {
+    for (let b = 1; b <= 9; b++) {
+      if (a % 10 + b <= 10) continue;
+      pool.push({ kind: "carry-2d", a, b, answer: a + b });
+    }
+  }
+  // (5) Trivial drills — 10 ordered (a, 0) pairs + 1 (0, 0). Teaches:
+  //     "a + 0 = a" (identity). Sums in [1, 10].
+  for (let a = 1; a <= 10; a++) {
+    pool.push({ kind: "trivial", a, b: 0, answer: a });
+  }
+  pool.push({ kind: "trivial", a: 0, b: 0, answer: 0 });
+  // 63 + 36 + 54 + 36 + 11 = 200 rounds.
   return pool;
 }
 

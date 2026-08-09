@@ -41,6 +41,16 @@ const COL_TEN  = YELLOW;
 function bigger(a, b) { return a >= b ? a : b; }
 function smaller(a, b) { return a >= b ? b : a; }
 
+// Pool round kinds: "make-ten" gets the full 4-step make-a-ten teaching
+// (compare → find-friend → split → count). All other kinds ("simple",
+// "no-carry-2d", "carry-2d", "trivial") get a single-step scene that
+// just asks "a + b = ?" — the kid counts or applies the strategy
+// mentally. The 4-step breakdown would mis-teach on non-make-ten rounds
+// (the "find big's friend of ten" lookup lies for big > 10).
+function isMakeTen(round) {
+  return round && round.kind === "make-ten";
+}
+
 // Persistent anchor ("a + b = ?") rendered at the top, large.
 function anchorSlots(round, sumSlot) {
   return {
@@ -144,6 +154,15 @@ function buildL2Step1Ids(a, b) {
   return [`l2-s1-${a}-${b}`];
 }
 
+// Non-make-ten step 1 — just the prompt "我们来计算 a 加 b 等于几". The
+// 4-step make-a-ten teaching would lie for simple / 2-digit / trivial
+// rounds (no big's-friend lookup applies), so the kid gets a single
+// prompt and answers directly. The reward cue (l2-rwd) is reused from
+// the make-ten pipeline so the audio assets stay shared.
+function buildL2SimpleIds(a, b) {
+  return [`l2-simple-${a}-${b}`];
+}
+
 // Step 2 — Find friend: "大数是 big，我们找找 big 的好朋友，
 //   big 的好朋友是几"
 function buildL2Step2Ids(big) {
@@ -216,8 +235,52 @@ export default createRoundScene({
   stepLabels: ["比一比", "凑成十", "拆一拆", "算一算"],
 
   steps: [
-    // Step 1 — Compare.
+    // Step 1 — Compare (make-ten rounds) / Single-step prompt (others).
+    // Make-ten rounds get the full 4-step teaching: this step shows
+    // "big ? small" and asks the kid to pick > / <. Non-make-ten rounds
+    // (simple / no-carry-2d / carry-2d / trivial) skip the make-a-ten
+    // scaffolding and go straight to "a + b = ?" — the kid counts or
+    // applies the strategy mentally, no frames, no compare/friend/split.
     (ctx, round) => {
+      // Non-make-ten branch — single-step scene. Show the anchor twice
+      // (top + sub-question) and ask for the answer directly. Steps
+      // 2–4 are no-ops for these rounds (see below) so the round finishes
+      // ~1s after the kid picks correctly.
+      if (!isMakeTen(round)) {
+        ctx.setAnchorEquation(anchorSlots(round, "?"), { y: 260 });
+        ctx.setEquation(anchorSlots(round, "?"), { y: 660, size: 82 });
+        fireL2StepAudio(ctx, buildL2SimpleIds(round.a, round.b), 1);
+        return {
+          // Answer choices scale with the round's actual answer so
+          // trivial (a+0=a) and 2-digit (answer ≤ 29) rounds both get
+          // sensible distractors. min/max is tightened around the
+          // answer; options() dedups by value.
+          question: {
+            correct: round.answer,
+            values: options(round.answer, {
+              min: 0,
+              max: Math.max(round.answer + 5, 20),
+              count: 4,
+            }),
+          },
+          onAdvance: () => {
+            ctx.setAnchorEquation(anchorSlots(round, round.answer), { y: 260 });
+            ctx.setEquation(anchorSlots(round, round.answer), { y: 660, size: 82 });
+            // Reuse the make-ten reward audio. The text "a 加 b 等于 answer"
+            // is the same regardless of kind, so l2-rwd-{a}-{b}-{answer}
+            // works for every round. Chain off panda-celebrate so the
+            // reward waits for the cheer to finish.
+            return new Promise((resolve) => {
+              window.PandaAudio.playAfter(
+                "panda-celebrate",
+                [`l2-rwd-${round.a}-${round.b}-${round.answer}`],
+                { gapMs: 200, seqGapMs: 40 },
+                resolve,
+              );
+            });
+          },
+        };
+      }
       const big = bigger(round.a, round.b);
       const small = smaller(round.a, round.b);
       // Frames are visible from step 1 — the child needs to SEE the two
@@ -251,8 +314,9 @@ export default createRoundScene({
         },
       };
     },
-    // Step 2 — To ten.
+    // Step 2 — To ten. Make-ten only; non-make-ten rounds auto-advance.
     (ctx, round) => {
+      if (!isMakeTen(round)) return { noQuestionDelay: 0.001 }; // roundScene auto-advances to step 3
       const big = bigger(round.a, round.b);
       // Anchor stays as-is. The right frame already shows the small number
       // (see tenFramePair); the friend count is taught via the equation.
@@ -280,8 +344,9 @@ export default createRoundScene({
         },
       };
     },
-    // Step 3 — Split: ? + ? = small.
+    // Step 3 — Split: ? + ? = small. Make-ten only; non-make-ten auto-advances.
     (ctx, round) => {
+      if (!isMakeTen(round)) return { noQuestionDelay: 0.001 };
       const big = bigger(round.a, round.b);
       const small = smaller(round.a, round.b);
       const { options: splitOpts, correct } = buildSplitOptions(
@@ -314,8 +379,10 @@ export default createRoundScene({
     // Step 4 — Count: a + (need + rest) = ?
     // The parentheses group the split visually so the child sees the pair
     // that makes ten as a single chunk: "8 + (2 + 3) = ?" reads as
-    // "eight plus the split of five" — ten stays implicit.
+    // "eight plus the split of five" — ten stays implicit. Make-ten only;
+    // non-make-ten rounds auto-advance from step 3 to finishRound.
     (ctx, round) => {
+      if (!isMakeTen(round)) return { noQuestionDelay: 0.001 };
       const big = bigger(round.a, round.b);
       const small = smaller(round.a, round.b);
       tenFramePair(ctx, round);

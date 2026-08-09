@@ -37,14 +37,22 @@ for (const r of l1) {
 }
 
 for (const r of l2) {
-  const big = Math.max(r.a, r.b);
-  const small = Math.min(r.a, r.b);
   const push = (id) => { if (!seen.has(id)) { seen.add(id); ids.push(id); } };
-  push(`l2-s1-${r.a}-${r.b}`);
-  push(`l2-s2-${big}`);
-  push(`l2-s3-${small}-${r.need}`);
-  push(`l2-s4-${small}-${r.need}-${r.rest}-${big}`);
   push(`l2-rwd-${r.a}-${r.b}-${r.answer}`);
+  // The 4-step make-a-ten teaching only applies to make-ten rounds.
+  // Other kinds (simple / no-carry-2d / carry-2d / trivial) get a
+  // single-step "a + b = ?" scene with no compare / friend / split,
+  // so the only step audio is the prompt + the shared reward.
+  if (r.kind === "make-ten") {
+    const big = Math.max(r.a, r.b);
+    const small = Math.min(r.a, r.b);
+    push(`l2-s1-${r.a}-${r.b}`);
+    push(`l2-s2-${big}`);
+    push(`l2-s3-${small}-${r.need}`);
+    push(`l2-s4-${small}-${r.need}-${r.rest}-${big}`);
+  } else {
+    push(`l2-simple-${r.a}-${r.b}`);
+  }
 }
 
 for (const r of l3) {

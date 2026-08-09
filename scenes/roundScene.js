@@ -346,9 +346,17 @@ export default function createRoundScene(config) {
       buildStep(state.step, prev || ctx.round);
       // Auto-advance only when the new step has no question to answer.
       // Question steps wait for the child to tap; reveal-only steps chain
-      // through after a short pause so the screen doesn't sit still.
+      // through after a short pause so the screen doesn't sit still. A step
+      // that knows it'll be a no-op (e.g. L2's non-make-ten "steps 2-4")
+      // can set `noQuestionDelay: <seconds>` to skip the default 4s pad —
+      // there's nothing for the child to look at, so waiting would just be
+      // dead time.
       if (!ctx.lastHadQuestion) {
-        autoAdvanceTimer = k.wait(d, () => {
+        const stepCfg = config.steps[state.step - 1] || {};
+        const stepDelay = stepCfg.noQuestionDelay != null
+          ? stepCfg.noQuestionDelay
+          : d;
+        autoAdvanceTimer = k.wait(stepDelay, () => {
           if (state.step >= config.steps.length) {
             k.wait(d, finishRound);
           } else {

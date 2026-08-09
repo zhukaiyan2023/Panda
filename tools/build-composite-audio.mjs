@@ -23,7 +23,10 @@
 //   l2-s3-{small}-{need}     L2 step 3 ("small 能分成 need 和几？")
 //   l2-s4-{small}-{need}-{rest}-{big}
 //                            L2 step 4 ("算一算 big 加 need 加 rest...")
-//   l2-rwd-{a}-{b}-{ans}     L2 step 4 reward
+//   l2-simple-{a}-{b}        L2 non-make-ten single-step prompt
+//                            ("我们来计算 a 加 b 等于几")
+//   l2-rwd-{a}-{b}-{ans}     L2 reward (used by both make-ten and
+//                            non-make-ten rounds)
 //   l3-s1-{a}-{b}            L3 step 1 ("a+b等于几, 我们先把 a 拆分")
 //   l3-s2-{ones}-{b}         L3 step 2 ("个位相加 ones 加 b...")
 //   l3-s3-{sum}              L3 step 3 ("十 加 sum 等于几")
@@ -148,6 +151,7 @@ const l1Curated = l1MakeTen.slice(0, 200);
 if (l1Curated.length < 200) l1Curated.push(...l1Other.slice(0, 200 - l1Curated.length));
 
 const l2Pool = [];
+// (1) Strict make-a-ten — 63 ordered pairs, a, b ∈ [1, 10], sum ∈ [10, 19].
 for (let a = 1; a <= 10; a++) {
   for (let b = 1; b <= 10; b++) {
     const sum = a + b;
@@ -160,6 +164,36 @@ for (let a = 1; a <= 10; a++) {
     l2Pool.push({ kind: "make-ten", a, b, need, rest, answer: sum });
   }
 }
+// (2) Simple single-digit — 36 ordered pairs, a, b ∈ [1, 10], sum ∈ [2, 9].
+for (let a = 1; a <= 10; a++) {
+  for (let b = 1; b <= 10; b++) {
+    const sum = a + b;
+    if (sum < 2 || sum > 9) continue;
+    l2Pool.push({ kind: "simple", a, b, answer: sum });
+  }
+}
+// (3) No-carry 2-digit — 54 ordered pairs, a ∈ [11, 20], b ∈ [1, 9],
+//     ones(a) + b ≤ 10.
+for (let a = 11; a <= 20; a++) {
+  for (let b = 1; b <= 9; b++) {
+    if (a % 10 + b > 10) continue;
+    l2Pool.push({ kind: "no-carry-2d", a, b, answer: a + b });
+  }
+}
+// (4) Carry 2-digit — 36 ordered pairs, a ∈ [11, 19], b ∈ [1, 9],
+//     ones(a) + b > 10 (answer ∈ [21, 28]).
+for (let a = 11; a <= 19; a++) {
+  for (let b = 1; b <= 9; b++) {
+    if (a % 10 + b <= 10) continue;
+    l2Pool.push({ kind: "carry-2d", a, b, answer: a + b });
+  }
+}
+// (5) Trivial drills — 10 ordered (a, 0) for a ∈ [1, 10] + 1 (0, 0).
+for (let a = 1; a <= 10; a++) {
+  l2Pool.push({ kind: "trivial", a, b: 0, answer: a });
+}
+l2Pool.push({ kind: "trivial", a: 0, b: 0, answer: 0 });
+// 63 + 36 + 54 + 36 + 11 = 200 rounds.
 
 const l3Pool = [];
 for (let a = 11; a <= 20; a++) {
@@ -199,31 +233,47 @@ for (const r of l1Curated) {
   });
 }
 
-// L2 — 凑十法.
+// L2 — 凑十法 + adjacent kinds (simple / no-carry-2d / carry-2d / trivial).
+// Strict make-ten (a, b ∈ [1, 10], sum ∈ [10, 19]) gets the full 4-step
+// teaching: compare → find-friend → split → count. Other kinds get a
+// single-step scene (just "a + b = ?") so the make-ten audio prompt
+// (which teaches the "friend of big" strategy) never plays for a round
+// where the strategy would lie. All 200 rounds share the l2-rwd reward.
 for (const r of l2Pool) {
-  const a = safeInt(r.a, 1, 10, "l2.a");
-  const b = safeInt(r.b, 1, 10, "l2.b");
-  const big = safeInt(Math.max(a, b), 1, 10, "l2.big");
-  const small = safeInt(Math.min(a, b), 1, 9, "l2.small");
-  const need = safeInt(r.need, 0, 9, "l2.need");
-  const rest = safeInt(r.rest, 0, 9, "l2.rest");
-  const answer = safeInt(r.answer, 10, 19, "l2.answer");
-  composites.push({
-    id: `l2-s1-${a}-${b}`,
-    text: `我们来计算${numZh(a)}加${numZh(b)}等于几，先比一比，${numZh(a)}还是${numZh(b)}谁大`,
-  });
-  composites.push({
-    id: `l2-s2-${big}`,
-    text: `大数是${numZh(big)}，我们找找${numZh(big)}的好朋友，${numZh(big)}的好朋友是几`,
-  });
-  composites.push({
-    id: `l2-s3-${small}-${need}`,
-    text: `${numZh(small)}需要拆一拆，${numZh(small)}能分成${numZh(need)}和几？`,
-  });
-  composites.push({
-    id: `l2-s4-${small}-${need}-${rest}-${big}`,
-    text: `${numZh(small)}分成${numZh(need)}加${numZh(rest)}，算一算${numZh(big)}加${numZh(need)}加${numZh(rest)}等于几`,
-  });
+  // Bounds for the kind. a ∈ [0, 20], b ∈ [0, 10], answer ∈ [0, 29].
+  const a = safeInt(r.a, 0, 20, "l2.a");
+  const b = safeInt(r.b, 0, 10, "l2.b");
+  const answer = safeInt(r.answer, 0, 29, "l2.answer");
+  if (r.kind === "make-ten") {
+    const big = safeInt(Math.max(a, b), 1, 10, "l2.big");
+    const small = safeInt(Math.min(a, b), 1, 9, "l2.small");
+    const need = safeInt(r.need, 0, 9, "l2.need");
+    const rest = safeInt(r.rest, 0, 9, "l2.rest");
+    composites.push({
+      id: `l2-s1-${a}-${b}`,
+      text: `我们来计算${numZh(a)}加${numZh(b)}等于几，先比一比，${numZh(a)}还是${numZh(b)}谁大`,
+    });
+    composites.push({
+      id: `l2-s2-${big}`,
+      text: `大数是${numZh(big)}，我们找找${numZh(big)}的好朋友，${numZh(big)}的好朋友是几`,
+    });
+    composites.push({
+      id: `l2-s3-${small}-${need}`,
+      text: `${numZh(small)}需要拆一拆，${numZh(small)}能分成${numZh(need)}和几？`,
+    });
+    composites.push({
+      id: `l2-s4-${small}-${need}-${rest}-${big}`,
+      text: `${numZh(small)}分成${numZh(need)}加${numZh(rest)}，算一算${numZh(big)}加${numZh(need)}加${numZh(rest)}等于几`,
+    });
+  } else {
+    // Non-make-ten: single-step scene, just the prompt + the shared reward.
+    // The text is shorter than the make-ten prompt (no compare / friend /
+    // split clause) so the kid isn't taught a strategy that wouldn't apply.
+    composites.push({
+      id: `l2-simple-${a}-${b}`,
+      text: `我们来计算${numZh(a)}加${numZh(b)}等于几`,
+    });
+  }
   composites.push({
     id: `l2-rwd-${a}-${b}-${answer}`,
     text: `${numZh(a)}加${numZh(b)}等于${numZh(answer)}`,
