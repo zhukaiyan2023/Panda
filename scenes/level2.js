@@ -130,6 +130,93 @@ function buildSplitOptions(small, need, rest) {
   return { options: opts, correct: correctStr };
 }
 
+// Per-step audio chains for L2 (凑十法). Each chain is a contextual
+// sentence built from universal number cues + the number-agnostic
+// lvl-2-step-N-* chunks. Same set works for every L2 round.
+//
+// Step 1 — Compare: "我们来计算 a 加 b 等于几，先比一比，a 还是 b 谁大"
+function buildL2Step1Ids(a, b) {
+  return [
+    "lvl-2-step-1-pre",
+    `n-${a}`, "q-plus",
+    `n-${b}`,
+    "lvl-2-step-1-eq",
+    `n-${a}`,
+    "lvl-2-step-1-or",
+    `n-${b}`,
+    "lvl-2-step-1-q",
+  ];
+}
+
+// Step 2 — Find friend: "大数是 big，我们找找 big 的好朋友，
+//   小朋友 big 的好朋友是几"
+function buildL2Step2Ids(big) {
+  return [
+    "lvl-2-step-2-big-pre",
+    `n-${big}`,
+    "lvl-2-step-2-find",
+    `n-${big}`,
+    "lvl-2-step-2-friend-pre",
+    `n-${big}`,
+    "lvl-2-step-2-q",
+  ];
+}
+
+// Step 3 — Split: "small 需要拆一拆，大数 big 的好朋友是 need，
+//   那 small 能分成 need 和几？帮忙拆一拆"
+function buildL2Step3Ids(big, small, need) {
+  return [
+    `n-${small}`,
+    "lvl-2-step-3-split-pre",
+    `n-${big}`,
+    "lvl-2-step-3-friend-pre",
+    `n-${need}`,
+    "lvl-2-step-3-then",
+    `n-${small}`,
+    "lvl-2-step-3-can-split",
+    `n-${need}`,
+    "lvl-2-step-3-q",
+  ];
+}
+
+// Step 4 — Calculate: "small 分成 need 加 rest，算一算
+//   big 加 need 加 rest 等于几"
+function buildL2Step4Ids(big, small, need, rest) {
+  return [
+    `n-${small}`,
+    "lvl-2-step-4-split",
+    `n-${need}`, "q-plus",
+    `n-${rest}`,
+    "lvl-2-step-4-calc",
+    `n-${big}`, "q-plus",
+    `n-${need}`, "q-plus",
+    `n-${rest}`,
+    "q-equals",
+  ];
+}
+
+// Fires a per-step L2 audio chain. Only step 1 on round 0 chains off
+// the one-time entry greeting (lvl-2-intro) — it waits for the
+// greeting's `ended` event plus a short pause so the greeting lands
+// before the compare prompt. Every other step uses playSequence
+// directly: by the time step 2 fires on round 0 the greeting has long
+// since ended, and if the child picked step 1 too fast for the
+// greeting to finish, stopAllAudio would have paused it — meaning
+// playAfter would hang forever waiting on an `ended` event that
+// never fires. Using playSequence for steps 2-4 sidesteps both cases
+// (the natural previous-step gap is advancePauseMs = 400ms, plus a
+// 100ms render-settle delay for the first render to land).
+function fireL2StepAudio(ctx, ids, stepNumber) {
+  if (ctx.ri === 0 && stepNumber === 1) {
+    window.PandaAudio.playAfter("lvl-2-intro", ids, {
+      gapMs: 800,
+      seqGapMs: 200,
+    });
+  } else {
+    window.PandaAudio.playSequence(ids, 200, 100);
+  }
+}
+
 export default createRoundScene({
   levelId: 2,
   sceneName: "level2",
@@ -147,6 +234,10 @@ export default createRoundScene({
       tenFramePair(ctx, round);
       // Persistent anchor at top, big.
       ctx.setAnchorEquation(anchorSlots(round, "?"), { y: 260 });
+      // Per-step audio prompt. "我们来计算 a 加 b 等于几，先比一比，
+      // a 还是 b 谁大" — uses round.a / round.b in their original
+      // order so the prompt matches the visible equation above.
+      fireL2StepAudio(ctx, buildL2Step1Ids(round.a, round.b), 1);
       return {
         equation: {
           slots: [big, "?", small],
@@ -155,7 +246,8 @@ export default createRoundScene({
         // Sub-question sits BELOW the ten frames so the visual flow is
         // anchor → frames → comparison question → buttons.
         equationOpts: { y: 660, size: 82 },
-        cue: "step-1",
+        // No `cue:` — the L2 step-1 audio is the contextual sentence
+        // fired via fireL2StepAudio above.
         question: {
           correct: ">",
           values: [">", "<"],
@@ -175,13 +267,16 @@ export default createRoundScene({
       // (see tenFramePair); the friend count is taught via the equation.
       tenFramePair(ctx, round);
       ctx.setAnchorEquation(anchorSlots(round, "?"), { y: 260 });
+      // Per-step audio prompt. "大数是 big，我们找找 big 的好朋友，
+      // 小朋友 big 的好朋友是几" — uses bigger(a, b) so it works
+      // regardless of which addend is bigger in the round data.
+      fireL2StepAudio(ctx, buildL2Step2Ids(big), 2);
       return {
         equation: {
           slots: [big, "+", "?", "=", TEN],
           colors: [COL_BIG, undefined, undefined, undefined, COL_TEN],
         },
         equationOpts: { y: 660, size: 82 },
-        cue: "step-2",
         question: {
           correct: round.need,
           values: options(round.need, { min: 0, max: TEN, prefer: [round.rest] }),
@@ -196,19 +291,24 @@ export default createRoundScene({
     },
     // Step 3 — Split: ? + ? = small.
     (ctx, round) => {
+      const big = bigger(round.a, round.b);
       const small = smaller(round.a, round.b);
       const { options: splitOpts, correct } = buildSplitOptions(
         small, round.need, round.rest,
       );
       tenFramePair(ctx, round);
       ctx.setAnchorEquation(anchorSlots(round, "?"), { y: 260 });
+      // Per-step audio prompt. "small 需要拆一拆，大数 big 的好朋友
+      // 是 need，那 small 能分成 need 和几？帮忙拆一拆" — the long
+      // chain (10 cues) walks the child through WHY we split before
+      // asking the actual pick.
+      fireL2StepAudio(ctx, buildL2Step3Ids(big, small, round.need), 3);
       return {
         equation: {
           slots: ["?", "+", "?", "=", small],
           colors: [undefined, undefined, undefined, undefined, COL_SMALL],
         },
         equationOpts: { y: 660, size: 82 },
-        cue: "step-3",
         question: {
           correct,
           values: splitOpts,
@@ -226,15 +326,21 @@ export default createRoundScene({
     // that makes ten as a single chunk: "8 + (2 + 3) = ?" reads as
     // "eight plus the split of five" — ten stays implicit.
     (ctx, round) => {
+      const big = bigger(round.a, round.b);
+      const small = smaller(round.a, round.b);
       tenFramePair(ctx, round);
       ctx.setAnchorEquation(anchorSlots(round, "?"), { y: 260 });
+      // Per-step audio prompt. "small 分成 need 加 rest，算一算 big 加
+      // need 加 rest 等于几" — restates the split result and prompts
+      // the final calculation. q-equals ("等于几") is the question
+      // form for the child's pick.
+      fireL2StepAudio(ctx, buildL2Step4Ids(big, small, round.need, round.rest), 4);
       return {
         equation: {
           slots: [round.a, "+", "(", round.need, "+", round.rest, ")", "=", "?"],
           colors: [COL_BIG, undefined, undefined, COL_NEED, undefined, COL_REST, undefined, undefined, undefined],
         },
         equationOpts: { y: 660, size: 80 },
-        cue: "step-4",
         question: {
           correct: round.answer,
           values: options(round.answer, { min: TEN, max: 20, count: 4 }),
