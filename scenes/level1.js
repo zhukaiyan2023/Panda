@@ -61,9 +61,16 @@ function anchorSlots(nums, sumSlot) {
 // path doesn't overwrite it. The child never picks this — it's a visual aid
 // showing the original equation in parentheses form, "(pair) + third = ?".
 // The simplified sub-question below is the actual pick.
-function parenthesizedForm(ctx, pair, third, pairSum, aIdx, bIdx, thirdIdx) {
-  ctx.k.add([
-    ctx.k.text(["(", pair[0], "+", pair[1], ")", "+", third, "=", "?"].join(" "), {
+//
+// When the child picks the correct answer, the caller passes `answer` so
+// the "?" becomes the actual total — both the persistent anchor and the
+// simplified sub-question reveal, and now this form reveals too. The node
+// is tracked on ctx.parensForm so the caller can re-render cleanly.
+function parenthesizedForm(ctx, pair, third, aIdx, bIdx, thirdIdx, answer = null) {
+  const lastSlot = answer != null ? String(answer) : "?";
+  if (ctx.parensForm) ctx.parensForm.destroy();
+  ctx.parensForm = ctx.k.add([
+    ctx.k.text(["(", pair[0], "+", pair[1], ")", "+", third, "=", lastSlot].join(" "), {
       size: 56, font: FONT,
     }),
     ctx.k.color(...INK),
@@ -268,7 +275,7 @@ export default createRoundScene({
 
       // Parenthesized form as a visual aid above the cells. Custom text
       // node (not setEquation) so the buildStep path doesn't overwrite it.
-      parenthesizedForm(ctx, pair, third, pairSum, aIdx, bIdx, thirdIdx);
+      parenthesizedForm(ctx, pair, third, aIdx, bIdx, thirdIdx);
 
       speakSequence(ctx.k, ["q-what-is", `n-${pairSum}`, "q-plus", `n-${third}`]);
 
@@ -295,6 +302,8 @@ export default createRoundScene({
             slots: [pairSum, "+", third, "=", round.answer],
             colors: [ORANGE, undefined, COLORS[thirdIdx], undefined, INK],
           }, { y: 440, size: 82 });
+          // Reveal the parenthesized form's "?" with the actual total.
+          parenthesizedForm(ctx, pair, third, aIdx, bIdx, thirdIdx, round.answer);
           ctx.cellRow?.pulse?.();
         },
       };
