@@ -59,20 +59,20 @@ module.exports = [
   { id: "lvl-2-step-1-q",    text: "谁大" },
   //
   // Step 2 — Find friend (大数的好朋友是几):
-  //   "大数是 [big]，我们找找 [big] 的好朋友，小朋友 [big] 的好朋友是几"
+  //   "大数是 [big]，我们找找 [big] 的好朋友，[big] 的好朋友是几"
   { id: "lvl-2-step-2-big-pre",    text: "大数是" },
   { id: "lvl-2-step-2-find",       text: "，我们找找" },
-  { id: "lvl-2-step-2-friend-pre", text: "的好朋友，小朋友" },
+  { id: "lvl-2-step-2-friend-pre", text: "的好朋友，" },
   { id: "lvl-2-step-2-q",          text: "的好朋友是几" },
   //
   // Step 3 — Split (小的拆成 need 和 几):
   //   "[small] 需要拆一拆，大数 [big] 的好朋友是 [need]，那 [small]
-  //    能分成 [need] 和几？帮忙拆一拆"
+  //    能分成 [need] 和几？"
   { id: "lvl-2-step-3-split-pre", text: "需要拆一拆，大数" },
   { id: "lvl-2-step-3-friend-pre", text: "的好朋友是" },
   { id: "lvl-2-step-3-then",      text: "，那" },
   { id: "lvl-2-step-3-can-split", text: "能分成" },
-  { id: "lvl-2-step-3-q",         text: "和几？帮忙拆一拆" },
+  { id: "lvl-2-step-3-q",         text: "和几？" },
   //
   // Step 4 — Calculate (算一算):
   //   "[small] 分成 [need] 加 [rest]，算一算 [big] 加 [need] 加 [rest] 等于几"

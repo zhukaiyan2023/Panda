@@ -196,7 +196,19 @@ function mergedRow(ctx, nums, opts = {}) {
 // per-round decompose sentence (built in the step 1 factory below) already
 // ends with the step-1 sub-question, so adding another spoken prompt would
 // just repeat it.
-function speakSequence(k, ids) {
+//
+// When called after a correct pick, chains off ctx.lastEncourageId so the
+// new prompt waits for the praise cue ("耶！" etc.) to finish plus a
+// 400ms breath — without this, the praise and the new prompt overlap
+// and feel crammed together.
+function speakSequence(k, ids, ctx) {
+  if (ctx && ctx.lastEncourageId) {
+    window.PandaAudio.playAfter(ctx.lastEncourageId, ids, {
+      gapMs: 400,
+      seqGapMs: 200,
+    });
+    return;
+  }
   k.wait(0.1, () => window.PandaAudio.playSequence(ids));
 }
 
@@ -367,7 +379,7 @@ export default createRoundScene({
       // phrasing made it sound like a chained operation question
       // instead of a result question — the child has already added the
       // pair in step 1, so step 2 should ask "what does this equal?".
-      speakSequence(ctx.k, [`n-${pairSum}`, "q-plus", `n-${third}`, "q-equals"]);
+      speakSequence(ctx.k, [`n-${pairSum}`, "q-plus", `n-${third}`, "q-equals"], ctx);
 
       return {
         body,
@@ -419,7 +431,7 @@ export default createRoundScene({
             window.PandaAudio.playAfter(
               ctx.lastEncourageId,
               answerIds,
-              { gapMs: 100, seqGapMs: 200 },
+              { gapMs: 400, seqGapMs: 200 },
               resolve,
             );
           });

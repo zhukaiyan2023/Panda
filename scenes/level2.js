@@ -149,7 +149,7 @@ function buildL2Step1Ids(a, b) {
 }
 
 // Step 2 — Find friend: "大数是 big，我们找找 big 的好朋友，
-//   小朋友 big 的好朋友是几"
+//   big 的好朋友是几"
 function buildL2Step2Ids(big) {
   return [
     "lvl-2-step-2-big-pre",
@@ -163,7 +163,7 @@ function buildL2Step2Ids(big) {
 }
 
 // Step 3 — Split: "small 需要拆一拆，大数 big 的好朋友是 need，
-//   那 small 能分成 need 和几？帮忙拆一拆"
+//   那 small 能分成 need 和几？"
 function buildL2Step3Ids(big, small, need) {
   return [
     `n-${small}`,
@@ -195,26 +195,38 @@ function buildL2Step4Ids(big, small, need, rest) {
   ];
 }
 
-// Fires a per-step L2 audio chain. Only step 1 on round 0 chains off
-// the one-time entry greeting (lvl-2-intro) — it waits for the
-// greeting's `ended` event plus a short pause so the greeting lands
-// before the compare prompt. Every other step uses playSequence
-// directly: by the time step 2 fires on round 0 the greeting has long
-// since ended, and if the child picked step 1 too fast for the
-// greeting to finish, stopAllAudio would have paused it — meaning
-// playAfter would hang forever waiting on an `ended` event that
-// never fires. Using playSequence for steps 2-4 sidesteps both cases
-// (the natural previous-step gap is advancePauseMs = 400ms, plus a
-// 100ms render-settle delay for the first render to land).
+// Fires a per-step L2 audio chain. Three cases:
+//
+//   1. Step 1 on round 0: chain off the one-time entry greeting
+//      (lvl-2-intro). The greeting plays on scene start, this step
+//      waits for its `ended` event + 800ms so the greeting lands
+//      first.
+//
+//   2. Any step after a correct pick (round 0 step 2+, round 1+
+//      all steps): chain off ctx.lastEncourageId — the praise cue
+//      ("耶！" etc.) that roundScene just played. The new prompt
+//      starts AFTER the praise lands, with 400ms breath between.
+//      Without this, the praise and the new prompt overlap and
+//      feel crammed together.
+//
+//   3. Fallback (no prior audio to chain off): play immediately
+//      with a small render-settle delay.
 function fireL2StepAudio(ctx, ids, stepNumber) {
   if (ctx.ri === 0 && stepNumber === 1) {
     window.PandaAudio.playAfter("lvl-2-intro", ids, {
       gapMs: 800,
       seqGapMs: 200,
     });
-  } else {
-    window.PandaAudio.playSequence(ids, 200, 100);
+    return;
   }
+  if (ctx.lastEncourageId) {
+    window.PandaAudio.playAfter(ctx.lastEncourageId, ids, {
+      gapMs: 400,
+      seqGapMs: 200,
+    });
+    return;
+  }
+  window.PandaAudio.playSequence(ids, 200, 100);
 }
 
 export default createRoundScene({
