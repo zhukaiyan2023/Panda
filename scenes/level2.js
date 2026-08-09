@@ -17,7 +17,9 @@
 //                      (need) as its first addend. After correct, the
 //                      anchor doesn't change yet — only the sub-question's
 //                      "?" slots are now filled.
-// Step 4 — Count:      sub "a + need + rest = ?"; child picks the total.
+// Step 4 — Count:      sub "a + (need + rest) = ?"; child picks the total.
+//                      The parentheses group the split visually so the
+//                      child reads it as "eight plus the split of five".
 //                      After correct, EVERY "?" on screen becomes the
 //                      correct number — the persistent anchor and the
 //                      sub-question both reveal at once.
@@ -47,35 +49,47 @@ function anchorSlots(round, sumSlot) {
 }
 
 // Two ten-frames side by side. The left frame shows the bigger addend; the
-// right frame shows the friend count that completes ten. Shown from step 2
-// onward — step 1 just compares, no ten-frames yet.
+// right frame shows the smaller addend. Both frames mirror the colored
+// labels above them so the eye links label → frame count instantly. The
+// friend count is taught via the equation ("big + ? = 10"), not via the
+// frames — the frames are visual anchors for the two addends, not a
+// counting tool for the friend.
+//
+// Shown from step 2 onward — step 1 just compares, no ten-frames yet.
+//
+// Layout notes (canvas is 1366x1024):
+//   sub-question lives at y=440 with size 82 (so its bottom sits around y=481)
+//   label row sits at y=560, size 50 (top ~y=535, bottom ~y=585)
+//   frames sit at y=660 with cell=58, gap=6 — height 2*58+6=122, so they
+//   span y=599..y=721, leaving a clean 51px gap above the buttons at y=772.
 function tenFramePair(ctx, round) {
   const { k } = ctx;
   const big = bigger(round.a, round.b);
+  const small = smaller(round.a, round.b);
 
   if (ctx.frameA) ctx.frameA.destroy();
   if (ctx.frameB) ctx.frameB.destroy();
 
   ctx.frameA = tenFrame(k, big, {
-    x: LAYOUT.barX - 220, y: 620,
-    rows: 2, cell: 50, gap: 6, showLabel: false,
+    x: LAYOUT.barX - 220, y: 660,
+    rows: 2, cell: 58, gap: 6, showLabel: false,
   });
-  ctx.frameB = tenFrame(k, 0, {
-    x: LAYOUT.barX + 220, y: 620,
-    rows: 2, cell: 50, gap: 6, showLabel: false,
+  ctx.frameB = tenFrame(k, small, {
+    x: LAYOUT.barX + 220, y: 660,
+    rows: 2, cell: 58, gap: 6, showLabel: false,
   });
 
   // Big-number labels above each frame.
   k.add([
-    k.text(String(big), { size: 52, font: FONT }),
+    k.text(String(big), { size: 50, font: FONT }),
     k.color(...COL_BIG),
-    k.pos(LAYOUT.barX - 220, 530),
+    k.pos(LAYOUT.barX - 220, 560),
     k.anchor("center"),
   ]);
   k.add([
-    k.text(String(smaller(round.a, round.b)), { size: 52, font: FONT }),
+    k.text(String(small), { size: 50, font: FONT }),
     k.color(...COL_SMALL),
-    k.pos(LAYOUT.barX + 220, 530),
+    k.pos(LAYOUT.barX + 220, 560),
     k.anchor("center"),
   ]);
 }
@@ -130,7 +144,7 @@ export default createRoundScene({
           colors: [COL_BIG, undefined, COL_SMALL],
         },
         // Sub-question sits below the persistent anchor.
-        equationOpts: { y: 470, size: 88 },
+        equationOpts: { y: 440, size: 82 },
         cue: "step-1",
         question: {
           correct: ">",
@@ -140,22 +154,22 @@ export default createRoundScene({
           ctx.setEquation({
             slots: [big, ">", small],
             colors: [COL_BIG, COL_NEED, COL_SMALL],
-          }, { y: 470, size: 88 });
+          }, { y: 440, size: 82 });
         },
       };
     },
     // Step 2 — To ten.
     (ctx, round) => {
       const big = bigger(round.a, round.b);
-      // Anchor stays as-is.
+      // Anchor stays as-is. The right frame already shows the small number
+      // (see tenFramePair); the friend count is taught via the equation.
       tenFramePair(ctx, round);
-      ctx.frameB.setValue(round.need);
       return {
         equation: {
           slots: [big, "+", "?", "=", TEN],
           colors: [COL_BIG, undefined, undefined, undefined, COL_TEN],
         },
-        equationOpts: { y: 470, size: 88 },
+        equationOpts: { y: 440, size: 82 },
         cue: "step-2",
         question: {
           correct: round.need,
@@ -165,7 +179,7 @@ export default createRoundScene({
           ctx.setEquation({
             slots: [big, "+", round.need, "=", TEN],
             colors: [COL_BIG, undefined, COL_NEED, undefined, COL_TEN],
-          }, { y: 470, size: 88 });
+          }, { y: 440, size: 82 });
         },
       };
     },
@@ -180,7 +194,7 @@ export default createRoundScene({
           slots: ["?", "+", "?", "=", small],
           colors: [undefined, undefined, undefined, undefined, COL_SMALL],
         },
-        equationOpts: { y: 470, size: 88 },
+        equationOpts: { y: 440, size: 82 },
         cue: "step-3",
         question: {
           correct,
@@ -190,18 +204,21 @@ export default createRoundScene({
           ctx.setEquation({
             slots: [round.need, "+", round.rest, "=", small],
             colors: [COL_NEED, undefined, COL_REST, undefined, COL_SMALL],
-          }, { y: 470, size: 88 });
+          }, { y: 440, size: 82 });
         },
       };
     },
-    // Step 4 — Count: a + need + rest = ?
+    // Step 4 — Count: a + (need + rest) = ?
+    // The parentheses group the split visually so the child sees the pair
+    // that makes ten as a single chunk: "8 + (2 + 3) = ?" reads as
+    // "eight plus the split of five" — ten stays implicit.
     (ctx, round) => {
       return {
         equation: {
-          slots: [round.a, "+", round.need, "+", round.rest, "=", "?"],
-          colors: [COL_BIG, undefined, COL_NEED, undefined, COL_REST, undefined, undefined],
+          slots: [round.a, "+", "(", round.need, "+", round.rest, ")", "=", "?"],
+          colors: [COL_BIG, undefined, undefined, COL_NEED, undefined, COL_REST, undefined, undefined, undefined],
         },
-        equationOpts: { y: 470, size: 80 },
+        equationOpts: { y: 440, size: 80 },
         cue: "step-4",
         question: {
           correct: round.answer,
@@ -212,9 +229,9 @@ export default createRoundScene({
           ctx.setAnchorEquation(anchorSlots(round, round.answer));
           // Reveal the sub-question too.
           ctx.setEquation({
-            slots: [round.a, "+", round.need, "+", round.rest, "=", round.answer],
-            colors: [COL_BIG, undefined, COL_NEED, undefined, COL_REST, undefined, INK],
-          }, { y: 470, size: 80 });
+            slots: [round.a, "+", "(", round.need, "+", round.rest, ")", "=", round.answer],
+            colors: [COL_BIG, undefined, undefined, COL_NEED, undefined, COL_REST, undefined, undefined, INK],
+          }, { y: 440, size: 80 });
         },
       };
     },

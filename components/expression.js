@@ -26,7 +26,8 @@ function token(parent, k, text, size, muted, color) {
 }
 
 function isOperator(s) {
-  return s === "+" || s === "-" || s === "=" || s === "×" || s === "÷";
+  return s === "+" || s === "-" || s === "=" || s === "×" || s === "÷"
+    || s === "(" || s === ")";
 }
 
 export default function expression(parent, opts = {}) {

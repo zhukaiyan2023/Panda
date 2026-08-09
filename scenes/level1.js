@@ -1,20 +1,30 @@
-// scenes/level1.js — mixed three-addend addition, taught in 2 explicit steps.
+// scenes/level1.js — three-addend addition, taught in 2 explicit steps with
+// a persistent top anchor.
 //
-// Each round picks a "first pair" to add:
-//   * Pattern A (sum ≤ 10, no pair to ten): pair = [nums[0], nums[1]] —
-//     add in order.
-//   * Pattern B (two of three pair to ten): pair = the two that make ten
-//     first, then add the leftover.
+// Layout (matches L2 for visual consistency):
+//   * Top:   persistent anchor "a + b + c = ?" — the goal the child is
+//            working toward. Large and bold, never disappears between steps.
+//   * Middle: cells with circles — the visual representation of the three
+//             addends. The pair-to-add-first gets an orange ring on step 1.
+//   * Bottom: sub-question that changes per step.
 //
-// Step 1 — Pair:    equation "pair[0] + pair[1] = ?". The merged cell row
-//                   highlights the pair so the eye lands on it. Voice reads
-//                   "what is X plus Y".
-// Step 2 — Add the rest: equation "pairSum + third = ?" with pairSum in
-//                   orange as the running total. Voice reads
-//                   "what is pairSum plus third".
+// Teaching flow:
+//   * Pattern A (sum ≤ 10, no pair to ten): pair = first two sequentially.
+//   * Pattern B (two of three pair to ten): pair = the two that make ten.
 //
-// On a correct pick the equation's "?" becomes the value. After step 2 the
-// row pulses once so the answer feels landed.
+//   Step 1 — Pair:        sub "pair[0] + pair[1] = ?"
+//                          child picks pairSum. The pair's cells light up
+//                          with orange rings so the eye lands on them.
+//   Step 2 — Add the rest: shows the parenthesized form "(pair[0] + pair[1])
+//                          + third = pairSum" above the cells (a visual aid
+//                          that ties the pair to the running sum), then the
+//                          simplified "pairSum + third = ?" below the cells
+//                          as the actual pick. Child picks the total, cells
+//                          pulse on correct.
+//
+// On a correct pick on step 2 the anchor's "?" reveals to the answer
+// (alongside the sub-question's "?"). Step 1's correct pick only fills
+// the sub-question's "?" — the anchor still asks "?".
 
 import { INK, FONT, NUM_BLUE, NUM_YELLOW, NUM_PINK, ORANGE } from "../components/theme.js";
 import createRoundScene, { LAYOUT, options } from "./roundScene.js";
@@ -37,6 +47,31 @@ function choosePair(nums) {
   return { pair: [nums[0], nums[1]], third: nums[2], pairSum: nums[0] + nums[1] };
 }
 
+// Anchor slots for the persistent top equation "a + b + c = ?". Each addend
+// keeps its own color so the visible cells and the anchor agree.
+function anchorSlots(nums, sumSlot) {
+  return {
+    slots: [nums[0], "+", nums[1], "+", nums[2], "=", sumSlot],
+    colors: [COLORS[0], undefined, COLORS[1], undefined, COLORS[2], undefined, undefined],
+  };
+}
+
+// Custom parenthesized-form text node rendered above the cells. Lives
+// independently of the round scaffold's "active equation" so the buildStep
+// path doesn't overwrite it. The child never picks this — it's a visual aid
+// showing how the pair becomes the running sum.
+function parenthesizedForm(ctx, pair, third, pairSum, aIdx, bIdx, thirdIdx) {
+  ctx.k.add([
+    ctx.k.text(["(", pair[0], "+", pair[1], ")", "+", third, "=", pairSum].join(" "), {
+      size: 56, font: FONT,
+    }),
+    ctx.k.color(...INK),
+    ctx.k.opacity(0.7),
+    ctx.k.pos(LAYOUT.barX, 380),
+    ctx.k.anchor("center"),
+  ]);
+}
+
 // Renders one merged cell row: total cells = sum of nums; each addend fills
 // its own contiguous block of cells with that addend's color. When
 // `highlight` is given (a pair to add first) the matching cells pulse so the
@@ -48,7 +83,7 @@ function mergedRow(ctx, nums, highlight = null) {
   const gap = 8;
   const totalW = total * cell + (total - 1) * gap;
   const startX = LAYOUT.barX - totalW / 2 + cell / 2;
-  const y = LAYOUT.bodyY + 40;
+  const y = 480;
 
   const root = k.add([k.pos(0, 0)]);
   const cellNodes = [];
@@ -114,78 +149,101 @@ function mergedRow(ctx, nums, highlight = null) {
   return root;
 }
 
-// Build the active-step equation as a slot list. `addends` is the pair or
-// the running-sum + third. The sumSlot is "?" while asking or the actual
-// value after a correct pick.
-function coloredPairEquation(addends, sumSlot, addendColors) {
-  const slots = [addends[0], "+", addends[1], "=", sumSlot];
-  const colors = [addendColors[0], undefined, addendColors[1], undefined, undefined];
-  return { slots, colors };
-}
-
-// Spoken intro for a step: "what is X plus Y" chained from the number cues.
-// Caller decides the order — step 1 says the pair, step 2 says the running
-// sum plus the leftover.
-function speakPair(k, a, b) {
-  const spoken = ["q-what-is", `n-${a}`, "q-plus", `n-${b}`];
-  k.wait(0.1, () => window.PandaAudio.playSequence(spoken));
+// Spoken intro for a step. Step 1 reads the sub-question "what is A plus B"
+// so the child hears JUST the pair they're being asked to add first. Step 2
+// reads the simplified form "what is pairSum plus third".
+function speakSequence(k, ids) {
+  k.wait(0.1, () => window.PandaAudio.playSequence(ids));
 }
 
 export default createRoundScene({
   levelId: 1,
   sceneName: "level1",
   // No introCue: the spoken equation intro already introduces the round.
-  // Two teaching beats now: add the first pair, then add the rest.
+  // Two teaching beats: add the first pair, then add the rest.
   stepLabels: ["Pair", "Add the rest"],
 
   steps: [
-    // Step 1 — Pair: which two to add first.
+    // Step 1 — Pair: "pair[0] + pair[1] = ?"
     (ctx, round) => {
-      const { pair, pairSum } = choosePair(round.nums);
-      // Find the original indices so each addend keeps its own color.
+      const { pair } = choosePair(round.nums);
       const aIdx = round.nums.indexOf(pair[0]);
       const bIdx = round.nums.indexOf(pair[1], aIdx + 1);
-      const colors = [COLORS[aIdx], COLORS[bIdx]];
+      const pairSum = pair[0] + pair[1];
 
+      // Body: cells row with the pair highlighted.
       const body = mergedRow(ctx, round.nums, pair);
       ctx.cellRow = body;
-      speakPair(ctx.k, pair[0], pair[1]);
+
+      // Persistent anchor at top.
+      ctx.setAnchorEquation(anchorSlots(round.nums, "?"));
+
+      // Voice: "what is A plus B" — just the pair, not the whole anchor.
+      // The anchor's "?" is still visible, so the child hears the piece
+      // they're being asked to add first.
+      speakSequence(ctx.k, ["q-what-is", `n-${pair[0]}`, "q-plus", `n-${pair[1]}`]);
 
       return {
-        equation: coloredPairEquation(pair, "?", colors),
+        equation: {
+          slots: [pair[0], "+", pair[1], "=", "?"],
+          colors: [COLORS[aIdx], undefined, COLORS[bIdx], undefined, undefined],
+        },
+        equationOpts: { y: 720, size: 82 },
         cue: "step-1",
         question: {
           correct: pairSum,
           values: options(pairSum, { min: 0, max: 16, count: 4 }),
         },
         onAdvance: () => {
-          ctx.setEquation(coloredPairEquation(pair, pairSum, colors));
+          ctx.setEquation({
+            slots: [pair[0], "+", pair[1], "=", pairSum],
+            colors: [COLORS[aIdx], undefined, COLORS[bIdx], undefined, ORANGE],
+          }, { y: 720, size: 82 });
         },
       };
     },
-    // Step 2 — Add the rest.
+    // Step 2 — Add the rest. Shows the parenthesized form (a + b) + c = pairSum
+    // above the cells, then the simplified form pairSum + c = ? below the
+    // cells as the actual pick.
     (ctx, round) => {
       const { pair, third, pairSum } = choosePair(round.nums);
-      const thirdIdx = round.nums.indexOf(third);
+      const aIdx = round.nums.indexOf(pair[0]);
+      const bIdx = round.nums.indexOf(pair[1], aIdx + 1);
+      const thirdIdx = round.nums.findIndex((n) => n === third);
+
+      // Body: cells row (no pair highlight — the pair is now expressed in
+      // the parenthesized form above the cells).
       const body = mergedRow(ctx, round.nums);
       ctx.cellRow = body;
-      speakPair(ctx.k, pairSum, third);
+
+      // Anchor stays put (still "?" until step 2 is answered).
+      ctx.setAnchorEquation(anchorSlots(round.nums, "?"));
+
+      // Parenthesized form as a visual aid above the cells. Custom text
+      // node (not setEquation) so the buildStep path doesn't overwrite it.
+      parenthesizedForm(ctx, pair, third, pairSum, aIdx, bIdx, thirdIdx);
+
+      speakSequence(ctx.k, ["q-what-is", `n-${pairSum}`, "q-plus", `n-${third}`]);
 
       return {
         equation: {
           slots: [pairSum, "+", third, "=", "?"],
           colors: [ORANGE, undefined, COLORS[thirdIdx], undefined, undefined],
         },
+        equationOpts: { y: 720, size: 82 },
         cue: "step-2",
         question: {
           correct: round.answer,
           values: options(round.answer, { min: 0, max: 16, count: 4 }),
         },
         onAdvance: () => {
+          // Reveal the persistent anchor at the top.
+          ctx.setAnchorEquation(anchorSlots(round.nums, round.answer));
+          // Reveal the simplified sub-question.
           ctx.setEquation({
             slots: [pairSum, "+", third, "=", round.answer],
             colors: [ORANGE, undefined, COLORS[thirdIdx], undefined, INK],
-          });
+          }, { y: 720, size: 82 });
           ctx.cellRow?.pulse?.();
         },
       };

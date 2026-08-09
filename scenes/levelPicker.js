@@ -149,27 +149,27 @@ export default function levelPickerScene(k) {
     k.anchor("center"),
   ]);
 
-  k.add([
-    k.text("Pick a level", { size: 32, font: FONT }),
-    k.color(...INK),
-    k.pos(k.width() / 2, 186),
-    k.anchor("center"),
-  ]);
-
-  // "Games" tab at the top — links to the panda-park games screen so the
-  // child can switch back without using the back arrow.
+  // "Games" tab below the title (was at y=92 where it overlapped the title).
+  // Mirrors the tab row in gamesPicker so the two screens feel symmetric.
   const gamesTab = k.add([
     k.rect(200, 70, { radius: 22 }),
     k.color(...CARD),
     k.outline(4, k.rgb(...INK)),
-    k.pos(k.width() - 200, 92),
+    k.pos(k.width() - 200, 200),
     k.anchor("center"),
     k.area(),
   ]);
   k.add([
     k.text("Games", { size: 32, font: FONT }),
     k.color(...INK),
-    k.pos(k.width() - 200, 92),
+    k.pos(k.width() - 200, 200),
+    k.anchor("center"),
+  ]);
+
+  k.add([
+    k.text("Pick a level", { size: 32, font: FONT }),
+    k.color(...INK),
+    k.pos(k.width() / 2, 290),
     k.anchor("center"),
   ]);
   gamesTab.onClick(() => {
