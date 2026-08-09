@@ -92,9 +92,31 @@ function choosePair(nums) {
 
 const composites = [];
 
+// Reject anything that isn't a finite integer in the documented range.
+// Without this, a malformed levels.json entry could produce a composite
+// id like "l1-intro-..-..-.." that escapes the audio directory on write.
+function safeInt(n, min, max, where) {
+  if (!Number.isInteger(n) || n < min || n > max) {
+    throw new Error(`levels.json: ${where} must be an integer in [${min}, ${max}], got ${JSON.stringify(n)}`);
+  }
+  return n;
+}
+
+// Allowlist for every generated cue id — lowercase alnum + dash only.
+// Anything else (slashes, dots, unicode, control chars) is refused.
+const CUE_ID_RE = /^[a-z0-9][a-z0-9-]*$/;
+function safeCueId(id) {
+  if (typeof id !== "string" || !CUE_ID_RE.test(id)) {
+    throw new Error(`refusing to write cue id that fails allowlist: ${JSON.stringify(id)}`);
+  }
+  return id;
+}
+
 const l1 = levels.find((l) => l.id === 1);
 for (const r of l1.rounds) {
-  const [a, b, c] = r.nums;
+  const a = safeInt(r.nums[0], 0, 10, "l1.rounds[].nums[0]");
+  const b = safeInt(r.nums[1], 0, 10, "l1.rounds[].nums[1]");
+  const c = safeInt(r.nums[2], 0, 10, "l1.rounds[].nums[2]");
   const { pair } = choosePair(r.nums);
   composites.push({
     id: `l1-intro-${a}-${b}-${c}`,
@@ -112,9 +134,9 @@ for (const r of l1.rounds) {
   // The old code chained 4 cues (n-pairSum + q-plus + n-third +
   // q-equals) which read as 4 separate words. Pre-bake so it sounds
   // like one phrase.
-  const pairSum = pair[0] + pair[1];
+  const pairSum = safeInt(pair[0] + pair[1], 0, 20, "l1 pair sum");
   const thirdIdx = r.nums.findIndex((n) => n !== pair[0] && n !== pair[1]);
-  const third = r.nums[thirdIdx];
+  const third = safeInt(r.nums[thirdIdx], 0, 10, "l1 third addend");
   composites.push({
     id: `l1-step2-${pairSum}-${third}`,
     text: `${numZh(pairSum)}加${numZh(third)}等于几`,
@@ -123,49 +145,57 @@ for (const r of l1.rounds) {
 
 const l2 = levels.find((l) => l.id === 2);
 for (const r of l2.rounds) {
-  const big = r.a >= r.b ? r.a : r.b;
-  const small = r.a >= r.b ? r.b : r.a;
+  const a = safeInt(r.a, 0, 20, "l2.rounds[].a");
+  const b = safeInt(r.b, 0, 10, "l2.rounds[].b");
+  const need = safeInt(r.need, 0, 10, "l2.rounds[].need");
+  const rest = safeInt(r.rest, 0, 10, "l2.rounds[].rest");
+  const answer = safeInt(r.answer, 0, 20, "l2.rounds[].answer");
+  const big = a >= b ? a : b;
+  const small = a >= b ? b : a;
   composites.push({
-    id: `l2-s1-${r.a}-${r.b}`,
-    text: `我们来计算${numZh(r.a)}加${numZh(r.b)}等于几，先比一比，${numZh(r.a)}还是${numZh(r.b)}谁大`,
+    id: `l2-s1-${a}-${b}`,
+    text: `我们来计算${numZh(a)}加${numZh(b)}等于几，先比一比，${numZh(a)}还是${numZh(b)}谁大`,
   });
   composites.push({
     id: `l2-s2-${big}`,
     text: `大数是${numZh(big)}，我们找找${numZh(big)}的好朋友，${numZh(big)}的好朋友是几`,
   });
   composites.push({
-    id: `l2-s3-${small}-${r.need}`,
-    text: `${numZh(small)}需要拆一拆，${numZh(small)}能分成${numZh(r.need)}和几？`,
+    id: `l2-s3-${small}-${need}`,
+    text: `${numZh(small)}需要拆一拆，${numZh(small)}能分成${numZh(need)}和几？`,
   });
   composites.push({
-    id: `l2-s4-${small}-${r.need}-${r.rest}-${big}`,
-    text: `${numZh(small)}分成${numZh(r.need)}加${numZh(r.rest)}，算一算${numZh(big)}加${numZh(r.need)}加${numZh(r.rest)}等于几`,
+    id: `l2-s4-${small}-${need}-${rest}-${big}`,
+    text: `${numZh(small)}分成${numZh(need)}加${numZh(rest)}，算一算${numZh(big)}加${numZh(need)}加${numZh(rest)}等于几`,
   });
   composites.push({
-    id: `l2-rwd-${r.a}-${r.b}-${r.answer}`,
-    text: `${numZh(r.a)}加${numZh(r.b)}等于${numZh(r.answer)}`,
+    id: `l2-rwd-${a}-${b}-${answer}`,
+    text: `${numZh(a)}加${numZh(b)}等于${numZh(answer)}`,
   });
 }
 
 const l3 = levels.find((l) => l.id === 3);
 for (const r of l3.rounds) {
-  const ones = r.a % 10;
-  const sum = ones + r.b;
+  const a = safeInt(r.a, 11, 20, "l3.rounds[].a");
+  const b = safeInt(r.b, 1, 9, "l3.rounds[].b");
+  const answer = safeInt(r.answer, 12, 20, "l3.rounds[].answer");
+  const ones = a % 10;
+  const sum = ones + b;
   composites.push({
-    id: `l3-s1-${r.a}-${r.b}`,
-    text: `${numZh(r.a)}加${numZh(r.b)}等于几，我们先把${numZh(r.a)}进行拆分，拆成十加几`,
+    id: `l3-s1-${a}-${b}`,
+    text: `${numZh(a)}加${numZh(b)}等于几，我们先把${numZh(a)}进行拆分，拆成十加几`,
   });
   composites.push({
-    id: `l3-s2-${ones}-${r.b}`,
-    text: `个位相加${numZh(ones)}加${numZh(r.b)}等于几`,
+    id: `l3-s2-${ones}-${b}`,
+    text: `个位相加${numZh(ones)}加${numZh(b)}等于几`,
   });
   composites.push({
     id: `l3-s3-${sum}`,
     text: `十加${numZh(sum)}等于几`,
   });
   composites.push({
-    id: `l3-rwd-${r.a}-${r.b}-${r.answer}`,
-    text: `${numZh(r.a)}加${numZh(r.b)}等于${numZh(r.answer)}`,
+    id: `l3-rwd-${a}-${b}-${answer}`,
+    text: `${numZh(a)}加${numZh(b)}等于${numZh(answer)}`,
   });
 }
 
@@ -184,6 +214,9 @@ for (const c of composites) {
 
 const OUT_DIR = path.join(ROOT, "assets", "audio");
 fs.mkdirSync(OUT_DIR, { recursive: true });
+// Resolve once so the containment check below can't be tricked by a
+// symlinked OUT_DIR (the resolved root is what we compare against).
+const OUT_DIR_RESOLVED = path.resolve(OUT_DIR) + path.sep;
 
 const sha256Hex = (m) => crypto.createHash("sha256").update(m).digest("hex");
 const hmacSha256 = (k, m) => crypto.createHmac("sha256", k).update(m).digest();
@@ -229,9 +262,21 @@ console.log(`[composite] ${composites.length} raw -> ${deduped.length} unique, v
 let ok = 0, failed = 0, totalBytes = 0;
 for (const c of deduped) {
   try {
+    safeCueId(c.id);
     const buf = await callTencent(c.text);
     if (buf.length < 256) throw new Error(`only ${buf.length} bytes`);
-    const out = path.join(OUT_DIR, `${c.id}.mp3`);
+    const out = path.resolve(OUT_DIR, `${c.id}.mp3`);
+    // Containment check — separator-aware so a sibling "assets-audio/"
+    // can't sneak in.
+    if (out + path.sep !== OUT_DIR_RESOLVED && !out.startsWith(OUT_DIR_RESOLVED)) {
+      throw new Error(`refusing to write outside OUT_DIR: ${out}`);
+    }
+    // Refuse symlink destinations — even if a previous build left
+    // assets/audio/foo.mp3 as a symlink, we won't follow it on write.
+    if (fs.existsSync(out)) {
+      const lst = fs.lstatSync(out);
+      if (lst.isSymbolicLink()) throw new Error(`refusing to overwrite symlink: ${out}`);
+    }
     fs.writeFileSync(out, buf);
     ok++;
     totalBytes += buf.length;
