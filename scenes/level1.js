@@ -27,6 +27,7 @@
 // the sub-question's "?" — the anchor still asks "?".
 
 import { INK, FONT, NUM_BLUE, NUM_YELLOW, NUM_PINK, ORANGE } from "../components/theme.js";
+import expression from "../components/expression.js";
 import createRoundScene, { LAYOUT, options } from "./roundScene.js";
 
 const COLORS = [NUM_BLUE, NUM_YELLOW, NUM_PINK];
@@ -66,18 +67,34 @@ function anchorSlots(nums, sumSlot) {
 // the "?" becomes the actual total — both the persistent anchor and the
 // simplified sub-question reveal, and now this form reveals too. The node
 // is tracked on ctx.parensForm so the caller can re-render cleanly.
+//
+// Renders through the shared `expression` component so each addend keeps
+// the same color it has on the cells and on the anchor; without per-slot
+// colors the row read as flat INK and looked dim/off-brand next to the
+// colored "5+4=?" below it. Operators ("(", ")", "+", "=") render at
+// OP_SCALE and use the default ink color, matching the sub-equation.
 function parenthesizedForm(ctx, pair, third, aIdx, bIdx, thirdIdx, answer = null) {
-  const lastSlot = answer != null ? String(answer) : "?";
   if (ctx.parensForm) ctx.parensForm.destroy();
-  ctx.parensForm = ctx.k.add([
-    ctx.k.text(["(", pair[0], "+", pair[1], ")", "+", third, "=", lastSlot].join(" "), {
-      size: 56, font: FONT,
-    }),
-    ctx.k.color(...INK),
-    ctx.k.opacity(0.7),
-    ctx.k.pos(LAYOUT.barX, 340),
-    ctx.k.anchor("center"),
-  ]);
+  const lastSlot = answer != null ? String(answer) : "?";
+  const slots = ["(", pair[0], "+", pair[1], ")", "+", third, "=", lastSlot];
+  const colors = [
+    undefined,             // "("
+    COLORS[aIdx],         // pair[0]
+    undefined,             // "+"
+    COLORS[bIdx],         // pair[1]
+    undefined,             // ")"
+    undefined,             // "+"
+    COLORS[thirdIdx],     // third
+    undefined,             // "="
+    answer != null ? INK : undefined, // "?" (muted) or revealed total
+  ];
+  ctx.parensForm = expression(ctx.k, {
+    slots,
+    colors,
+    x: LAYOUT.barX,
+    y: 340,
+    size: 82,
+  });
 }
 
 // Renders one merged cell row: total cells = sum of nums; each addend fills
