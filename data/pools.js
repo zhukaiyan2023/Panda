@@ -59,50 +59,27 @@ function generateL1Pool() {
 // ONLY works when big ≤ 10 (otherwise need = 10 - big is negative).
 //
 // Pool: ordered (a, b) pairs where:
-//   a, b ∈ [1, 10]
-//   big = max(a, b) ≤ 10   (need = 10 - big must be ≥ 0)
-//   a + b ∈ [10, 19]
+//   a, b ∈ {1..9}
+//   a + b > 10
 // Math derivation per pair:
 //   big   = max(a, b)
 //   small = min(a, b)
 //   need  = 10 - big     (big + need = 10)
 //   rest  = small - need  (need + rest = small)
 //
-// Each unordered pair contributes 2 rounds: (big, small) and
-// (small, big). The spoken prompt reads "a + b" in declared order so
-// the audio differs — both belong in the pool.
+// Count: for each a in 1..9, b in 1..9 with a+b > 10:
+//   a=1: 0, a=2: 1, a=3: 2, ..., a=9: 8
+//   Total: 0+1+2+...+8 = 36 ordered pairs.
 //
-// Exact count (unordered):
-//   sum=10..12: 5 each   (incl. one self-pair like (5,5))
-//   sum=13..14: 4 each
-//   sum=15..16: 3 each
-//   sum=17..18: 2 each
-//   sum=19:     1        ((9,10))
-//   Total: 5+5+5+4+4+3+3+2+2+1 = 34 unordered
-//
-// Ordered count: 2× for each unordered with a≠b, 1× for each
-// self-pair ((5,5), (6,6), (7,7), (8,8), (9,9)). Five self-pairs.
-// So ordered = 2 × (34 − 5) + 1 × 5 = 58 + 5 = 63.
-//
-// Why not 200? The user's goal asks for 200 but the make-a-ten
-// invariant (big + need = 10 with need ≥ 0) forces big ≤ 10, capping
-// the unordered pair space at ~N(N+1)/2 with N=10 in the answer
-// range. 63 is the mathematical upper bound — there are no more
-// valid make-a-ten problems to invent. To still give the kid variety,
-// roundScene samples 10 of 63 per session: P(10) ≈ 6.5×10^10
-// distinct orderings, effectively infinite replay variety. We don't
-// pad with invalid sums (e.g., 5 + 6) because the make-ten audio
-// prompt would mis-teach (the "friend of big" lookup would lie).
+// Variety: roundScene samples 10 of 36 per session, so the number of
+// distinct orderings is P(36, 10) ≈ 1.0 × 10¹⁴ — effectively infinite
+// replay variety.
 function generateL2Pool() {
   const pool = [];
-  // (1) Strict make-a-ten rounds — 63 ordered pairs where a, b ∈ [1, 10]
-  //     and a + b ∈ [10, 19]. These are the rounds where the 4-step
-  //     make-a-ten teaching (compare → find-friend → split → count)
-  //     applies and the audio prompt for "big's friend" is honest.
-  for (let a = 1; a <= 10; a++) {
-    for (let b = 1; b <= 10; b++) {
+  for (let a = 1; a <= 9; a++) {
+    for (let b = 1; b <= 9; b++) {
       const sum = a + b;
-      if (sum < 10 || sum > 19) continue;
+      if (sum <= 10) continue;
       const big = a >= b ? a : b;
       const small = a >= b ? b : a;
       const need = 10 - big;
@@ -110,41 +87,6 @@ function generateL2Pool() {
       pool.push({ kind: "make-ten", a, b, need, rest, answer: sum });
     }
   }
-  // (2) Simple single-digit additions — 36 ordered pairs where a, b ∈ [1, 10]
-  //     and a + b ∈ [2, 9]. No make-a-ten strategy needed; the kid just
-  //     counts. Teaches: addition fluency for sums below 10.
-  for (let a = 1; a <= 10; a++) {
-    for (let b = 1; b <= 10; b++) {
-      const sum = a + b;
-      if (sum < 2 || sum > 9) continue;
-      pool.push({ kind: "simple", a, b, answer: sum });
-    }
-  }
-  // (3) No-carry 2-digit additions — 54 ordered pairs where a ∈ [11, 20],
-  //     b ∈ [1, 9], ones(a) + b ≤ 10. The strategy is "split a into 10 +
-  //     ones(a), then ones(a) + b, then 10 + sum" — same as L3's lesson.
-  for (let a = 11; a <= 20; a++) {
-    for (let b = 1; b <= 9; b++) {
-      if (a % 10 + b > 10) continue;
-      pool.push({ kind: "no-carry-2d", a, b, answer: a + b });
-    }
-  }
-  // (4) Carry 2-digit additions — 36 ordered pairs where a ∈ [11, 19],
-  //     b ∈ [1, 9], ones(a) + b > 10. Answer ≥ 21. The kid needs to
-  //     carry — advanced; the audio just asks "a + b = ?".
-  for (let a = 11; a <= 19; a++) {
-    for (let b = 1; b <= 9; b++) {
-      if (a % 10 + b <= 10) continue;
-      pool.push({ kind: "carry-2d", a, b, answer: a + b });
-    }
-  }
-  // (5) Trivial drills — 10 ordered (a, 0) pairs + 1 (0, 0). Teaches:
-  //     "a + 0 = a" (identity). Sums in [1, 10].
-  for (let a = 1; a <= 10; a++) {
-    pool.push({ kind: "trivial", a, b: 0, answer: a });
-  }
-  pool.push({ kind: "trivial", a: 0, b: 0, answer: 0 });
-  // 63 + 36 + 54 + 36 + 11 = 200 rounds.
   return pool;
 }
 
