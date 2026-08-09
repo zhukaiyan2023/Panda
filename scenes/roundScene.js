@@ -41,7 +41,6 @@ export const LAYOUT = {
   barX: 748,
   barY: 84,
   barW: 1060,
-  counterY: 152,
   equationY: 310,
   contextY: 392,
   bodyY: 500,
@@ -114,13 +113,6 @@ export default function createRoundScene(config) {
       step: 1,
       x: LAYOUT.barX, y: LAYOUT.barY, w: LAYOUT.barW, h: 36,
     });
-
-    k.add([
-      k.text(`Round ${ri + 1} / ${totalRounds}`, { size: 28, font: FONT }),
-      k.color(...INK),
-      k.pos(LAYOUT.barX, LAYOUT.counterY),
-      k.anchor("center"),
-    ]);
 
     const buddy = panda(k, {
       x: LAYOUT.pandaX, y: LAYOUT.pandaY, size: LAYOUT.pandaSize,

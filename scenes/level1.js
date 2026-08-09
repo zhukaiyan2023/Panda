@@ -67,7 +67,7 @@ function parenthesizedForm(ctx, pair, third, pairSum, aIdx, bIdx, thirdIdx) {
     }),
     ctx.k.color(...INK),
     ctx.k.opacity(0.7),
-    ctx.k.pos(LAYOUT.barX, 340),
+    ctx.k.pos(LAYOUT.barX, 380),
     ctx.k.anchor("center"),
   ]);
 }
@@ -113,7 +113,7 @@ function mergedRow(ctx, nums, opts = {}) {
   }
   const totalW = offsets[total - 1] - offsets[0] + cell;
   const startX = LAYOUT.barX - totalW / 2 + cell / 2;
-  const y = 440;
+  const y = 480;
 
   const root = k.add([k.pos(0, 0)]);
   const cellNodes = [];
@@ -219,7 +219,7 @@ export default createRoundScene({
           slots: [pair[0], "+", pair[1], "=", "?"],
           colors: [COLORS[aIdx], undefined, COLORS[bIdx], undefined, undefined],
         },
-        equationOpts: { y: 660, size: 82 },
+        equationOpts: { y: 700, size: 82 },
         cue: "step-1",
         question: {
           correct: pairSum,
@@ -229,7 +229,7 @@ export default createRoundScene({
           ctx.setEquation({
             slots: [pair[0], "+", pair[1], "=", pairSum],
             colors: [COLORS[aIdx], undefined, COLORS[bIdx], undefined, ORANGE],
-          }, { y: 660, size: 82 });
+          }, { y: 700, size: 82 });
         },
       };
     },
@@ -243,10 +243,8 @@ export default createRoundScene({
       const thirdIdx = round.nums.findIndex((n) => n === third);
 
       // Body: cells row (no pair highlight — the pair is now expressed in
-      // the parenthesized form above the cells). The third addend is
-      // visually separated from the pair via an extra-wide gap on either
-      // side, mirroring the "(pair) + third" grouping.
-      const body = mergedRow(ctx, round.nums, { boundary: thirdIdx });
+      // the parenthesized form above the cells).
+      const body = mergedRow(ctx, round.nums);
       ctx.cellRow = body;
 
       // Anchor stays put (still "?" until step 2 is answered).
@@ -264,7 +262,7 @@ export default createRoundScene({
           slots: [pairSum, "+", third, "=", "?"],
           colors: [ORANGE, undefined, COLORS[thirdIdx], undefined, undefined],
         },
-        equationOpts: { y: 660, size: 82 },
+        equationOpts: { y: 700, size: 82 },
         cue: "step-2",
         question: {
           correct: round.answer,
@@ -277,7 +275,7 @@ export default createRoundScene({
           ctx.setEquation({
             slots: [pairSum, "+", third, "=", round.answer],
             colors: [ORANGE, undefined, COLORS[thirdIdx], undefined, INK],
-          }, { y: 660, size: 82 });
+          }, { y: 700, size: 82 });
           ctx.cellRow?.pulse?.();
         },
       };

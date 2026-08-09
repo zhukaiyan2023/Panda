@@ -74,15 +74,30 @@ async function readHighlightedStep() {
   });
 }
 
-// Compute pair sum (Pattern A: first two; Pattern B: pair to ten).
+// Identify the current round by reading the persistent anchor equation's
+// three addends and matching to round data. Replaces the removed Round
+// counter as the round indicator.
 async function expectedPicks() {
   return page.evaluate(() => {
     const k = window.kaplay;
-    const label = k.get("*", { recursive: true })
-      .find((o) => typeof o.text === "string" && /^Round \d+ \/ \d+$/.test(o.text))?.text || "";
-    const roundNum = Number(label.split("/")[0].replace("Round", "").trim()) - 1;
+    // The persistent anchor sits at y=220. Read every numeric text node at
+    // that row, sorted by x — gives us [num, num, num] in order.
+    const anchorTexts = k.get("*", { recursive: true })
+      .filter((o) => typeof o.text === "string" && /^\d+$/.test(o.text))
+      .map((o) => {
+        const p = typeof o.worldPos === "function" ? o.worldPos() : o.pos;
+        return { text: o.text, x: p.x, y: p.y };
+      })
+      .filter((o) => Math.abs(o.y - 220) < 30)
+      .sort((a, b) => a.x - b.x)
+      .map((o) => Number(o.text));
+    if (anchorTexts.length < 3) return { pairSum: null, answer: null };
+    const [a, b, c] = anchorTexts;
     const lvl = window.PandaLevels.levels.find((l) => l.id === 1);
-    const r = lvl.rounds[roundNum];
+    const r = lvl.rounds.find((rr) =>
+      rr.nums[0] === a && rr.nums[1] === b && rr.nums[2] === c,
+    );
+    if (!r) return { pairSum: null, answer: null };
     let pair;
     for (let i = 0; i < r.nums.length; i++) {
       for (let j = i + 1; j < r.nums.length; j++) {
