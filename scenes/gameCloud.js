@@ -30,8 +30,14 @@ import {
 
 const ROUND_COUNT = 5;
 const ROUND_TYPES = ["make10", "makeSmall", "make10", "makeSmall", "make10"];
-const TARGET = 10;
-const ALL_FRIENDS = [[1, 9], [2, 8], [3, 7], [4, 6], [5, 5]];
+// All single-digit pairs whose sum is > 10. Used by case 2 of the 3-number
+// addition (凑十法). The user ruled out pairs whose sum is ≤ 10 and any
+// pair with a non-single-digit addend.
+const PAIRS_GT10 = [
+  [2, 9], [3, 8], [3, 9], [4, 7], [4, 8], [4, 9],
+  [5, 6], [5, 7], [5, 8], [5, 9], [6, 7], [6, 8], [6, 9],
+  [7, 8], [7, 9], [8, 9],
+];
 
 let roundIdx = 0;
 
@@ -82,26 +88,31 @@ function pickWrongs(correct, count, lo, hi, offsets) {
   return wrongs.slice(0, count);
 }
 
-// Type 1 (凑十): two addends sum to 10, third is a 1-9 decoy. Total in
-// [11, 19]. Wrong answers in [9, 21] (clamped to avoid 0 and 22+).
+// Case 2 (凑十法): one of the three addends is a single-digit pair that
+// sums to > 10, plus a 1-9 decoy. (User ruled out pairs ≤ 10 and any
+// non-single-digit addend.) Total in [12, 27]. Wrong answers in [9, 30]
+// (avoid 0 and 28+).
 function buildMake10Round() {
-  const pair = ALL_FRIENDS[Math.floor(Math.random() * ALL_FRIENDS.length)];
-  const c = 1 + Math.floor(Math.random() * 9);
-  const correct = TARGET + c;
-  const addends = [pair[0], pair[1], c];
-  const wrongs = pickWrongs(correct, 3, 9, 21, [-2, -1, 1, 2, 3]);
+  const pair = PAIRS_GT10[Math.floor(Math.random() * PAIRS_GT10.length)];
+  const decoy = 1 + Math.floor(Math.random() * 9);
+  const correct = pair[0] + pair[1] + decoy;
+  const addends = [pair[0], pair[1], decoy];
+  const wrongs = pickWrongs(correct, 3, 9, 30, [-2, -1, 1, 2, 3]);
   return {
     type: "make10",
     pair: [pair[0], pair[1]],
-    decoy: c,
+    decoy,
     addends,
     answerChoices: shuffle([correct, ...wrongs]),
     correct,
   };
 }
 
-// Type 2 (凑小): three addends in [1, 5] summing to < 10, no pair sums to
-// 10. Wrong answers in [1, 11].
+// Case 1 (凑小): three addends in [1, 5] summing to ≤ 10, no pair sums to
+// 10. (With no zeros, the only way a pair could sum to 10 inside a ≤ 10
+// total is if the third addend is 0 — so the "no pair sums to 10" check
+// is implied by the sum ≤ 10 rule, but we keep it for clarity.)
+// Wrong answers in [1, 11].
 function buildMakeSmallRound() {
   let a, b, c;
   let attempts = 0;
@@ -111,7 +122,7 @@ function buildMakeSmallRound() {
     c = 1 + Math.floor(Math.random() * 5);
     attempts++;
     if (attempts > 60) break;
-  } while (a + b + c >= 10 || a + b === 10 || a + c === 10 || b + c === 10);
+  } while (a + b + c > 10 || a + b === 10 || a + c === 10 || b + c === 10);
   const correct = a + b + c;
   const addends = [a, b, c];
   const wrongs = pickWrongs(correct, 3, 1, 11, [-2, -1, 1, 2]);
@@ -344,11 +355,12 @@ export default function scene(k) {
 
       k.wait(0.5, () => {
         if (round.type === "make10") {
-          // Resolved equation emphasizes the make-10 strategy:
-          // "10 + c = total" — the kid sees their mental shortcut.
+          // Resolved equation: show the simple sum. (The original "10 +
+          // decoy = total" trick is gone now that case-2 pairs sum to > 10,
+          // not exactly 10.)
           setEquation(
-            [TARGET, "+", round.decoy, "=", round.correct],
-            [BLUE, undefined, ORANGE_DEEP, undefined, PINK],
+            [round.addends[0], "+", round.addends[1], "+", round.addends[2], "=", round.correct],
+            [BLUE, undefined, SUCCESS, undefined, ORANGE_DEEP, undefined, PINK],
           );
         } else {
           // makeSmall: just the resolved sum.
