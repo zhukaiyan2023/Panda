@@ -173,9 +173,10 @@ for (let a = 1; a <= 9; a++) {
 }
 
 const l3Pool = [];
-for (let a = 11; a <= 20; a++) {
+// Strict: a ∈ [11, 19] (teen), b ∈ [1, 9] (single digit), ones + b < 10.
+for (let a = 11; a <= 19; a++) {
   const ones = a % 10;
-  const bMax = 10 - ones;
+  const bMax = 9 - ones;
   for (let b = 1; b <= Math.min(9, bMax); b++) {
     l3Pool.push({ a, b, answer: a + b });
   }
@@ -274,11 +275,11 @@ for (const r of l2Pool) {
 
 // L3 — 二十以内.
 for (const r of l3Pool) {
-  const a = safeInt(r.a, 11, 20, "l3.a");
+  const a = safeInt(r.a, 11, 19, "l3.a");
   const b = safeInt(r.b, 1, 9, "l3.b");
-  const answer = safeInt(r.answer, 12, 29, "l3.answer");
+  const answer = safeInt(r.answer, 12, 19, "l3.answer");
   const ones = safeInt(a % 10, 0, 9, "l3.ones");
-  const sum = safeInt(ones + b, 1, 10, "l3.sum");
+  const sum = safeInt(ones + b, 2, 9, "l3.sum");
   composites.push({
     id: `l3-s1-${a}-${b}`,
     text: `${numZh(a)}加${numZh(b)}等于几，我们先把${numZh(a)}进行拆分，拆成十加几`,

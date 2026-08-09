@@ -17,7 +17,7 @@ import "./save.js";
 const levelsData = {
   "levels": [
     { "id": 1, "title": "三数相加" },
-    { "id": 2, "title": "凑十法", "intro": "lvl-2-intro" },
+    { "id": 2, "title": "凑十法" },
     { "id": 3, "title": "二十以内", "intro": "lvl-3-intro" },
   ],
 };
@@ -39,7 +39,7 @@ const CUE_IDS = [
   // labels (see scenes/level1.js stepLabels).
   "lvl-1-greeting",
   "lvl-1-decomp-pre", "lvl-1-decomp-eq",
-  "lvl-2-intro", "lvl-3-intro", "lvl-done",
+  "lvl-3-intro", "lvl-done",
   // L2 (凑十法) per-step contextual sentence chunks — see tools/cues.cjs.
   // The 4 teaching beats (compare / find friend / split / calculate) are
   // built at runtime in scenes/level2.js by chaining these number-agnostic

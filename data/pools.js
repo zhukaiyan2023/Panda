@@ -11,7 +11,7 @@
 //   L2 凑十法    — 36 ordered (a, b) pairs, both single digits, sum > 10.
 //                  Sample 10 per session. See generateL2Pool for the
 //                  derivation.
-//   L3 二十以内  — full enumeration (54), sample 10
+//   L3 二十以内  — full enumeration (36), sample 10
 //
 // All generators are pure functions of the level schema — no I/O, no
 // randomness. The shuffle lives in roundScene.js so poolGen can be
@@ -92,24 +92,27 @@ function generateL2Pool() {
 
 // L3 — 二十以内 (no carrying).
 // The strategy: split a into 10 + ones(a), add ones(a) + b = sum, then
-// 10 + sum = answer. Valid only when ones(a) + b ≤ 10 (no carrying).
-// a ∈ [11, 20], b ∈ [1, 9].
+// 10 + sum = answer. Per user rules:
+//   - a ∈ [11, 19] (one addend must be a "十几" — teen, not 二十)
+//   - b ∈ [1, 9]   (the other addend must be a single digit "个位")
+//   - ones(a) + b < 10 (strict, so the ones digits sum to a single digit
+//     and step 3 is always "10 + small" — never "10 + 10" or worse)
 //
-// Count: ones(a) = 0..9, b max = 10 - ones(a), but b ∈ [1, 9].
-//   ones=0 (a=20): b ∈ [1, 9] → 9
-//   ones=1 (a=11): b ∈ [1, 9] → 9
-//   ones=2 (a=12): b ∈ [1, 8] → 8
+// Count: for each a, b max = 9 - ones(a) (so b ∈ [1, 9-ones]).
+//   a=11 (ones=1): b ∈ [1, 8] → 8
+//   a=12 (ones=2): b ∈ [1, 7] → 7
 //   ...
-//   ones=9 (a=19): b ∈ [1, 1] → 1
-// Total: 9+9+8+7+6+5+4+3+2+1 = 54 ordered pairs.
+//   a=18 (ones=8): b ∈ [1, 1] → 1
+//   a=19 (ones=9): no valid b → 0
+// Total: 8+7+6+5+4+3+2+1+0 = 36 ordered pairs.
 //
 // The user wants every valid round listed — no curation. Sample 10 per
-// session, leaving the other 44 for future runs.
+// session, leaving the other 26 for future runs.
 function generateL3Pool() {
   const pool = [];
-  for (let a = 11; a <= 20; a++) {
+  for (let a = 11; a <= 19; a++) {
     const ones = a % 10;
-    const bMax = 10 - ones;
+    const bMax = 9 - ones;
     for (let b = 1; b <= Math.min(9, bMax); b++) {
       pool.push({ a, b, answer: a + b });
     }

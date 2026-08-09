@@ -102,17 +102,22 @@ function tenFramePair(ctx, round) {
 }
 
 // Build split-of-small options as button-text strings ("a+b"). Always
-// includes the canonical (need, rest) split as the correct one.
-// Returns however many UNIQUE splits exist — for small ∈ {2, 3, 4} the
-// kid sees fewer than 4 buttons. Padding with duplicates ("1+1" four
-// times) used to fill the row, but per user feedback the duplicates are
-// worse than fewer options.
+// includes the canonical (need, rest) split as the correct one, and
+// per user feedback ("两个数只是交换顺序也不要出现在选项里面"), never
+// includes both a pair and its swap side-by-side — so we generate
+// only canonical splits (a ≤ b) and, when the correct split's order
+// isn't canonical (need > rest), drop the canonical swap to make room
+// for the correct one. Returns however many UNIQUE splits exist — for
+// small ∈ {2, 3, 4} the kid sees fewer than 4 buttons.
 function buildSplitOptions(small, need, rest) {
   const seen = new Set();
   const opts = [];
   const correctStr = `${need}+${rest}`;
-  // Walk from a=1 upward, generating (a, small-a) pairs.
-  for (let a = 1; a < small; a++) {
+  const swapCorrectStr = `${rest}+${need}`;
+  // Walk a from 1 upward, but only emit (a, small-a) where a ≤ small-a.
+  // This skips the swapped pairs (3+2 vs 2+3, 4+1 vs 1+4) per user
+  // feedback — a pair and its swap shouldn't both appear as options.
+  for (let a = 1; a <= Math.floor(small / 2); a++) {
     const b = small - a;
     const text = `${a}+${b}`;
     if (!seen.has(text)) {
@@ -120,8 +125,26 @@ function buildSplitOptions(small, need, rest) {
       opts.push(text);
     }
   }
+  // Always include the correct split. When need > rest the correct
+  // ordering (need first, then rest) is NOT canonical, so we have to
+  // add it and drop the canonical swap from the list so the pair and
+  // its swap never sit in the same options row.
+  if (!seen.has(correctStr)) {
+    seen.add(correctStr);
+    opts.push(correctStr);
+    if (swapCorrectStr !== correctStr) {
+      const idx = opts.indexOf(swapCorrectStr);
+      if (idx !== -1) {
+        opts.splice(idx, 1);
+        seen.delete(swapCorrectStr);
+      }
+    }
+  }
+  // Cap at 4 options to keep the button row width stable across rounds.
+  // For small ≥ 6 the canonical set already fits in 4 (small=6 → 3,
+  // small=7 → 3, small=8 → 4, small=9 → 4); the cap only fires when
+  // a non-canonical correct is added on top.
   if (opts.length > 4) {
-    // Keep the correct split, plus 3 others.
     const others = opts.filter((s) => s !== correctStr).slice(0, 3);
     opts.length = 0;
     opts.push(correctStr, ...others);

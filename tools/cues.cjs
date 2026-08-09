@@ -58,12 +58,11 @@ module.exports = [
   { id: "lvl-1-decomp-eq",       text: "等于几，这个问题可以分解成我们先看看前两个数相加。" },
 
   // ===== other level intros =====
-  // L2 (凑十法) plays a one-time entry greeting on round 0, then per-step
-  // contextual sentences take over (see the lvl-2-step-N-* chunks below).
-  // L3 (二十以内) follows the same pattern — extended entry greeting on
-  // round 0, then per-step contextual sentences take over (see the
-  // lvl-3-step-N-* chunks below).
-  { id: "lvl-2-intro", text: "小朋友好，现在我们一起学习凑十法" },
+  // L2 (凑十法) drops the kid straight into round 0 step 1 — the lvl-2-intro
+  // greeting ("现在我们一起学习凑十法") was removed per user feedback. The
+  // per-step audio already names the strategy on the first round.
+  // L3 (二十以内) keeps its entry greeting, then per-step contextual
+  // sentences take over (see the lvl-3-step-N-* chunks below).
   { id: "lvl-3-intro", text: "小朋友好，现在我们一起学习二十以内的计算" },
 
   // ===== L2 per-step sentences (凑十法) =====

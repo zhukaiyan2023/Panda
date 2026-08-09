@@ -166,7 +166,8 @@ async function main() {
   const firedIds = new Set(events.map((e) => e.id));
 
   const checks = [
-    { name: "entry",           must: ["lvl-2-intro"] },
+    // No entry cue: lvl-2-intro ("现在我们一起学习凑十法") was removed per
+    // user feedback. The kid drops straight into round 0 step 1.
     { name: "step 1 (compare)", must: ["lvl-2-step-1-pre", "lvl-2-step-1-q"] },
     { name: "step 2 (friend)",  must: ["lvl-2-step-2-big-pre", "lvl-2-step-2-q"] },
     { name: "step 3 (split)",   must: ["lvl-2-step-3-split-pre", "lvl-2-step-3-q"] },
