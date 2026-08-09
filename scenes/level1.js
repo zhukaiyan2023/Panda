@@ -289,7 +289,10 @@ export default createRoundScene({
         // reads "2+3+4=?" then "2+3=?" as a single thought. The cells row
         // sits below as the visual aid.
         equationOpts: { y: 340, size: 82 },
-        cue: "step-1",
+        // No `cue` here — the L1 step-1 audio is the per-round
+        // decompose sentence fired above (via playAfter). The old
+        // `cue: "step-1"` was the L2 phrase "比一比" and leaked into
+        // L1, which is why the user heard it on every L1 round.
         question: {
           correct: pairSum,
           values: options(pairSum, { min: 0, max: 16, count: 4 }),
@@ -343,7 +346,8 @@ export default createRoundScene({
         // aid that mirrors the original equation in parens form). The cells
         // row sits further down as the visual aid for the simplified form.
         equationOpts: { y: 440, size: 82 },
-        cue: "step-2",
+        // No `cue` — the L1 step-2 audio is the speakSequence fired
+        // above ("几加 X 加 Y"), chained event-by-event.
         question: {
           correct: round.answer,
           values: options(round.answer, { min: 0, max: 16, count: 4 }),

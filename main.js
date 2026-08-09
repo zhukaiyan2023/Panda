@@ -136,12 +136,16 @@ function scheduleCue(id, delayMs) {
   return tid;
 }
 
-// Cancels all queued cues and pauses every currently-playing audio
-// element. Used when a child answers correctly so the rest of the spoken
-// sentence doesn't fight with the encouragement + the next-step prompt.
+// Cancels all queued cues, marks every active sequence as cancelled so
+// future `ended` events in the chain are no-ops, and pauses every
+// currently-playing audio element. Used when a child taps an answer
+// (right or wrong) or navigates away — the rest of any spoken sentence
+// should never fight with the next audio.
 function stopAllAudio() {
   pendingCueTimers.forEach((tid) => clearTimeout(tid));
   pendingCueTimers.clear();
+  for (const seq of activeSequences) seq.cancelled = true;
+  activeSequences.clear();
   for (const el of Object.values(audio)) {
     if (!el.paused) {
       try { el.pause(); } catch (_) {}
@@ -149,43 +153,60 @@ function stopAllAudio() {
   }
 }
 
-// Plays a series of cue ids back-to-back with a small gap so each word is
-// distinct. Used for "what is two plus three plus four" — chained from the
-// individual number cues and a couple of glue words ("what is", "plus").
-// The verifier bypasses audio entirely so sequence length is fine in tests.
+// Plays a series of cue ids chained strictly by each cue's `ended`
+// event — not by a setTimeout estimate of audio.duration. A slow system
+// that decodes audio slowly won't make the next cue fire too early, and
+// the chain breaks cleanly when stopAllAudio pauses the audio (the
+// `ended` event never fires, no further cues land).
 //
-// Each cue is scheduled to start AFTER the previous cue's actual duration
-// (audio.duration) plus a small gap. The earlier implementation used a
-// fixed 140ms "tail" that assumed every cue was ~1 word; the L1
-// decompose sentence includes a 5s chunk ("等于几，这个问题可以分解成
-// 我们先看看前两个数相加") and the fixed tail caused the next number
-// cue to fire mid-chunk — overlapping by 4+ seconds.
+// seqGapMs (default 90) is the silence between consecutive cues. It's a
+// fixed padding for breathing room, not a timing estimate — the next
+// cue is guaranteed to wait for the previous one to fully finish.
 //
-// startDelayMs (optional) lets the caller wait for a previous cue to
-// finish before starting this sequence. Prefer playAfter() for that — it
-// uses the audio's 'ended' event so the timing stays correct even when
-// the reference cue's duration isn't known yet.
+// startDelayMs (optional) is the silence before the first cue. Prefer
+// playAfter() when you need to wait for another cue to end; that uses
+// the audio's `ended` event for the wait, then hands the gapMs to
+// playSequence as startDelayMs.
 //
-// seqGapMs (default 90) is the gap between consecutive cues in the
-// sequence. Pass a larger value for more breathing room between words.
+// Each sequence is tracked in activeSequences so stopAllAudio can
+// cancel the whole chain (e.g. a kid who taps an answer mid-sentence
+// should hear silence, not the remaining 12 words).
+const activeSequences = new Set();
+
 function playSequence(ids, seqGapMs = 90, startDelayMs = 0) {
   if (!Array.isArray(ids) || ids.length === 0) return;
-  let delay = startDelayMs;
-  ids.forEach((id) => {
-    scheduleCue(id, delay);
-    // Schedule the next cue to start when this one ends. If the audio's
-    // duration isn't known yet (still loading) fall back to a short tail
-    // so the sequence still flows — the next audio.loadedmetadata event
-    // will be too late to fix this iteration but subsequent sequences
-    // will use real durations. The fallback is intentionally small
-    // (0.4s) to bias toward overlap on a cold start, which is still
-    // better than a 5s+ overlap from a wrong guess.
-    const el = audio[id];
-    const dur = (el && Number.isFinite(el.duration) && el.duration > 0)
-      ? el.duration
-      : 0.4;
-    delay += (dur * 1000) + seqGapMs;
-  });
+  const seq = { cancelled: false };
+  activeSequences.add(seq);
+
+  const playIdx = (i) => {
+    if (seq.cancelled || i >= ids.length) {
+      if (i >= ids.length) activeSequences.delete(seq);
+      return;
+    }
+    const el = audio[ids[i]];
+    if (!el) { activeSequences.delete(seq); return; }
+    playCue(ids[i]);
+    if (i + 1 < ids.length) {
+      el.addEventListener("ended", function onEnded() {
+        el.removeEventListener("ended", onEnded);
+        if (seq.cancelled) return;
+        setTimeout(() => playIdx(i + 1), seqGapMs);
+      });
+    } else {
+      activeSequences.delete(seq);
+    }
+  };
+
+  if (startDelayMs > 0) {
+    const tid = setTimeout(() => {
+      pendingCueTimers.delete(tid);
+      if (seq.cancelled) return;
+      playIdx(0);
+    }, startDelayMs);
+    pendingCueTimers.add(tid);
+  } else {
+    playIdx(0);
+  }
 }
 
 // Plays a sequence of cues after another cue's audio finishes, with a
@@ -231,6 +252,17 @@ const k = kaplay({
 
 window.kaplay = k;
 window.PandaAudio = { audio, unlockAudio, playCue, playSequence, playAfter, stopAllAudio, isUnlocked: () => audioUnlocked };
+
+// Wrap k.go so any scene transition (level card tap, back button, round
+// transition, level-complete) stops the currently-speaking audio first.
+// Without this, a kid who taps the L1 card while the L3 round is still
+// reading its last cue would hear the rest of the L3 sentence on top of
+// the L1 greeting — a wall of sound.
+const _origGo = k.go.bind(k);
+k.go = (name) => {
+  window.PandaAudio.stopAllAudio();
+  return _origGo(name);
+};
 
 // Art assets are hand-authored SVG under assets/art/. Unlike the level data
 // above, these are fetched over HTTP, so the game must be served (see README) —

@@ -256,16 +256,17 @@ export default function createRoundScene(config) {
       if (autoAdvanceTimer) autoAdvanceTimer.cancel();
       autoAdvanceTimer = null;
       if (state.locked.has(idx)) return;
+      // Any tap on an answer button — right or wrong — stops whatever
+      // spoken sentence was still going. The kid has engaged; the
+      // remaining audio for this step is no longer relevant. The
+      // correct branch immediately plays an encouragement on top of
+      // the silence; the wrong branch sits in silence until the kid
+      // taps another button.
+      window.PandaAudio.stopAllAudio();
       if (value === stepCfg.question.correct) {
         state.locked.add(idx);
         state.buttons[idx].btn.setCorrect();
         buddy.setMood("cheer", { silent: true });
-        // Hush everything that's still speaking — the L1 decompose
-        // sentence keeps going for ~14s and a kid who answers in the
-        // first 2s would otherwise hear the rest of the sentence
-        // stacked on top of the encouragement and the next step's
-        // audio prompt. Then play the encouragement.
-        window.PandaAudio.stopAllAudio();
         window.PandaAudio.playCue(ENCOURAGE[(ri + config.levelId) % ENCOURAGE.length]);
         if (stepCfg.onAdvance) stepCfg.onAdvance(ctx);
         const d = window.__skipTimers ? TEST_DELAY : 0.4;
