@@ -59,14 +59,11 @@ function anchorSlots(nums, sumSlot) {
 // Custom parenthesized-form text node rendered above the cells. Lives
 // independently of the round scaffold's "active equation" so the buildStep
 // path doesn't overwrite it. The child never picks this — it's a visual aid
-// showing the pair reducing to its running sum, with the final answer left
-// as "?" (the sub-question below is the simplified form to pick).
-//
-// Reads as "(pair) + pairSum = ?" — i.e. "two plus three, which is five,
-// plus the third — what's the total?"
+// showing the original equation in parentheses form, "(pair) + third = ?".
+// The simplified sub-question below is the actual pick.
 function parenthesizedForm(ctx, pair, third, pairSum, aIdx, bIdx, thirdIdx) {
   ctx.k.add([
-    ctx.k.text(["(", pair[0], "+", pair[1], ")", "+", pairSum, "=", "?"].join(" "), {
+    ctx.k.text(["(", pair[0], "+", pair[1], ")", "+", third, "=", "?"].join(" "), {
       size: 56, font: FONT,
     }),
     ctx.k.color(...INK),
@@ -82,17 +79,20 @@ function parenthesizedForm(ctx, pair, third, pairSum, aIdx, bIdx, thirdIdx) {
 // child sees which two to add. When `boundary` (a group index) is given, an
 // extra-wide gap is inserted on either side of that group so it reads as a
 // visually separate "third" instead of one continuous row — used on step 2
-// after the pair is taught, to mirror the "(pair) + third" grouping.
+// after the pair is taught, to mirror the "(pair) + third" grouping. When
+// `flushBoundary` is also set, the boundary group is rendered with no gaps
+// between its own cells so the third reads as a single connected block.
 function mergedRow(ctx, nums, opts = {}) {
   const { k } = ctx;
-  const { highlight = null, boundary = null } = opts;
+  const { highlight = null, boundary = null, flushBoundary = false, y: rowY = 480 } = opts;
   const total = nums.reduce((a, b) => a + b, 0);
   const cell = 72;
   const gap = 8;
   const extraGap = 40;
 
   // Compute each cell's x offset from the first cell. `boundary` widens the
-  // gap immediately before and after that group.
+  // gap immediately before and after that group; `flushBoundary` zeroes
+  // the gap between consecutive cells inside that group.
   const offsets = new Array(total);
   let cursor = 0;
   for (let g = 0, idx = 0; g < nums.length; g++) {
@@ -111,13 +111,14 @@ function mergedRow(ctx, nums, opts = {}) {
           const isBoundaryRight = isFirstInGroup && g === boundary;
           if (isBoundaryLeft || isBoundaryRight) gSize = extraGap;
         }
+        if (flushBoundary && g === boundary) gSize = 0;
         cursor += gSize;
       }
     }
   }
   const totalW = offsets[total - 1] - offsets[0] + cell;
   const startX = LAYOUT.barX - totalW / 2 + cell / 2;
-  const y = 480;
+  const y = rowY;
 
   const root = k.add([k.pos(0, 0)]);
   const cellNodes = [];
@@ -250,11 +251,16 @@ export default createRoundScene({
       const thirdIdx = round.nums.findIndex((n) => n === third);
 
       // Body: cells row with the third addend visually separated from the pair
-      // by an extra-wide gap. The pair (2+3) reads as 5 cells grouped
-      // together, then a gap, then the third (4). Mirrors the
-      // "(pair) + pairSum = ?" parenthesized form above and the "5 + 4 = ?"
-      // sub-question below.
-      const body = mergedRow(ctx, round.nums, { boundary: thirdIdx });
+      // by an extra-wide gap, AND the third's own cells are rendered flush
+      // (no gaps between them) so it reads as one connected block. The pair
+      // (2+3) keeps its normal gaps so 2 and 3 stay distinguishable. The
+      // row sits BELOW the sub-question on step 2 so the visual order is
+      // anchor → parenthesized form → sub-question → cells → buttons.
+      const body = mergedRow(ctx, round.nums, {
+        boundary: thirdIdx,
+        flushBoundary: true,
+        y: 600,
+      });
       ctx.cellRow = body;
 
       // Anchor stays put (still "?" until step 2 is answered).
@@ -272,7 +278,10 @@ export default createRoundScene({
           slots: [pairSum, "+", third, "=", "?"],
           colors: [ORANGE, undefined, COLORS[thirdIdx], undefined, undefined],
         },
-        equationOpts: { y: 700, size: 82 },
+        // Step 2 sub-question sits BELOW the parenthesized form (the visual
+        // aid that mirrors the original equation in parens form). The cells
+        // row sits further down as the visual aid for the simplified form.
+        equationOpts: { y: 440, size: 82 },
         cue: "step-2",
         question: {
           correct: round.answer,
@@ -285,7 +294,7 @@ export default createRoundScene({
           ctx.setEquation({
             slots: [pairSum, "+", third, "=", round.answer],
             colors: [ORANGE, undefined, COLORS[thirdIdx], undefined, INK],
-          }, { y: 700, size: 82 });
+          }, { y: 440, size: 82 });
           ctx.cellRow?.pulse?.();
         },
       };
