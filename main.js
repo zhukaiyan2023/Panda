@@ -130,14 +130,26 @@ function unlockAudio() {
 
 function playCue(id) {
   const el = audio[id];
-  if (!el) return;
+  if (!el) {
+    console.warn(`[panda-audio] playCue("${id}"): no audio element`);
+    return;
+  }
   try {
     el.muted = false;
     el.volume = 1;
     el.currentTime = 0;
     const p = el.play();
-    if (p && typeof p.catch === "function") p.catch(() => {});
-  } catch (_) {}
+    if (p && typeof p.catch === "function") {
+      p.catch((err) => {
+        // iPad Safari often rejects the very first play() of a freshly
+        // loaded MP3 with NotAllowedError even after the unlock pattern —
+        // log it so the user can tell us which cues are silently failing.
+        console.warn(`[panda-audio] playCue("${id}") rejected:`, err?.message || err);
+      });
+    }
+  } catch (err) {
+    console.warn(`[panda-audio] playCue("${id}") threw:`, err?.message || err);
+  }
 }
 
 // Every scheduled cue (from playSequence, playAfter, or anywhere that uses
@@ -296,10 +308,22 @@ function playAfter(referenceId, ids, { gapMs = 1000, seqGapMs = 90 } = {}, onCom
     playSequence(ids, seqGapMs, 4000, onComplete);
     return;
   }
-  // After the reference cue's 'ended' event fires, kick off the
-  // sequence with `gapMs` ms before the first cue lands; the rest are
-  // chained by playSequence using the now-known audio.duration.
-  const kickoff = () => playSequence(ids, seqGapMs, gapMs, onComplete);
+  let fired = false;
+  const kickoff = () => {
+    if (fired) return;
+    fired = true;
+    clearTimeout(fallback);
+    playSequence(ids, seqGapMs, gapMs, onComplete);
+  };
+  // Fallback timer: on iPad Safari the reference cue's `ended` event
+  // sometimes never fires after the very first unlock — the play()
+  // resolves but the metadata-driven `ended` event is missed, leaving
+  // the kid in silence forever. Use the cue's known duration plus a
+  // buffer as a wall-clock fallback. Whichever fires first wins.
+  const durMs = (Number.isFinite(ref.duration) && ref.duration > 0)
+    ? ref.duration * 1000
+    : 4000; // generous default for the 3-5s spoken sentences
+  const fallback = setTimeout(kickoff, durMs + 1500);
   if (ref.ended) {
     kickoff();
     return;
