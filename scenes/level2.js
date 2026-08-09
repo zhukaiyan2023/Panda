@@ -135,7 +135,7 @@ export default createRoundScene({
   sceneName: "level2",
   // No intro cue — the persistent anchor ("a + b = ?") IS the introduction.
   // A "make ten" voice on entry would just say the same thing twice.
-  stepLabels: ["Compare", "To ten", "Split", "Count"],
+  stepLabels: ["比一比", "凑成十", "拆一拆", "算一算"],
 
   steps: [
     // Step 1 — Compare.

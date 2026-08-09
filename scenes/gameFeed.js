@@ -86,13 +86,13 @@ export default createPairScene({
   target: TARGET,
   candidates: buildCandidates,
   pairs: buildPairs,
-  prompt: () => "Help the panda eat. Pick two that make ten.",
+  prompt: () => "帮熊猫吃饱，选两个加起来是十。",
   body,
   onCorrect(ctx, a, b) {
     ctx.score += 10;
     if (ctx.scoreText) ctx.scoreText.text = String(ctx.score);
     ctx.k.add([
-      ctx.k.text(`${a} + ${b} = ${TARGET}!`, { size: 48, font: FONT }),
+      ctx.k.text(`${a} + ${b} = ${TARGET}！`, { size: 48, font: FONT }),
       ctx.k.color(...INK),
       ctx.k.pos(540, 540),
       ctx.k.anchor("center"),

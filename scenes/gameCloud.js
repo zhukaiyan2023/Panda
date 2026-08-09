@@ -96,14 +96,14 @@ export default createPairScene({
   target: TARGET,
   candidates: candidatesFor,
   pairs: pairsFor,
-  prompt: () => "Find every pair that hugs to ten.",
+  prompt: () => "把所有能凑成十的好朋友都找出来。",
   body,
   onCorrect(ctx, a, b) {
     // A pair found — float the chosen clouds upward briefly.
     const k = ctx.k;
     window.PandaAudio.playCue("cloud-pair");
     k.add([
-      k.text(`${a} + ${b} = ${TARGET}!`, { size: 52, font: FONT }),
+      k.text(`${a} + ${b} = ${TARGET}！`, { size: 52, font: FONT }),
       k.color(...PINK),
       k.pos(748, 580),
       k.anchor("center"),

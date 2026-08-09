@@ -88,7 +88,7 @@ export default createPairScene({
   target: TARGET,
   candidates: candidatesFor,
   pairs: pairsFor,
-  prompt: () => "Pick two boats that make ten.",
+  prompt: () => "选两艘小船，让它们加起来是十。",
   body,
   // When a correct pair is found, light up every bridge slot at once.
   onCorrect(ctx, a, b) {
@@ -102,7 +102,7 @@ export default createPairScene({
     });
     // Reward text — placed in a clear band between the bridge and the boats.
     const reward = k.add([
-      k.text(`${a} + ${b} = ${a + b}!`, { size: 56, font: FONT }),
+      k.text(`${a} + ${b} = ${a + b}！`, { size: 56, font: FONT }),
       k.color(...INK),
       k.pos(748, 540),
       k.anchor("center"),

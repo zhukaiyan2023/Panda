@@ -15,9 +15,9 @@ const LOCKED_BG = [220, 213, 230];
 const LOCKED_INK = [150, 140, 170];
 
 const SHORT_TITLES = {
-  1: "Three Friends",
-  2: "Make 10",
-  3: "Up to 20",
+  1: "三个好朋友",
+  2: "凑十法",
+  3: "二十以内",
 };
 
 const CARD_ACCENT = { 1: BLUE, 2: ORANGE, 3: PURPLE };
@@ -81,7 +81,7 @@ function drawCard(k, parent, level, unlocked) {
   const badge = sprite(card, k, `badge-${level.id}`, { x: 0, y: -h / 2 + 62, size: 78 });
   if (!badge) {
     card.add([
-      k.text(`Level ${level.id}`, { size: 36, font: FONT }),
+      k.text(`第 ${level.id} 关`, { size: 36, font: FONT }),
       k.color(...titleColor),
       k.pos(0, -h / 2 + 62),
       k.anchor("center"),
@@ -104,7 +104,7 @@ function drawCard(k, parent, level, unlocked) {
     ]);
   } else if (!sprite(card, k, "lock", { x: 0, y: h / 2 - 62, size: 72 })) {
     card.add([
-      k.text("Locked", { size: 32, font: FONT }),
+      k.text("还没解锁", { size: 32, font: FONT }),
       k.color(...titleColor),
       k.pos(0, h / 2 - 62),
       k.anchor("center"),
@@ -143,7 +143,7 @@ export default function levelPickerScene(k) {
   });
 
   k.add([
-    k.text("Panda's Make-Ten Adventure", { size: 64, font: FONT }),
+    k.text("熊猫凑十乐园", { size: 64, font: FONT }),
     k.color(...INK),
     k.pos(k.width() / 2, 110),
     k.anchor("center"),
@@ -160,14 +160,14 @@ export default function levelPickerScene(k) {
     k.area(),
   ]);
   k.add([
-    k.text("Games", { size: 32, font: FONT }),
+    k.text("小游戏", { size: 32, font: FONT }),
     k.color(...INK),
     k.pos(k.width() - 200, 200),
     k.anchor("center"),
   ]);
 
   k.add([
-    k.text("Pick a level", { size: 32, font: FONT }),
+    k.text("选一关开始吧", { size: 32, font: FONT }),
     k.color(...INK),
     k.pos(k.width() / 2, 290),
     k.anchor("center"),
@@ -208,7 +208,7 @@ export default function levelPickerScene(k) {
   ]);
   if (!hasStarSprite) {
     k.add([
-      k.text("stars", { size: 26, font: FONT }),
+      k.text("颗星", { size: 26, font: FONT }),
       k.color(...INK),
       k.pos(k.width() / 2, starY + 38),
       k.anchor("center"),

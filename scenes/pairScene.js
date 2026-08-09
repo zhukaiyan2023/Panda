@@ -78,13 +78,13 @@ export default function createPairScene(config) {
     const totalSteps = Math.max(1, config.pairs(round.index).length);
     const bar = stepBar(k, {
       labels: Array.from({ length: totalSteps + 1 }, (_, i) =>
-        i === 0 ? "Start" : i === totalSteps ? "Done" : `Pair ${i}`),
+        i === 0 ? "开始" : i === totalSteps ? "完成" : `第 ${i} 对`),
       step: 1,
       x: 748, y: 84, w: 1060, h: 36,
     });
 
     k.add([
-      k.text(`Round ${roundIdx + 1} / ${config.roundCount}`, { size: 28, font: FONT }),
+      k.text(`第 ${roundIdx + 1} 轮 / 共 ${config.roundCount} 轮`, { size: 28, font: FONT }),
       k.color(...INK),
       k.pos(748, 196),
       k.anchor("center"),

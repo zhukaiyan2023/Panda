@@ -11,7 +11,7 @@ export default createRoundScene({
   levelId: 3,
   sceneName: "level3",
   introCue: "lvl-3-intro",
-  stepLabels: ["Count on", "Add", "Teen split", "Cheer"],
+  stepLabels: ["数一数", "加起来", "拆十法", "庆祝一下"],
 
   steps: [
     // Step 1 — show the equation, ask for the missing addend.

@@ -330,7 +330,7 @@ export default function createRoundScene(config) {
     const data = (window.PandaLevels?.levels || []).find((l) => l.id === config.levelId);
     if (!data) {
       k.add([
-        k.text(`Level ${config.levelId} data missing`, { size: 48, font: FONT }),
+        k.text(`第 ${config.levelId} 关数据缺失`, { size: 48, font: FONT }),
         k.color(...INK),
         k.pos(k.width() / 2, k.height() / 2),
         k.anchor("center"),

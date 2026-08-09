@@ -55,7 +55,7 @@ export default function scene(k) {
   });
 
   const bar = stepBar(k, {
-    labels: ["Start", "Pair 1", "Pair 2", "Pair 3", "Pair 4", "Done"],
+    labels: ["开始", "第 1 对", "第 2 对", "第 3 对", "第 4 对", "完成"],
     step: 1, x: 748, y: 84, w: 1060, h: 36,
   });
 
@@ -76,7 +76,7 @@ export default function scene(k) {
   ]);
 
   k.add([
-    k.text(`Tap two moles that make ten.`, { size: 56, font: FONT }),
+    k.text(`点两个地鼠，让它们加起来是十。`, { size: 56, font: FONT }),
     k.color(...INK),
     k.pos(748, 310),
     k.anchor("center"),
@@ -262,7 +262,7 @@ export default function scene(k) {
       window.PandaAudio.playCue("whack-done");
       saveProgress();
       k.add([
-        k.text("5 pairs! You win!", { size: 72, font: FONT }),
+        k.text("找全 5 对啦！你真棒！", { size: 72, font: FONT }),
         k.color(...ORANGE),
         k.pos(748, 540),
         k.anchor("center"),
@@ -271,7 +271,7 @@ export default function scene(k) {
     } else {
       window.PandaAudio.playCue("whack-timeup");
       k.add([
-        k.text("Time's up!", { size: 72, font: FONT }),
+        k.text("时间到啦！", { size: 72, font: FONT }),
         k.color(...DANGER),
         k.pos(748, 540),
         k.anchor("center"),

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// tools/build-audio.js — generate the 31 pre-baked audio cues via Azure Speech F0.
+// tools/build-audio.js — generate the 54 pre-baked audio cues via Azure Speech F0.
 //
 // Usage:
 //   node tools/build-audio.js            # generate all cues
@@ -7,9 +7,15 @@
 //
 // Required env (loaded from .env if present):
 //   AZURE_SPEECH_KEY       — Azure Speech resource key (F0 free tier works)
-//   AZURE_SPEECH_REGION    — Azure region, e.g. eastus
-//   AZURE_SPEECH_VOICE     — voice short name, default en-US-JennyNeural
+//   AZURE_SPEECH_REGION    — Azure region, e.g. eastasia
+//   AZURE_SPEECH_VOICE     — voice short name, default zh-CN-XiaoxiaoNeural
+//   AZURE_SPEECH_LANG      — SSML xml:lang, default zh-CN
 //   AZURE_SPEECH_FORMAT    — output format, default audio-24khz-48kbitrate-mono-mp3
+//
+// The voice + lang defaults are tuned for the Chinese-language cues in
+// tools/cues.cjs. Override via env if you want to point at a different voice
+// (e.g. zh-CN-YunxiNeural for a male voice, or en-US-JennyNeural with lang
+// en-US for an English voiceover pass).
 
 const fs = require("fs");
 const path = require("path");
@@ -29,9 +35,9 @@ function loadDotenv() {
   }
 }
 
-async function synthesizeOne({ key, region, voice, format }, cue) {
+async function synthesizeOne({ key, region, voice, lang, format }, cue) {
   const url = `https://${region}.tts.speech.microsoft.com/cognitiveservices/v1`;
-  const ssml = `<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='en-US'>
+  const ssml = `<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='${lang}'>
     <voice name='${voice}'>${escapeXml(cue.text)}</voice>
   </speak>`;
   const res = await fetch(url, {
@@ -69,8 +75,9 @@ function escapeXml(s) {
   }
 
   const key = process.env.AZURE_SPEECH_KEY;
-  const region = process.env.AZURE_SPEECH_REGION || "eastus";
-  const voice = process.env.AZURE_SPEECH_VOICE || "en-US-JennyNeural";
+  const region = process.env.AZURE_SPEECH_REGION || "eastasia";
+  const voice = process.env.AZURE_SPEECH_VOICE || "zh-CN-XiaoxiaoNeural";
+  const lang = process.env.AZURE_SPEECH_LANG || "zh-CN";
   const format = process.env.AZURE_SPEECH_FORMAT || "audio-24khz-48kbitrate-mono-mp3";
 
   if (!key) {
@@ -78,7 +85,7 @@ function escapeXml(s) {
     process.exit(2);
   }
 
-  const cfg = { key, region, voice, format };
+  const cfg = { key, region, voice, lang, format };
   let ok = 0;
   for (const cue of CUES) {
     try {
@@ -89,5 +96,5 @@ function escapeXml(s) {
       console.error(`FAIL ${cue.id}: ${err.message}`);
     }
   }
-  console.log(`Generated ${ok}/${CUES.length} cues.`);
+  console.log(`Generated ${ok}/${CUES.length} cues (voice=${voice}, lang=${lang}).`);
 })();

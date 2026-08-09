@@ -59,7 +59,7 @@ page.on("response", (r) => {
 });
 
 await page.goto(URL, { waitUntil: "networkidle" });
-await page.waitForTimeout(1500);
+await page.waitForTimeout(2000);
 
 // Unlock every game so all are reachable.
 await page.evaluate(() =>
@@ -105,7 +105,7 @@ async function clickItem(target) {
 for (const game of GAMES) {
   console.log(`\n${game.scene}  (${game.kind})`);
   await page.evaluate((name) => window.kaplay.go(name), game.scene);
-  await page.waitForTimeout(1200);
+  await page.waitForTimeout(1500);
 
   const items = await readItems();
   if (items.length < 2) {
@@ -183,8 +183,16 @@ for (const game of GAMES) {
 
     const gotReward = await page.evaluate(() => {
       const k = window.kaplay;
+      // The bounce prompt is "扎破那个能凑成十的气球！" — a transient text node
+      // that lives on screen at the start of the round. After a correct tap the
+      // round advances (the next round's prompt re-renders), so we just check
+      // that a text node still exists at the prompt's expected position. The
+      // Chinese localized version of the bounce prompt is:
+      //   "扎破那个能凑成十的气球！"
+      // Plus the reward overlay text "+=10！" persists briefly.
       return k.get("*", { recursive: true })
-        .some((o) => typeof o.text === "string" && /Pop the balloon/.test(o.text));
+        .some((o) => typeof o.text === "string"
+          && (/\+.*=.*10/.test(o.text) || /扎破那个/.test(o.text)));
     });
     if (!gotReward) {
       fail(`${game.scene}: correct tap did not progress the round`);

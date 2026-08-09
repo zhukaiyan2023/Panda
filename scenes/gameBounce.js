@@ -78,12 +78,12 @@ function drawRound(k, ctx) {
   });
 
   const bar = stepBar(k, {
-    labels: ["Start", "Pop!", "Done"],
+    labels: ["开始", "扎破它", "完成"],
     step: 1, x: 748, y: 84, w: 1060, h: 36,
   });
 
   k.add([
-    k.text(`Round ${roundIdx + 1} / ${ROUND_COUNT}`, { size: 28, font: FONT }),
+    k.text(`第 ${roundIdx + 1} 轮 / 共 ${ROUND_COUNT} 轮`, { size: 28, font: FONT }),
     k.color(...INK),
     k.pos(748, 196),
     k.anchor("center"),
@@ -92,7 +92,7 @@ function drawRound(k, ctx) {
   const buddy = panda(k, { x: 170, y: 640, size: 230 });
 
   k.add([
-    k.text(`Pop the balloon that makes ten.`, { size: 56, font: FONT }),
+    k.text(`扎破那个能凑成十的气球！`, { size: 56, font: FONT }),
     k.color(...INK),
     k.pos(748, 310),
     k.anchor("center"),
@@ -124,7 +124,7 @@ function drawRound(k, ctx) {
         buddy.setMood("cheer", { silent: true });
         bar.setStep(2);
         k.add([
-          k.text(`${a} + ${it.value} = ${TARGET}!`, { size: 64, font: FONT }),
+          k.text(`${a} + ${it.value} = ${TARGET}！`, { size: 64, font: FONT }),
           k.color(...PINK),
           k.pos(748, 540),
           k.anchor("center"),

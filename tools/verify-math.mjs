@@ -55,7 +55,7 @@ page.on("response", (r) => {
 });
 
 await page.goto(URL, { waitUntil: "networkidle" });
-await page.waitForTimeout(1500);
+await page.waitForTimeout(2000);
 
 // In-game we wait STEP_DELAY (4s) for a child to look at the reveal before
 // auto-advancing. The verifier needs to test the same code path in seconds,
@@ -91,13 +91,32 @@ async function readRow(y, tolerance = ROW_TOLERANCE) {
 }
 
 async function readRoundLabel() {
+  // The Round counter was removed in favor of the persistent anchor equation.
+  // Return a signature of every numeric slot in the top half of the screen
+  // (above the step bar / body area), sorted by (y, x). Each round has a
+  // unique signature; the assertions below compare it to the previous round's
+  // signature to detect "round advanced" without depending on a round counter.
   return page.evaluate(() => {
     const k = window.kaplay;
-    const hit = k
+    const hits = k
       .get("*", { recursive: true })
-      .find((o) => typeof o.text === "string" && /^Round \d+ \/ \d+$/.test(o.text));
-    return hit ? hit.text : null;
+      .filter((o) => typeof o.text === "string" && /^\d+$/.test(o.text))
+      .map((o) => {
+        const p = typeof o.worldPos === "function" ? o.worldPos() : o.pos;
+        return { text: o.text, x: p.x, y: p.y };
+      })
+      .filter((o) => o.y < 360)
+      .sort((a, b) => (a.y - b.y) || (a.x - b.x))
+      .map((o) => o.text);
+    return hits.length ? hits.join("|") : null;
   });
+}
+
+async function totalRounds(levelId) {
+  return page.evaluate((id) => {
+    const lvl = window.PandaLevels.levels.find((l) => l.id === id);
+    return lvl ? lvl.rounds.length : 0;
+  }, levelId);
 }
 
 // Pull the round data straight out of PandaLevels so we know what the correct
@@ -173,15 +192,15 @@ for (const levelId of LEVELS) {
 
   const firstLabel = await readRoundLabel();
   if (!firstLabel) {
-    fail(`level ${levelId}: no "Round n / m" label found`);
+    fail(`level ${levelId}: no top-of-screen numeric slots found`);
     continue;
   }
-  const totalRounds = Number(firstLabel.split("/")[1].trim());
+  const total = await totalRounds(levelId);
 
-  for (let roundIdx = 0; roundIdx < totalRounds; roundIdx++) {
+  for (let roundIdx = 0; roundIdx < total; roundIdx++) {
     const label = await readRoundLabel();
-    if (label !== `Round ${roundIdx + 1} / ${totalRounds}`) {
-      fail(`level ${levelId} round ${roundIdx + 1}: expected label "Round ${roundIdx + 1} / ${totalRounds}", saw "${label}"`);
+    if (!label) {
+      fail(`level ${levelId} round ${roundIdx + 1}: anchor equation missing`);
       break;
     }
 

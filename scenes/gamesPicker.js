@@ -18,11 +18,11 @@ const LOCKED_BG = [220, 213, 230];
 const LOCKED_INK = [150, 140, 170];
 
 const GAMES = [
-  { id: 1, title: "Boat",  sub: "Pair to cross",  scene: "gameBoat",   sprite: "boat",   accent: BLUE },
-  { id: 2, title: "Bounce", sub: "Pop balloons",  scene: "gameBounce", sprite: "balloon", accent: PINK },
-  { id: 3, title: "Cloud",  sub: "Hug a pair",    scene: "gameCloud",  sprite: "cloud",  accent: PURPLE },
-  { id: 4, title: "Feed",   sub: "Help panda eat", scene: "gameFeed",   sprite: "bubble", accent: ORANGE },
-  { id: 5, title: "Whack",  sub: "Race the clock", scene: "gameWhack",  sprite: "mole",   accent: YELLOW },
+  { id: 1, title: "小船",  sub: "凑十过河",  scene: "gameBoat",   sprite: "boat",   accent: BLUE },
+  { id: 2, title: "气球",  sub: "扎破凑十",  scene: "gameBounce", sprite: "balloon", accent: PINK },
+  { id: 3, title: "云朵",  sub: "抱出好朋友", scene: "gameCloud",  sprite: "cloud",  accent: PURPLE },
+  { id: 4, title: "喂食",  sub: "帮熊猫吃饱", scene: "gameFeed",   sprite: "bubble", accent: ORANGE },
+  { id: 5, title: "打地鼠", sub: "限时找朋友", scene: "gameWhack",  sprite: "mole",   accent: YELLOW },
 ];
 
 function hasSprite(k, name) {
@@ -54,7 +54,7 @@ function drawTab(k, parent, label, x, y, w, h, active) {
     k.anchor("center"),
   ]);
   text.onClick(() => {
-    k.go(label === "Math" ? "levelPicker" : "gamesPicker");
+    k.go(label === "学数学" ? "levelPicker" : "gamesPicker");
   });
 }
 
@@ -128,8 +128,8 @@ export default function gamesPickerScene(k) {
   k.add([k.rect(k.width(), k.height()), k.color(...PAPER), k.z(-10)]);
 
   // Tabs at the top.
-  drawTab(k, k, "Math", 600, 200, 200, 70, false);
-  drawTab(k, k, "Games", 850, 200, 200, 70, true);
+  drawTab(k, k, "学数学", 600, 200, 200, 70, false);
+  drawTab(k, k, "小游戏", 850, 200, 200, 70, true);
 
   // Back to math picker (icon button top-left).
   const back = k.add([
@@ -151,14 +151,14 @@ export default function gamesPickerScene(k) {
   });
 
   k.add([
-    k.text("Panda's Game Park", { size: 56, font: FONT }),
+    k.text("熊猫游戏乐园", { size: 56, font: FONT }),
     k.color(...INK),
     k.pos(k.width() / 2, 110),
     k.anchor("center"),
   ]);
 
   k.add([
-    k.text("Pick a game", { size: 28, font: FONT }),
+    k.text("选一个游戏吧", { size: 28, font: FONT }),
     k.color(...INK),
     k.pos(k.width() / 2, 290),
     k.anchor("center"),
@@ -198,7 +198,7 @@ export default function gamesPickerScene(k) {
   ]);
   if (!hasStarSprite) {
     k.add([
-      k.text("game stars", { size: 24, font: FONT }),
+      k.text("游戏星", { size: 24, font: FONT }),
       k.color(...INK),
       k.pos(k.width() / 2, starY + 36),
       k.anchor("center"),
