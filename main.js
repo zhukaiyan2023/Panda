@@ -61,7 +61,7 @@ const CUE_IDS = [
   // spoken equation intro — chained by PandaAudio.playSequence so the child
   // hears "几加三加五" instead of just "算一算". The Mandarin chain reads
   // naturally: "what is three plus five?" in three concatenated words.
-  "q-what-is", "q-plus", "q-equals",
+  "q-what-is", "q-plus", "q-equals", "equals",
   "round-start", "round-end",
   // L1 entry — greeting plays once on entering the level, then the
   // per-round "decompose" sentence is built at runtime by chaining

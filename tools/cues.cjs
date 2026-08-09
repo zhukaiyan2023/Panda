@@ -65,6 +65,13 @@ module.exports = [
   { id: "q-plus",    text: "加" },
   { id: "q-equals",  text: "等于几" },
 
+  // ===== result read-back =====
+  // For "X 加 Y 加 Z 等于 答" — the cue after the last addend and
+  // before the answer number. Different from q-equals ("等于几"),
+  // which is the question form for an unknown answer. The L1 step-2
+  // onAdvance uses equals to read the final equation as a reward.
+  { id: "equals",    text: "等于" },
+
   // ===== number names =====
   // Read slowly when a number lands on the board. Single-syllable
   // Mandarin digits are easy to chain into multi-digit sums.

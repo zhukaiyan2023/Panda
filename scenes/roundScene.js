@@ -269,7 +269,13 @@ export default function createRoundScene(config) {
         buddy.setMood("cheer", { silent: true });
         window.PandaAudio.playCue(ENCOURAGE[(ri + config.levelId) % ENCOURAGE.length]);
         if (stepCfg.onAdvance) stepCfg.onAdvance(ctx);
-        const d = window.__skipTimers ? TEST_DELAY : 0.4;
+        // advancePauseMs lets a step's onAdvance audio (e.g. the L1
+        // step-2 "X 加 Y 加 Z 等于 答" reward) finish before the round
+        // transitions. Default 400ms matches the original
+        // visual-feedback-only timing.
+        const d = window.__skipTimers
+          ? TEST_DELAY
+          : (stepCfg.advancePauseMs ?? 400) / 1000;
         k.wait(d, () => advance(prev));
       } else {
         state.buttons[idx].btn.setDisabled(true);

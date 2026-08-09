@@ -231,6 +231,33 @@ function buildL1DecomposeIds(a, b, c) {
   ];
 }
 
+// Maps a non-negative integer to the cue id(s) that read it aloud in
+// Mandarin. 0..10 are single-syllable. 11..19 are 十+X. 20 is 二十
+// (十+十). L1 answers go up to 15; L3 answers go up to 20.
+function numToCueIds(n) {
+  if (n < 0 || !Number.isFinite(n) || !Number.isInteger(n)) return [];
+  if (n <= 10) return [`n-${n}`];
+  if (n < 20) return ["n-10", `n-${n - 10}`];
+  if (n === 20) return ["n-10", "n-10"];
+  // 21+ is out of L1's range; fall back to the bare digit so the audio
+  // still produces something rather than going silent.
+  return [`n-${n}`];
+}
+
+// Builds the "X 加 Y 加 Z 等于 答" reward sentence played after the
+// child picks the correct answer on L1 step 2. Universal numbers +
+// universal q-plus + the pre-baked "等于" connector, so the same set
+// of cues handles every L1 round.
+function buildL1AnswerIds(a, b, c, answer) {
+  return [
+    `n-${a}`, "q-plus",
+    `n-${b}`, "q-plus",
+    `n-${c}`,
+    "equals",
+    ...numToCueIds(answer),
+  ];
+}
+
 export default createRoundScene({
   levelId: 1,
   sceneName: "level1",
@@ -313,6 +340,7 @@ export default createRoundScene({
       const aIdx = round.nums.indexOf(pair[0]);
       const bIdx = round.nums.indexOf(pair[1], aIdx + 1);
       const thirdIdx = round.nums.findIndex((n) => n === third);
+      const [a, b, c] = round.nums;
 
       // Body: cells row with the third addend visually separated from the pair
       // by an extra-wide gap, AND the third's own cells are rendered flush
@@ -357,6 +385,11 @@ export default createRoundScene({
           correct: round.answer,
           values: options(round.answer, { min: 0, max: 16, count: 4 }),
         },
+        // Step 2 is the last step AND the one that reads back the
+        // full equation on a correct pick. Bump the post-advance
+        // pause so the audio has time to land before the round
+        // transitions (the equation chain is ~3-4s).
+        advancePauseMs: 4000,
         onAdvance: () => {
           // Reveal the persistent anchor at the top.
           ctx.setAnchorEquation(anchorSlots(round.nums, round.answer));
@@ -368,6 +401,14 @@ export default createRoundScene({
           // Reveal the parenthesized form's "?" with the actual total.
           parenthesizedForm(ctx, pair, third, aIdx, bIdx, thirdIdx, round.answer);
           ctx.cellRow?.pulse?.();
+          // Read the full equation back as the reward: "X 加 Y 加 Z
+          // 等于 答". 600ms delay so the encouragement cue ("耶！"
+          // etc.) lands first without the equation dropping on top
+          // of it.
+          const answerIds = buildL1AnswerIds(a, b, c, round.answer);
+          setTimeout(() => {
+            window.PandaAudio.playSequence(answerIds, 200, 0);
+          }, 600);
         },
       };
     },
