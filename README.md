@@ -138,7 +138,7 @@ presence rather than a complete playthrough.
 
 ---
 
-## Regenerating the audio (Azure Speech F0 or ElevenLabs)
+## Regenerating the audio (Azure Speech F0, ElevenLabs, or Tencent Cloud TTS)
 
 The audio pool is pre-baked. The shipped MP3s are 1-second silent
 placeholders so the game boots without errors. To get real voice
@@ -180,7 +180,38 @@ free tier.
    npm run audio:build:elevenlabs   # or: node tools/build-audio-elevenlabs.mjs
    ```
 
-> Both builders read the same `tools/cues.cjs` manifest (49 entries as of the
+### Tencent Cloud TTS (Tencent 腾讯云 — current default for kids)
+
+Tencent Cloud TTS uses a real child voice (`智童`, VoiceType 1004) which
+sounds more natural for 3-6 year olds than the cartoon-styled adult
+voices of Edge / ElevenLabs. Free quota on signup covers the 49-cue
+manifest many times over.
+
+1. Sign up at <https://console.cloud.tencent.com/tts> and create a CAM
+   API key (SecretId + SecretKey). The AppId is shown in the top-right
+   of the console.
+2. Add to `.env`:
+   ```
+   TENCENT_SECRET_ID=AKID...
+   TENCENT_SECRET_KEY=...
+   TENCENT_APP_ID=...
+   TENCENT_VOICE_TYPE=101016   # 智童 (女童声) — child voice, the default
+   TENCENT_CODEC=mp3
+   TENCENT_SAMPLE_RATE=16000
+   TENCENT_REGION=ap-guangzhou
+   ```
+3. Run:
+   ```bash
+   npm run audio:build:tencent   # or: node tools/build-audio-tencent.mjs
+   ```
+   Dry-run: `npm run audio:build:tencent -- --dry-run`.
+
+Other kid-friendly voices to try by setting `TENCENT_VOICE_TYPE`:
+- `101040` — 智童 (333 Hz, slightly lower than default)
+- `101028` — 智童 (308 Hz, still clearly child)
+- `101008` — 智甜甜 (229 Hz, sweet girl — pitched lower than 童声)
+
+> All three builders read the same `tools/cues.cjs` manifest (49 entries as of the
 > panda-park migration) and overwrite `assets/audio/<id>.mp3`. Runtime audio
 > is served from those local files; no provider API is called during play.
 
@@ -205,6 +236,7 @@ assets/audio/             49 pre-baked MP3s
 assets/vendor/kaplay.mjs  Self-hosted Kaplay (no CDN)
 tools/cues.js             Audio cue manifest
 tools/build-audio.js      Azure Speech F0 synthesizer
+tools/build-audio-tencent.mjs  Tencent Cloud TTS synthesizer (kids voice)
 tools/make-placeholders.js  Generates silent MP3 stubs
 styles.css                DOM layer (root grid, rotate hint)
 ```

@@ -1,8 +1,10 @@
 // scenes/gameBounce.js — pop a balloon (bounce game from panda-park).
 //
-// Four balloons float on screen; one carries the missing addend (so that
-// a + balloon = 10). Tap the right one and it pops; wrong taps shake and
-// float away. Five rounds.
+// Four balloons float on screen with a "a + ? = N" equation above them. N is
+// not always 10 — the game teaches decomposition (a number can be split into
+// two parts), not just make-ten. The kid reads the equation, finds the
+// balloon whose number fills the ? so the pair sums to N, and pops it.
+// Wrong taps shake and float away.
 //
 // This is the only single-pick game in the panda-park set, so it doesn't use
 // the pairScene factory — a thin scene file is clearer than bending the pair
@@ -12,11 +14,15 @@
 import item from "../components/pickerItem.js";
 import stepBar from "../components/stepBar.js";
 import panda from "../components/panda.js";
+import expression from "../components/expression.js";
 import { iconButton } from "../components/choice.js";
 import { INK, PAPER, FONT, PINK } from "../components/theme.js";
 
-const TARGET = 10;
 const ROUND_COUNT = 5;
+// Each round uses a different target N (≤ 10) so the kid practices the
+// general "a + ? = N" decomposition, not just the make-ten case. 5 rounds
+// hit 5 different N values; the last slot is left as-is (no 11th).
+const TARGETS = [7, 5, 9, 6, 8];
 const ENCOURAGE = ["enc-great", "enc-awesome", "enc-amazing", "enc-nice"];
 
 let roundIdx = 0;
@@ -30,42 +36,56 @@ function shuffle(arr) {
   return c;
 }
 
-// One balloon per candidate. The correct answer is the unique value v such
-// that the implied `a = 10 - v` doesn't pair with any other candidate.
+// One balloon per candidate. The correct balloon is the unique v such that
+// a + v === N. Distractors never form a second valid pair with a or with
+// each other (i.e. no two distractor values sum to N either).
 function buildCandidates() {
-  // Deterministic-ish rotation so a 3-6 year old sees varied numbers.
-  const a = 2 + ((roundIdx * 3 + 1) % 7);   // 2..8
-  const correct = TARGET - a;
+  const N = TARGETS[roundIdx % TARGETS.length];
+  // Pick `a` deterministically from values that aren't the midpoint of N —
+  // i.e. avoid `a === N/2`, which would make the correct answer equal the
+  // visible addend (a "3 + ? = 6 → balloon 3" round reads as self-reference,
+  // not as a real decomposition). For odd N every value in [1, N-1] is
+  // valid; for even N we skip the midpoint.
+  const validA = [];
+  for (let v = 1; v < N; v++) {
+    if (v !== N - v) validA.push(v);
+  }
+  const a = validA[roundIdx % validA.length];
+  const correct = N - a;
   const set = new Set([correct]);
   let tries = 0;
   while (set.size < 4 && tries < 40) {
     tries += 1;
     const v = 1 + Math.floor(Math.random() * 9);
     if (set.has(v)) continue;
+    // Reject v if it completes N with anything already in the set —
+    // including the correct answer and the visible `a`. That guarantees
+    // there is exactly one balloon that satisfies `a + v = N`.
     let conflict = false;
     for (const existing of set) {
-      if (existing + v === TARGET) { conflict = true; break; }
+      if (existing + v === N) { conflict = true; break; }
     }
-    if (!conflict) set.add(v);
+    if (conflict) continue;
+    if (a + v === N) continue;
+    set.add(v);
   }
-  return { a, candidates: shuffle([...set]), correct };
+  return { a, N, candidates: shuffle([...set]), correct };
 }
 
-function saveProgress() {
-  const save = window.PandaSave?.load() || {};
-  const next = {
-    ...save,
-    unlockedGame: Math.max(save.unlockedGame || 1, 2),
-    starsByGame: {
-      ...(save.starsByGame || {}),
-      1: ((save.starsByGame || {})[1] || 0) + 1,
-    },
-  };
-  window.PandaSave?.save(next);
+// Mirror pairScene.saveProgress: completing game `levelId` unlocks levelId+1
+// and awards a star on levelId itself. (The previous hardcoded `2` and the
+// starsByGame[1] increment never advanced the unlock chain past balloon —
+// cloud stayed locked forever even after a perfect balloon run.)
+function saveProgress(levelId) {
+  const save = window.PandaSave?.load() || { unlockedLevel: 1, starsByLevel: {} };
+  save.unlockedGame = Math.max(save.unlockedGame || 1, levelId + 1);
+  save.starsByGame = save.starsByGame || {};
+  save.starsByGame[levelId] = (save.starsByGame[levelId] || 0) + 1;
+  window.PandaSave?.save(save);
 }
 
 function drawRound(k, ctx) {
-  const { a, candidates, correct } = ctx.roundData;
+  const { a, N, candidates, correct } = ctx.roundData;
 
   k.add([k.rect(k.width(), k.height()), k.color(...PAPER), k.z(-10)]);
 
@@ -85,20 +105,37 @@ function drawRound(k, ctx) {
   k.add([
     k.text(`第 ${roundIdx + 1} 轮 / 共 ${ROUND_COUNT} 轮`, { size: 28, font: FONT }),
     k.color(...INK),
-    k.pos(748, 196),
+    k.pos(748, 230),
     k.anchor("center"),
   ]);
 
   const buddy = panda(k, { x: 170, y: 640, size: 230 });
 
+  // The equation is the whole instruction: "a + ? = N". The kid reads the
+  // left side, picks the balloon that fills the ?, and pops it. Without
+  // showing `a` on screen, the kid has no way to know which balloon pairs
+  // up — that's the bug we hit when testing.
+  const eq = expression(k, {
+    slots: [a, "+", "?", "=", N],
+    x: 748, y: 400, size: 96,
+  });
+
+  // Short caption so the kid knows what to do with the equation (otherwise
+  // it's just a math expression they may not connect to the balloons).
+  // Positioned below the round counter (~y=230) with enough vertical room
+  // that the caption cluster doesn't overlap the counter text.
   k.add([
-    k.text(`扎破那个能凑成十的气球！`, { size: 56, font: FONT }),
+    k.text(`扎破那个能凑成 ${N} 的气球！`, { size: 40, font: FONT }),
     k.color(...INK),
-    k.pos(748, 310),
+    k.opacity(0.85),
+    k.pos(748, 300),
     k.anchor("center"),
   ]);
 
-  // 4 balloons, alternating heights.
+  // 4 balloons, alternating heights. Per user feedback 2026-08-09: no
+  // card frame behind the balloon, and the number renders directly on the
+  // pink body (not in a separate white circle). Matches
+  // panda-park/bounce.html: balloon-shape with a chunky white num inside.
   const cols = 4;
   const cellW = 240;
   const gridX = 748 - ((cols - 1) * cellW) / 2;
@@ -108,7 +145,22 @@ function drawRound(k, ctx) {
     const col = i % cols;
     const x = gridX + col * cellW;
     const y = gridY + (col % 2 ? -50 : 50);
-    items.push(item(k, { value: v, sprite: "balloon", x, y, size: 170 }));
+    items.push(item(k, {
+      value: v,
+      sprite: "balloon",
+      x,
+      y,
+      size: 170,
+      hideFace: true,     // no card frame around the balloon
+      noLabelBg: true,    // no white circle around the digit
+      // Balloon body is the ellipse cy=92 in a 200×240 sprite, so the
+      // visual center of the pink body is at sprite y=92. With sprite
+      // anchored at (x, y-16) and scaled 0.6, that point lands at
+      // scene y-32.8. -33 places the digit at the body's vertical
+      // center — exactly in the middle of the balloon (per user
+      // feedback 2026-08-09).
+      labelYOffset: -33,
+    }));
   });
 
   // One-shot tap handler: first balloon the player taps is judged.
@@ -123,23 +175,41 @@ function drawRound(k, ctx) {
         window.PandaAudio.playCue("bounce-pop");
         buddy.setMood("cheer", { silent: true });
         bar.setStep(2);
-        k.add([
-          k.text(`${a} + ${it.value} = ${TARGET}！`, { size: 64, font: FONT }),
-          k.color(...PINK),
-          k.pos(748, 540),
-          k.anchor("center"),
-        ]);
-        k.wait(1.6, () => {
-          if (roundIdx + 1 < ROUND_COUNT) {
-            roundIdx += 1;
-            k.go("gameBounce");
-          } else {
-            saveProgress();
-            window.PandaAudio.playCue("lvl-done");
-            roundIdx = 0;
-            k.go("gamesPicker");
-          }
+        // Reveal the answer in the equation — replace "?" with the picked
+        // balloon's number so the kid sees the pair they just completed.
+        eq.destroy();
+        expression(k, {
+          slots: [a, "+", it.value, "=", N],
+          x: 748, y: 400, size: 96,
+          colors: [undefined, undefined, PINK, undefined, undefined],
         });
+        // Wait for the "砰" pop sound to actually end before
+        // navigating. playAfter hooks bounce-pop's `ended` event —
+        // no k.wait guess needed (the old 1.6s could overlap if
+        // bounce-pop lasted longer, and would cut "lvl-done" short
+        // in the last round).
+        if (roundIdx + 1 < ROUND_COUNT) {
+          window.PandaAudio.playAfter(
+            "bounce-pop",
+            [],
+            { gapMs: 0, seqGapMs: 0 },
+            () => {
+              roundIdx += 1;
+              k.go("gameBounce");
+            },
+          );
+        } else {
+          saveProgress(2);  // gameBounce is levelId 2; unlocks cloud (id 3)
+          window.PandaAudio.playAfter(
+            "bounce-pop",
+            ["lvl-done"],
+            { gapMs: 0, seqGapMs: 0 },
+            () => {
+              roundIdx = 0;
+              k.go("gamesPicker");
+            },
+          );
+        }
       } else {
         it.shake();
         it.setDisabled(true);

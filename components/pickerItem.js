@@ -14,15 +14,22 @@
 import { INK, CARD, ORANGE, FONT } from "./theme.js";
 
 const SIZE = 180;        // hit-target and face size
-const SPRITE_SCALE = 0.6; // shrinks the prop sprite inside the button
+const SPRITE_SCALE = 0.6; // default: shrinks the prop sprite inside the button
 
 // area() needs an explicit shape, otherwise the root has no renderArea and
 // Kaplay's per-frame hit test throws. (Same gotcha as choice.js.)
-function hitShape(k, x, y, w, h) {
-  return k.area({ shape: new k.Rect(k.vec2(x - w / 2, y - h / 2), w, h) });
+//
+// The hit rect extends ABOVE the face when the label floats above the sprite
+// — otherwise tapping the digit (which lives at y-110) lands on empty space
+// above the face and the click misses the item entirely.
+function hitShape(k, x, y, w, h, labelAbove) {
+  const extraTop = labelAbove ? 80 : 0;
+  return k.area({
+    shape: new k.Rect(k.vec2(x - w / 2, y - h / 2 - extraTop), w, h + extraTop),
+  });
 }
 
-// item(parent, opts) — opts: { value, sprite?, x, y, fillColor?, size? }
+// item(parent, opts) — opts: { value, sprite?, x, y, fillColor?, size?, labelPosition?, labelYOffset?, spriteScale?, hideFace?, noLabelBg?, noLabelBgTextColor?, noLabelBgStrokeColor? }
 //
 //   parent   Kaplay scene root (k)
 //   value    the number this item carries (used by pairScene to compute sums)
@@ -31,6 +38,36 @@ function hitShape(k, x, y, w, h) {
 //   x, y     center position on the canvas
 //   fillColor   [r,g,b] override for the card face, default CARD
 //   size     override for the face hit-target (square)
+//   labelPosition "below" (default) keeps the digit inside/below the sprite;
+//               "above" floats it well above the sprite top (legacy boat
+//               default — most callers now pass labelYOffset directly).
+//               "on" means "render directly on the sprite body" — the digit
+//               uses the labelYOffset the caller passed (no fallback default
+//               for "on", since the right offset depends entirely on which
+//               sprite is in use).
+//   labelYOffset explicit Y offset of the digit relative to the item center.
+//               Use this when the preset "above"/"below"/"on" positions
+//               don't match what your sprite needs:
+//                 boat     labelYOffset: -60   (just above the boat)
+//                 balloon  labelYOffset: -33   (balloon body is in upper half)
+//                 cloud    labelYOffset: -16   (cloud body is sprite-centered)
+//               Overrides labelPosition when both are passed.
+//   spriteScale multiplier for the prop sprite (default 0.6). Pass smaller
+//               for tight grids (e.g. boat at 0.5) so adjacent sprites have
+//               visible breathing room.
+//   hideFace  true = skip drawing the rounded card behind the sprite. Boat
+//               and bounce use this so the sprite sits cleanly on the
+//               canvas, the way boat.html / bounce.html render them (no
+//               card frame around the prop). Hit-target stays the same.
+//   noLabelBg true = skip the white circle behind the digit. Combine with
+//               labelPosition: "on" (or a custom labelYOffset) so the number
+//               renders directly on the sprite. The text needs the right
+//               contrast against the sprite, controlled by:
+//   noLabelBgTextColor [r,g,b] color of the main digit (default white —
+//               reads on saturated sprites like pink balloons).
+//   noLabelBgStrokeColor [r,g,b] color of the drop-shadow outline (default
+//               INK). For light sprites (clouds) override both: dark text +
+//               white stroke so the number reads on the light-blue body.
 //
 // Returns { value, node, setDisabled, shake, highlight, unhighlight }.
 export default function item(parent, opts) {
@@ -43,32 +80,66 @@ export default function item(parent, opts) {
   const h = opts.size ?? SIZE;
   const fill = opts.fillColor || CARD;
   const hasSprite = spriteName && k.getSprite(spriteName);
+  const labelPosition = opts.labelPosition ?? "below";
+  const spriteScale = opts.spriteScale ?? SPRITE_SCALE;
+  const hideFace = !!opts.hideFace;
+  const noLabelBg = !!opts.noLabelBg;
+  // Offset of the digit label from the item center along Y. The explicit
+  // opts.labelYOffset always wins — the preset positions below are
+  // historical defaults from before each game passed its own offset.
+  //   above  → -140 (way above the sprite top — too high for current
+  //                  layouts; pass labelYOffset: -60 for a tighter boat)
+  //   on     → 0 (sprite center; works only if sprite is body-centered)
+  //   below  → 44 (just below the sprite center)
+  let labelYOffset = 0;
+  if (opts.labelYOffset !== undefined) {
+    labelYOffset = opts.labelYOffset;
+  } else if (hasSprite) {
+    if (labelPosition === "above") labelYOffset = -140;
+    else if (labelPosition === "on") labelYOffset = 0;
+    else labelYOffset = 44;  // "below"
+  }
 
-  const root = parent.add([k.pos(0, 0), k.z(opts.z ?? 0), hitShape(k, x, y, w, h)]);
+  const root = parent.add([k.pos(0, 0), k.z(opts.z ?? 0), hitShape(k, x, y, w, h, labelPosition === "above")]);
 
   // Soft offset slab so the item reads as a raised key.
-  root.add([
-    k.rect(w, h, { radius: 28 }),
-    k.color(...INK),
-    k.opacity(0.18),
-    k.pos(x, y + 8),
-    k.anchor("center"),
-  ]);
+  // Skipped when hideFace is set — the slab only makes sense behind a card.
+  if (!hideFace) {
+    root.add([
+      k.rect(w, h, { radius: 28 }),
+      k.color(...INK),
+      k.opacity(0.18),
+      k.pos(x, y + 8),
+      k.anchor("center"),
+    ]);
+  }
 
-  // Orange selection ring drawn BEHIND the face. Only the 8 px of ring that
-  // extends beyond the face shows, so the kid sees a bright border around the
-  // item they've selected — the original ordering drew it on top, which
-  // either covered the face or never appeared (opacity 0 was never cleared).
+  // Orange selection ring drawn BEHIND the face. Visible band is 16 px on
+  // each side (face 180 px, ring 212 px). The ring pulses (scale 1.0 → 1.06 →
+  // 1.0 on a sine) so a tap against a busy scene reads as a clear "yes, I
+  // picked this" beat instead of a static border.
+  const RING_PAD = 32;
   const ring = root.add([
-    k.rect(w + 16, h + 16, { radius: 32 }),
+    k.rect(w + RING_PAD, h + RING_PAD, { radius: 36 }),
     k.color(...ORANGE),
     k.outline(4, k.rgb(...INK)),
     k.pos(x, y),
     k.anchor("center"),
   ]);
   ring.hidden = true;
+  let pulseStart = 0;
+  let pulsing = false;
+  ring.onUpdate(() => {
+    if (!pulsing) return;
+    const t = k.time() - pulseStart;
+    const s = 1 + 0.06 * Math.sin(t * 10);
+    ring.scale = k.vec2(s, s);
+  });
 
-  const face = root.add([
+  // Rounded card face behind the sprite. Skipped when hideFace is set —
+  // boats and balloons sit on the canvas directly, with no card frame
+  // around them (matches panda-park/boat.html + bounce.html).
+  const face = hideFace ? null : root.add([
     k.rect(w, h, { radius: 28 }),
     k.color(...fill),
     k.outline(4, k.rgb(...INK)),
@@ -82,7 +153,7 @@ export default function item(parent, opts) {
       k.sprite(spriteName),
       k.pos(x, y - 16),
       k.anchor("center"),
-      k.scale(SPRITE_SCALE),
+      k.scale(spriteScale),
       k.z(1),
     ]);
   }
@@ -90,8 +161,10 @@ export default function item(parent, opts) {
   // White circle behind the number so the digit reads clearly no matter what
   // colour the sprite is. Without this, a brown boat hull swallowed the
   // black digit and kids couldn't tell what number was on which boat.
-  const labelY = y + (hasSprite ? 44 : 0);
-  const labelBg = root.add([
+  // Skipped when noLabelBg is set — balloons draw the number directly on
+  // the sprite with a dark stroke simulated by a slightly offset shadow.
+  const labelY = y + labelYOffset;
+  const labelBg = noLabelBg ? null : root.add([
     k.circle(40),
     k.color(255, 255, 255),
     k.outline(3, k.rgb(...INK)),
@@ -100,24 +173,48 @@ export default function item(parent, opts) {
     k.z(1.5),
   ]);
 
+  // When noLabelBg is set, the number renders directly on the sprite with
+  // a colored "drop-shadow" stroke simulated by drawing the same text in
+  // the stroke color at a slight downward offset. The cloud uses dark
+  // text + white stroke (light-cloud body), the balloon uses white text
+  // + dark stroke (saturated pink body). Callers override via
+  // noLabelBgTextColor / noLabelBgStrokeColor.
+  const noLabelBgText = opts.noLabelBgTextColor ?? [255, 255, 255];
+  const noLabelBgStroke = opts.noLabelBgStrokeColor ?? INK;
   const label = root.add([
     k.text(String(value), { size: 64, font: FONT }),
-    k.color(...INK),
+    k.color(...(noLabelBg ? noLabelBgText : INK)),
     k.pos(x, labelY),
     k.anchor("center"),
     k.z(2),
   ]);
+  // Drop-shadow stroke (only when noLabelBg is set; otherwise the white
+  // circle already gives the digit plenty of contrast).
+  const labelStroke = noLabelBg ? root.add([
+    k.text(String(value), { size: 64, font: FONT }),
+    k.color(...noLabelBgStroke),
+    k.opacity(0.7),
+    k.pos(x, labelY + 3),
+    k.anchor("center"),
+    k.z(1.9),
+  ]) : null;
 
   let disabled = false;
 
   const descriptor = {
     value,
     node: root,
+    // World position of the item center (not root.pos, which is always (0,0)).
+    // Sparkle bursts and similar effects need to anchor to the boat, not the
+    // origin, so we expose it on the descriptor.
+    x,
+    y,
     setDisabled(on) {
       disabled = !!on;
-      face.opacity = on ? 0.35 : 1;
+      if (face) face.opacity = on ? 0.35 : 1;
       label.opacity = on ? 0.35 : 1;
-      labelBg.opacity = on ? 0.35 : 1;
+      if (labelBg) labelBg.opacity = on ? 0.35 : 1;
+      if (labelStroke) labelStroke.opacity = on ? 0.2 : 0.55;
       ring.hidden = on || !ring.userVisible;
     },
     shake() {
@@ -137,10 +234,14 @@ export default function item(parent, opts) {
     highlight() {
       ring.userVisible = true;
       ring.hidden = disabled;
+      pulseStart = k.time();
+      pulsing = true;
     },
     unhighlight() {
       ring.userVisible = false;
       ring.hidden = true;
+      pulsing = false;
+      ring.scale = k.vec2(1, 1);
     },
   };
 

@@ -64,7 +64,7 @@ module.exports = [
   // round 0, then per-step contextual sentences take over (see the
   // lvl-3-step-N-* chunks below).
   { id: "lvl-2-intro", text: "小朋友好，现在我们一起学习凑十法" },
-  { id: "lvl-3-intro", text: "小朋友好，现在我们一起学习二十以内" },
+  { id: "lvl-3-intro", text: "小朋友好，现在我们一起学习二十以内的计算" },
 
   // ===== L2 per-step sentences (凑十法) =====
   // Each teaching beat is a long contextual sentence that walks the
@@ -88,11 +88,11 @@ module.exports = [
   { id: "lvl-2-step-2-q",          text: "的好朋友是几" },
   //
   // Step 3 — Split (小的拆成 need 和 几):
-  //   "[small] 需要拆一拆，大数 [big] 的好朋友是 [need]，那 [small]
-  //    能分成 [need] 和几？"
-  { id: "lvl-2-step-3-split-pre", text: "需要拆一拆，大数" },
-  { id: "lvl-2-step-3-friend-pre", text: "的好朋友是" },
-  { id: "lvl-2-step-3-then",      text: "，那" },
+  //   "[small] 需要拆一拆，[small] 能分成 [need] 和几？"
+  // The "大数 [big] 的好朋友是 [need]" middle beat was removed — the
+  // child already heard who the friend was in step 2, repeating it
+  // here just made the chain longer without adding information.
+  { id: "lvl-2-step-3-split-pre", text: "需要拆一拆" },
   { id: "lvl-2-step-3-can-split", text: "能分成" },
   { id: "lvl-2-step-3-q",         text: "和几？" },
   //
@@ -102,22 +102,24 @@ module.exports = [
   { id: "lvl-2-step-4-calc",  text: "，算一算" },
 
   // ===== L3 per-step sentences (二十以内) =====
-  // L3 teaches the "split 2-digit into 10 + ones, add the ones, add 10
-  // and the sum" strategy in 3 teaching beats. Built at runtime by
+  // L3 teaches the "split 2-digit into 10 + ones, then add the ones to
+  // b" strategy in 2 teaching beats. Built at runtime by
   // scenes/level3.js from these number-agnostic chunks plus the
   // universal n-* / q-* cues. Same set works for every L3 round (a is
   // always 11-19, ones = a % 10, b is 1-9, and ones + b <= 10 — no
   // carrying).
   //
   // Step 1 — Split the 2-digit:
-  //   "先把 [十][X] 拆成十加几"  (a is read as n-10 + n-{a-10} for teens)
-  { id: "lvl-3-step-1-pre", text: "先把" },
-  { id: "lvl-3-step-1-q",   text: "拆成十加几" },
+  //   "11+8等于几，我们先把 11 进行拆分，拆成十加几"
+  //     (a + b 引导, then "我们先把", then "进行拆分", then "拆成十加几")
+  { id: "lvl-3-step-1-pre",   text: "我们先把" },
+  { id: "lvl-3-step-1-split", text: "进行拆分" },
+  { id: "lvl-3-step-1-q",     text: "拆成十加几" },
   //
-  // Step 2 — Add the two ones: "[ones] 加 [b] 等于几"
-  // Step 3 — Add 10 and the sum: "十 加 [sum] 等于几"
-  // Both steps use only universal cues (n-*, q-plus, q-equals) — no
-  // number-agnostic chunks needed.
+  // Step 2 — Add the two ones: "个位相加 [ones] 加 [b] 等于几"
+  //   kid picks sum; the reward audio after correct reads "a+b=answer"
+  //   (uses universal n-* / q-plus / equals cues — no chunks needed).
+  { id: "lvl-3-step-2-pre", text: "个位相加" },
 
   // ===== spoken equation intro =====
   // Glued together by PandaAudio.playSequence. L1 step 1 chains
@@ -151,6 +153,19 @@ module.exports = [
   { id: "n-8",  text: "八" },
   { id: "n-9",  text: "九" },
   { id: "n-10", text: "十" },
+  // Teens (11-19) — previously chained as "n-10" + "n-{X}" which read
+  // as "十---五" (a pause between the two syllables) instead of as a
+  // single word "十五". Pre-baked so L3 step 1 ("先把 15 拆成十加几")
+  // reads naturally.
+  { id: "n-11", text: "十一" },
+  { id: "n-12", text: "十二" },
+  { id: "n-13", text: "十三" },
+  { id: "n-14", text: "十四" },
+  { id: "n-15", text: "十五" },
+  { id: "n-16", text: "十六" },
+  { id: "n-17", text: "十七" },
+  { id: "n-18", text: "十八" },
+  { id: "n-19", text: "十九" },
 
   // ===== encouragements =====
   // One exclamation each, rotated on a correct answer. Cheerful Mandarin
@@ -189,8 +204,11 @@ module.exports = [
   { id: "cloud-pair",  text: "抱到啦" },
   { id: "cloud-done",  text: "全找到啦" },
 
-  // Bounce — 扎气球. One balloon carries the friend count.
-  { id: "bounce-intro", text: "扎气球" },
+  // Bounce — 扎气球. Decomposition practice (a + ? = N, N ≤ 10). The intro
+  // is short and concrete: greet, name the equation, name the action. A 3-6
+  // year old can't follow a long explanation — they pick up the mechanic
+  // from the equation on screen + this one-sentence nudge.
+  { id: "bounce-intro", text: "小朋友好，看上面的等式，找那个能凑出答案的气球，扎破它。" },
   { id: "bounce-pop",   text: "砰" },
   { id: "bounce-done",  text: "全扎完啦" },
 

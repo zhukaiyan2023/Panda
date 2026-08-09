@@ -302,28 +302,49 @@ export default function createRoundScene(config) {
         // audio-gated advances like L1 step 2's equation read-back,
         // the promise resolves when the audio chain finishes, and
         // roundScene waits on it instead of guessing with
-        // advancePauseMs. The time-based advancePauseMs is kept as
-        // a safety ceiling in case the audio chain never resolves.
+        // advancePauseMs.
+        //
+        // For steps whose onAdvance returns no Promise, advance is
+        // gated on the cheer chain's last cue ("panda-celebrate")
+        // firing its `ended` event — fully event-driven. The old
+        // k.wait(d, advance) timer based the transition on a fixed
+        // ms guess, which the user flagged as too slow and prone to
+        // overlapping with panda-celebrate's tail.
+        //
+        // advancePauseMs is kept as a safety ceiling for both paths
+        // so a stuck audio chain (e.g. an audio element with no
+        // `ended` event ever firing on iPad Safari) can't lock the
+        // game. The `advanced` flag dedupes whichever wins.
         const advanceResult = stepCfg.onAdvance ? stepCfg.onAdvance(ctx) : null;
+        let advanced = false;
+        const adv = () => {
+          if (advanced) return;
+          advanced = true;
+          advance(prev);
+        };
         if (advanceResult && typeof advanceResult.then === 'function') {
-          let advanced = false;
-          const adv = () => {
-            if (advanced) return;
-            advanced = true;
-            advance(prev);
-          };
           advanceResult.then(adv);
-          if (stepCfg.advancePauseMs != null) {
-            const d = window.__skipTimers
-              ? TEST_DELAY
-              : stepCfg.advancePauseMs / 1000;
-            k.wait(d, adv);
-          }
         } else {
+          // Default: advance when the celebration audio's last cue
+          // ends. The cheer chain is set up above (playAfter(enc,
+          // [panda-celebrate])) and the same "panda-celebrate" cue is
+          // referenced by every level's fireStepAudio so each new
+          // step's audio chains off the celebration too — one shared
+          // anchor cue, no race between visual and audio gates.
+          const pcEl = window.PandaAudio.audio["panda-celebrate"];
+          if (pcEl) {
+            pcEl.addEventListener("ended", () => adv(), { once: true });
+          } else {
+            // panda-celebrate audio element missing — fall back to
+            // immediate advance so the kid isn't stuck.
+            adv();
+          }
+        }
+        if (stepCfg.advancePauseMs != null) {
           const d = window.__skipTimers
             ? TEST_DELAY
-            : (stepCfg.advancePauseMs ?? 400) / 1000;
-          k.wait(d, () => advance(prev));
+            : stepCfg.advancePauseMs / 1000;
+          k.wait(d, adv);
         }
       } else {
         state.buttons[idx].btn.setDisabled(true);
@@ -334,7 +355,10 @@ export default function createRoundScene(config) {
     function advance(prev) {
       const d = window.__skipTimers ? TEST_DELAY : STEP_DELAY;
       if (state.step >= config.steps.length) {
-        k.wait(d, finishRound);
+        // Last step done — finish the round directly. The audio gate
+        // already waited for the celebration (or reward) audio to
+        // finish before getting here, so no extra timer is needed.
+        finishRound();
         return;
       }
       state.step += 1;
@@ -358,7 +382,7 @@ export default function createRoundScene(config) {
           : d;
         autoAdvanceTimer = k.wait(stepDelay, () => {
           if (state.step >= config.steps.length) {
-            k.wait(d, finishRound);
+            finishRound();
           } else {
             advance(ctx.round);
           }
@@ -374,12 +398,22 @@ export default function createRoundScene(config) {
       if (ri + 1 < totalRounds) {
         roundIdx = ri + 1;
         k.go(config.sceneName);
-      } else {
-        saveProgress(config.levelId);
-        window.PandaAudio.playCue("lvl-done");
-        roundIdx = 0;
-        k.go("levelPicker");
+        return;
       }
+      // Last round over — play "lvl-done" then navigate. Chain via
+      // playAfter("panda-celebrate", ...) so we never cut lvl-done
+      // short with an immediate k.go (the old playCue + k.go two-
+      // liner pattern cropped the cue to its first syllable). The
+      // panda-celebrate cue already ended by the time we got here
+      // (advance was gated on it), so playAfter kicks off immediately.
+      saveProgress(config.levelId);
+      roundIdx = 0;
+      window.PandaAudio.playAfter(
+        "panda-celebrate",
+        ["lvl-done"],
+        { gapMs: 200, seqGapMs: 0 },
+        () => k.go("levelPicker"),
+      );
     }
 
     let autoAdvanceTimer = null;

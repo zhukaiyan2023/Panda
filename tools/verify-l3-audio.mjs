@@ -2,17 +2,20 @@
 // tools/verify-l3-audio.mjs — focused check that L3's per-step
 // contextual audio plays for every teaching beat.
 //
-// L3 (二十以内) has 3 teaching beats for the new "split 2-digit into
-// 10+ones, add the ones, add 10 and the sum" strategy. Each step's
-// audio is a short contextual sentence built from universal numbers +
-// number-agnostic chunks. The verifier drives round 1 ([11, 8] → 19)
-// in a real browser and confirms each step's chain started.
+// L3 (二十以内) has 3 teaching beats for the "split 2-digit into
+// 10 + ones, add the ones to b, add 10 to the sum" strategy. Each
+// step's audio is a short contextual sentence built from universal
+// numbers + number-agnostic chunks. The verifier drives round 1
+// ([11, 8] → 19) in a real browser and confirms each step's chain
+// started, plus the post-correct reward audio "11+8=19".
 //
 // Chain shapes for round [11, 8] (ones=1, sum=9):
 //   entry:  lvl-3-intro
-//   step 1: lvl-3-step-1-pre n-10 n-1 lvl-3-step-1-q   (teens split as 10+ones)
-//   step 2: n-1 q-plus n-8 q-equals
+//   step 1: n-11 q-plus n-8 q-equals lvl-3-step-1-pre n-11
+//           lvl-3-step-1-split lvl-3-step-1-q
+//   step 2: lvl-3-step-2-pre n-1 q-plus n-8 q-equals
 //   step 3: n-10 q-plus n-9 q-equals
+//   reward: n-11 q-plus n-8 equals n-19  (after step 3 correct)
 
 import { chromium } from "playwright";
 import path from "node:path";
@@ -23,6 +26,7 @@ const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..")
 const BUTTON_Y = 838;
 const ROW_TOLERANCE = 80;
 const PICK_DELAY_MS = 2500;  // let each step's chain START before we click
+const REWARD_DELAY_MS = 4500; // let the cheer chain + reward audio start
 
 function startServer() {
   return new Promise((resolve) => {
@@ -136,9 +140,10 @@ async function main() {
     console.error("FAIL: could not find step 3 button '19' (final answer)");
     process.exit(1);
   }
-
-  // Wait for step 3 chain to start.
-  await page.waitForTimeout(PICK_DELAY_MS);
+  // Wait for the cheer chain (enc + panda-celebrate) AND the reward
+  // audio "11+8=19" to fire. Cheer ~1.5s, reward ~1.5s, plus the
+  // gapMs. 4.5s gives a safe margin.
+  await page.waitForTimeout(REWARD_DELAY_MS);
 
   const events = await page.evaluate(() => window.__audioEvents);
 
@@ -150,14 +155,18 @@ async function main() {
 
   // Each step's "must" cues: only the unique contextual / number chunks
   // that distinguish that step from the others. Universal cues (q-plus,
-  // q-equals) overlap with L1/L2 so we don't assert on them — the
-  // contextual + number cues are sufficient to confirm each step's
+  // q-equals, equals) overlap with L1/L2 so we don't assert on them —
+  // the contextual + number cues are sufficient to confirm each step's
   // chain actually fired.
   const checks = [
     { name: "entry",            must: ["lvl-3-intro"] },
-    { name: "step 1 (split)",   must: ["lvl-3-step-1-pre", "n-10", "n-1", "lvl-3-step-1-q"] },
-    { name: "step 2 (add ones)", must: ["n-1", "n-8"] },
-    { name: "step 3 (total)",   must: ["n-10", "n-9"] },
+    {
+      name: "step 1 (split)",
+      must: ["lvl-3-step-1-pre", "n-11", "lvl-3-step-1-split", "lvl-3-step-1-q"],
+    },
+    { name: "step 2 (add ones)", must: ["lvl-3-step-2-pre", "n-1", "n-8"] },
+    { name: "step 3 (total)",    must: ["n-10", "n-9"] },
+    { name: "reward (11+8=19)",  must: ["n-11", "n-8", "n-19"] },
   ];
 
   let failed = false;

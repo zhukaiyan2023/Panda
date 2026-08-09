@@ -13,6 +13,7 @@
     "audio:build": "node tools/build-audio.js",
     "audio:build:edge": "node tools/build-audio-edge.mjs",
     "audio:build:elevenlabs": "node tools/build-audio-elevenlabs.mjs",
+    "audio:build:tencent": "node tools/build-audio-tencent.mjs",
     "test:visual": "playwright test",
     "deploy": "wrangler deploy",
     "preview": "wrangler dev"

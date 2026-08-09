@@ -132,14 +132,13 @@ export default function createPairScene(config) {
         ctx.items[bIdx].setDisabled(true);
         ctx.onCorrect(ctx, a, b);
 
-        window.PandaAudio.playCue(
-          config.correctCue?.(a, b) || ENCOURAGE[state.foundPairs % ENCOURAGE.length],
-        );
+        const enc = config.correctCue?.(a, b) || ENCOURAGE[state.foundPairs % ENCOURAGE.length];
+        window.PandaAudio.playCue(enc);
         // Chain the panda's own cheer ("好棒") off the enc cue so the
         // kid hears "耶！" then "好棒" without overlap. roundScene does
         // the same — keep both call sites consistent.
         window.PandaAudio.playAfter(
-          config.correctCue?.(a, b) || ENCOURAGE[state.foundPairs % ENCOURAGE.length],
+          enc,
           ["panda-celebrate"],
           { gapMs: 200, seqGapMs: 0 },
         );
@@ -148,29 +147,47 @@ export default function createPairScene(config) {
         if (state.foundPairs >= totalSteps) {
           state.done = true;
           bar.setStep(totalSteps + 1);
-          k.wait(1.0, () => {
-            window.PandaAudio.playCue(config.roundEndCue(round));
-            if (roundIdx + 1 < config.roundCount) {
-              roundIdx += 1;
-              k.go(config.sceneName);
-            } else {
-              saveProgress(config.levelId);
-              window.PandaAudio.playCue("lvl-done");
-              roundIdx = 0;
-              k.go("gamesPicker");
-            }
-          });
+          // Wait for the "好棒" celebration to actually end before
+          // playing the round-end cue and navigating. playAfter hooks
+          // panda-celebrate's `ended` event — no k.wait guess needed.
+          // If roundEndCue returns null (gameBoat, etc.), the chain is
+          // empty and onComplete fires immediately after the gap.
+          if (roundIdx + 1 < config.roundCount) {
+            const endIds = config.roundEndCue(round) ? [config.roundEndCue(round)] : [];
+            window.PandaAudio.playAfter(
+              "panda-celebrate",
+              endIds,
+              { gapMs: 0, seqGapMs: 0 },
+              () => {
+                roundIdx += 1;
+                k.go(config.sceneName);
+              },
+            );
+          } else {
+            saveProgress(config.levelId);
+            window.PandaAudio.playAfter(
+              "panda-celebrate",
+              ["lvl-done"],
+              { gapMs: 0, seqGapMs: 0 },
+              () => {
+                roundIdx = 0;
+                k.go("gamesPicker");
+              },
+            );
+          }
         } else {
           bar.setStep(state.foundPairs + 1);
           // Clear selection so the player can pick the next pair.
           state.selections.length = 0;
         }
       } else {
-        // Wrong — shake both items, encourage, no progress.
+        // Wrong — shake both items, encourage, no progress. The "enc-try"
+        // audio is fired by setMood("think") below via panda.js's built-in
+        // MOOD_CUE mapping; don't playCue("enc-try") here too — that would
+        // double-fire and overlap with the panda cheer.
         ctx.items[aIdx].shake();
         ctx.items[bIdx].shake();
         ctx.onWrong(ctx, a, b);
-        window.PandaAudio.playCue("enc-try");
       }
     }
 
@@ -216,9 +233,14 @@ export default function createPairScene(config) {
     }
     const round = {
       index: roundIdx,
-      candidates: config.candidates(roundIdx),
-      pairs: config.pairs(roundIdx),
     };
+    // Build candidates first, then derive pairs from them — so the round's
+    // "valid pairs" always refer to numbers actually on the board. The
+    // earlier version called candidates() and pairs() separately; a pairs
+    // generator that re-rolled its own candidates could advertise a pair
+    // that wasn't shown.
+    round.candidates = config.candidates(roundIdx);
+    round.pairs = config.pairs(roundIdx, round.candidates);
     drawRound(k, round);
   };
 }

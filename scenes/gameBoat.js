@@ -2,14 +2,13 @@
 //
 // Six boats float on a river. Five rounds; each round picks a fresh
 // friends-of-10 pair + four non-conflicting distractors. The player taps two
-// boats; if they sum to 10, the bridge fills with sequential pops, sparkles
-// burst around the picked boats, a "过河啦！" header bounces in, and the
-// panda cheers — five small visual beats so the kid feels rewarded, not just
-// told they won.
+// boats; if they sum to 10, the two boats bounce, sparkles burst around the
+// picked boats, a "过河啦！" header bounces in, and the panda cheers — four
+// small visual beats so the kid feels rewarded, not just told they won.
 //
-// Mechanic note for a 3-6 year old: the visual reward (a full bridge of 10)
-// directly mirrors the arithmetic they just performed, which is why this game
-// is more memorable than the equivalent 4-button math question.
+// The digit on each boat floats above the sprite (see pickerItem.js
+// labelPosition: "above") so the number reads against sky instead of being
+// swallowed by the brown hull.
 
 import createPairScene, { shuffle } from "./pairScene.js";
 import item from "../components/pickerItem.js";
@@ -23,39 +22,36 @@ const FRIENDS = [
   [6, 4], [7, 3], [8, 2], [9, 1],
 ];
 
-// Picks `n` distinct candidates that include exactly one valid pair. The four
-// distractors never form a second valid pair with anything else on screen,
-// otherwise the player can win in more than one way.
+// Picks 6 candidates that include exactly one valid pair. The four distractors
+// never form a second valid pair with anything else on screen, otherwise the
+// player can win in more than one way.
 //
-// Uses an array (not a Set) so the [5, 5] pair keeps both 5s — a Set would
-// dedupe them and the round would be impossible to win. The conflict check
-// still treats any value that completes a 10 with the pair itself as part
-// of the pair (only relevant when both pair addends are equal).
+// Uses a Map of counts (not a Set) so [5, 5] keeps both 5s exactly — a Set
+// dedupes them, but if we allowed unlimited 5s every boat would become a 5
+// and the round would have many "right" answers (or none if all candidates
+// are identical and the kid never guesses two 5s).
 function candidatesFor(roundIdx) {
   const pair = FRIENDS[roundIdx % FRIENDS.length];
   const list = [...pair];
-  const have = new Set(list);
-  // Random digits 1..9 that don't complete a 10 with anything already in the
-  // list, except values that ARE part of the intended pair.
+  const counts = new Map();
+  list.forEach((v) => counts.set(v, (counts.get(v) || 0) + 1));
   while (list.length < 6) {
     const v = 1 + Math.floor(Math.random() * 9);
+    // Reject if v completes 10 with anything already in the list — that
+    // would create a second valid pair. (The pair itself is already in the
+    // list, so we don't need a special case here.)
     let conflict = false;
-    for (const existing of have) {
-      if (existing + v !== TARGET) continue;
-      // v + existing = 10. It's only allowed if (existing, v) IS the pair
-      // we're building toward. For [5, 5] that means v=5 with existing=5.
-      const isPairValue =
-        (existing === pair[0] && v === pair[1]) ||
-        (existing === pair[1] && v === pair[0]);
-      if (!isPairValue) { conflict = true; break; }
+    for (const existing of counts.keys()) {
+      if (existing + v === TARGET) { conflict = true; break; }
     }
     if (conflict) continue;
-    // Skip a duplicate that isn't part of the pair (would only add visual
-    // confusion). For [5, 5] we explicitly allow a second 5 here.
-    const isPairValue = (v === pair[0] && v === pair[1]);
-    if (have.has(v) && !isPairValue) continue;
+    // Reject duplicates. For [5, 5] the pair already contributes exactly 2
+    // fives — adding a third 5 would make every two-5s pick a valid pair
+    // and dilute the round. For [1, 9] etc., one copy of each value is
+    // already in the list; adding a duplicate just confuses the kid.
+    if (counts.has(v)) continue;
     list.push(v);
-    have.add(v);
+    counts.set(v, 1);
   }
   return shuffle(list);
 }
@@ -65,48 +61,55 @@ function pairsFor(roundIdx) {
   return [[a, b]];
 }
 
-// Body renders 6 boats in a 3x2 grid, plus a 10-slot bridge above that fills
-// sequentially on a correct pair.
+// Body renders 6 boats in a 3x2 grid. The digit on each boat floats above the
+// sprite (labelPosition: "above") so it reads against sky instead of getting
+// swallowed by the brown hull.
 function body(ctx) {
   const { k, round } = ctx;
   const values = round.candidates;
 
-  // Bridge header — a "凑成十" label plus 10 empty wooden slots. The label
-  // makes the bridge's purpose obvious (10 slots = the sum of the pair);
-  // without it kids saw 10 cream rectangles and didn't know what they meant.
-  k.add([
-    k.text("凑成十", { size: 44, font: FONT }),
-    k.color(...INK),
-    k.opacity(0.85),
-    k.pos(748, 360),
-    k.anchor("center"),
-  ]);
-  for (let i = 0; i < TARGET; i++) {
-    const x = 748 - (TARGET - 1) * 56 + i * 112;
-    const y = 450;
-    k.add([
-      k.rect(96, 56, { radius: 12 }),
-      k.color(255, 250, 240),
-      k.outline(3, k.rgb(...INK)),
-      k.pos(x, y),
-      k.anchor("center"),
-      "bridge_slot",
-    ]);
-  }
-
-  // 6 boats in a 3x2 grid below the bridge.
+  // 6 boats in a 3×2 grid. Numbers sit above the boat, not on the hull —
+  // kid sees boat+sail against the water and the digit floating over it.
+  //
+  // Sizing/spacing (per user feedback 2026-08-09: previous boats still felt
+  // too big, and the row-2 number label was clipping into the row-1 face).
+  //   size 180 → 160     (smaller face, slightly more breathing room)
+  //   spriteScale 0.45 → 0.4  (boat sprite inside the face)
+  //   gridY 700 → 580    (move boats up; leaves room for the prompt above
+  //                       and the bottom edge for the panda)
+  //   cellH 220 → 260    (gap between row-1 face bottom and row-2 label top
+  //                       = (580+260) − 140 − 40 − (580+80) = 0 — they
+  //                       touch but don't overlap)
   const cols = 3;
-  const cellW = 280;
-  const cellH = 220;
+  const cellW = 320;
+  const cellH = 260;
   const gridX = 748 - ((cols - 1) * cellW) / 2;
-  const gridY = 700;
+  const gridY = 580;
   const items = [];
   values.forEach((v, i) => {
     const col = i % cols;
     const row = Math.floor(i / cols);
     const x = gridX + col * cellW;
     const y = gridY + row * cellH;
-    items.push(item(k, { value: v, sprite: "boat", x, y, size: 180 }));
+    items.push(item(k, {
+      value: v,
+      sprite: "boat",
+      x,
+      y,
+      size: 160,
+      spriteScale: 0.4,    // tighter than default 0.6 — boats felt crowded
+      // Number sits just above the boat's flag/mast (sprite top is at
+      // y-67, so y-60 places the number circle 7px above the flag —
+      // matches the "top: -8px" pattern from panda-park/boat.html).
+      // Earlier we used labelPosition: "above" which put the number at
+      // y-140 (way above the boat) — the kid saw the digit floating in
+      // empty sky with the boat far below it. -60 keeps the digit on
+      // the boat.
+      labelYOffset: -60,
+      hideFace: true,      // no card frame around the boat (matches
+                           // panda-park/boat.html — the boat sits on the
+                           // water, the digit floats above it)
+    }));
   });
   ctx.items = items;
 }
@@ -121,36 +124,33 @@ export default createPairScene({
   pairs: pairsFor,
   prompt: () => "选两艘小船，让它们加起来是十。",
   body,
-  // On a correct pair: bridge slots fill sequentially with a pop, sparkles
-  // burst around the two picked boats, a big "过河啦！" header bounces in,
-  // and the equation appears. Five beats of feedback so the kid feels
-  // rewarded rather than told.
+  // On a correct pair: the two boats bounce, sparkles burst around them,
+  // a big "过河啦！" header bounces in, and the equation appears. Four beats
+  // of feedback so the kid feels rewarded rather than told.
   onCorrect(ctx, a, b) {
     const k = ctx.k;
 
-    // 1. Bridge slots fill sequentially with a pop scale. Each slot
-    // recolours to soft yellow + bounces (1 → 1.25 → 1) before settling.
-    const slots = k.get("bridge_slot", { recursive: true });
-    slots.forEach((slot, i) => {
-      k.wait(i * 0.06, () => {
-        slot.color = k.rgb(255, 213, 90);
-        slot.scale = k.vec2(1, 1);
-        k.tween(1, 1.25, 0.08, (v) => { slot.scale = k.vec2(v, v); });
-        k.wait(0.08, () => {
-          k.tween(1.25, 1, 0.12, (v) => { slot.scale = k.vec2(v, v); });
+    // 1. The two correct boats bounce — quick 1 → 1.3 → 1 scale pulse so the
+    // kid visually sees "those are the ones I picked, and they did the thing."
+    const correct = ctx.items.filter((it) => it.value === a || it.value === b);
+    correct.forEach((it, i) => {
+      k.wait(i * 0.08, () => {
+        const root = it.node;
+        root.scale = k.vec2(1, 1);
+        k.tween(1, 1.3, 0.12, (v) => { root.scale = k.vec2(v, v); });
+        k.wait(0.12, () => {
+          k.tween(1.3, 1, 0.18, (v) => { root.scale = k.vec2(v, v); });
         });
       });
     });
 
     // 2. Sparkles burst around each of the two correct boats. We add ✨
     // glyphs at random offsets, fade them in/out with random delays so they
-    // don't all fire on the same frame.
-    const sparkleTargets = ctx.items.filter(
-      (it) => it.value === a || it.value === b,
-    );
-    sparkleTargets.forEach((it) => {
-      const cx = it.node.pos?.x ?? 0;
-      const cy = it.node.pos?.y ?? 0;
+    // don't all fire on the same frame. Anchored to descriptor.x/y (root.pos
+    // is always (0, 0); the boat's world coords live on the descriptor).
+    correct.forEach((it) => {
+      const cx = it.x;
+      const cy = it.y;
       for (let s = 0; s < 6; s++) {
         const sparkle = k.add([
           k.text("✨", { size: 36 }),
@@ -173,14 +173,15 @@ export default createPairScene({
       }
     });
 
-    // 3. Big "过河啦！" header bounces in between the bridge and the boats.
-    // Scale starts small (0.5), springs up past 1, settles back to 1 — the
-    // classic "appearing" beat that kids react to.
+    // 3. Big "过河啦！" header bounces in above the boats. Scale starts small
+    // (0.5), springs up past 1, settles back to 1 — the classic "appearing"
+    // beat that kids react to. Lives in the gap between the prompt (y≈310)
+    // and the top-row boat labels (y≈550).
     const celebrate = k.add([
       k.text("过河啦！", { size: 88, font: FONT }),
       k.color(...ORANGE),
       k.outline(4, k.rgb(...INK)),
-      k.pos(748, 560),
+      k.pos(748, 400),
       k.anchor("center"),
       k.opacity(0),
       k.scale(0.5),
@@ -198,12 +199,12 @@ export default createPairScene({
       });
     });
 
-    // 4. Equation fades in below the celebrate text. Placed low enough that
-    // it doesn't overlap the bridge slots above or the boats below.
+    // 4. Equation fades in below the celebrate text, in the empty band
+    // between the celebration and the top-row boat labels.
     const reward = k.add([
       k.text(`${a} + ${b} = ${a + b}！`, { size: 64, font: FONT }),
       k.color(...INK),
-      k.pos(748, 620),
+      k.pos(748, 500),
       k.anchor("center"),
       k.opacity(0),
     ]);

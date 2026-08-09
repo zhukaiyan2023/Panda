@@ -30,17 +30,17 @@ function shuffle(arr) {
   return c;
 }
 
-function saveProgress() {
-  const save = window.PandaSave?.load() || {};
-  const next = {
-    ...save,
-    unlockedGame: Math.max(save.unlockedGame || 1, 5),
-    starsByGame: {
-      ...(save.starsByGame || {}),
-      4: ((save.starsByGame || {})[4] || 0) + 1,
-    },
-  };
-  window.PandaSave?.save(next);
+// Mirror pairScene.saveProgress. gameWhack is the last game (id 5), so
+// levelId+1 = 6 has nothing to unlock — the `max` keeps the existing value.
+// (The previous hardcoded `5` and starsByGame[4] increment were both wrong
+// for the same reason as gameBounce: balloon's custom saveProgress only
+// unlocked balloon itself, breaking the chain.)
+function saveProgress(levelId) {
+  const save = window.PandaSave?.load() || { unlockedLevel: 1, starsByLevel: {} };
+  save.unlockedGame = Math.max(save.unlockedGame || 1, levelId + 1);
+  save.starsByGame = save.starsByGame || {};
+  save.starsByGame[levelId] = (save.starsByGame[levelId] || 0) + 1;
+  window.PandaSave?.save(save);
 }
 
 export default function scene(k) {
@@ -260,7 +260,7 @@ export default function scene(k) {
     state.finished = true;
     if (won) {
       window.PandaAudio.playCue("whack-done");
-      saveProgress();
+      saveProgress(5);  // gameWhack is the last game (levelId 5)
       k.add([
         k.text("找全 5 对啦！你真棒！", { size: 72, font: FONT }),
         k.color(...ORANGE),
@@ -295,8 +295,13 @@ export default function scene(k) {
     }
   });
 
-  // Fire the first "Go!" cue, then start spawning.
-  k.wait(0.4, () => window.PandaAudio.playCue("whack-start"));
+  // Fire the "Go!" cue after the intro's `ended` event — the previous
+  // 0.4s k.wait could overlap if "whack-intro" took longer to play
+  // than 400ms, and could cut "whack-start" short if it took less.
+  window.PandaAudio.playAfter("whack-intro", ["whack-start"], {
+    gapMs: 0,
+    seqGapMs: 0,
+  });
   k.loop(SPAWN_INTERVAL, spawn);
   spawn();   // immediate first spawn
 }

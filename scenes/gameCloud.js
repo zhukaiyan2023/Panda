@@ -1,114 +1,406 @@
-// scenes/gameCloud.js — hug a pair (cloud game from panda-park).
+// scenes/gameCloud.js — 3-number addition (cloud game from panda-park).
 //
-// Three rounds. Each round hides 2 or 3 valid friends-of-10 pairs inside 6
-// clouds; the player must find every pair before the round ends. Distinct from
-// boat because a single round demands multiple correct pairs.
+// Five rounds, alternating between two types:
+//   1. 凑十 (make10):     three addends where two sum to 10. Total in
+//                          [11, 19]. Equation: "a + b + c = ?" then on
+//                          correct, "10 + c = total" — emphasizes the
+//                          make-10 strategy.
+//   2. 凑小 (makeSmall):  three addends summing to < 10. Equation:
+//                          "a + b + c = ?" then "a + b + c = total".
+//
+// Each round displays the equation at the top and FOUR cloud answer
+// choices — one correct, three plausible wrongs (within ±3 of the right
+// answer). The kid reads the equation, mentally computes the sum, and
+// taps the cloud with the correct answer.
+//
+// Example (user-provided):
+//   题目: 2 + 3 + 3 = ?
+//   答案: 8 (correct), 9, 10, 11
+//
+// Wrong taps shake + grey out (kid can keep trying). Correct taps
+// celebrate the cloud, resolve the equation, and end the round.
 
-import createPairScene, { shuffle } from "./pairScene.js";
 import item from "../components/pickerItem.js";
-import { INK, FONT, PINK } from "../components/theme.js";
+import panda from "../components/panda.js";
+import expression from "../components/expression.js";
+import { iconButton } from "../components/choice.js";
+import {
+  INK, PAPER, FONT, ORANGE, ORANGE_DEEP, PINK, BLUE, SUCCESS, YELLOW,
+} from "../components/theme.js";
 
+const ROUND_COUNT = 5;
+const ROUND_TYPES = ["make10", "makeSmall", "make10", "makeSmall", "make10"];
 const TARGET = 10;
-const ROUND_PAIR_COUNT = [2, 3, 3];
+const ALL_FRIENDS = [[1, 9], [2, 8], [3, 7], [4, 6], [5, 5]];
 
-const FRIENDS = [
-  [1, 9], [2, 8], [3, 7], [4, 6], [5, 5],
-  [6, 4], [7, 3], [8, 2], [9, 1],
-];
+let roundIdx = 0;
 
-// Each round hides a different number of pairs (escalating difficulty).
-function candidatesFor(roundIdx) {
-  const pairCount = ROUND_PAIR_COUNT[roundIdx] || 2;
-  const pairs = [];
-  const used = new Set();
+function shuffle(arr) {
+  const c = arr.slice();
+  for (let i = c.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [c[i], c[j]] = [c[j], c[i]];
+  }
+  return c;
+}
+
+function saveProgress(levelId) {
+  const save = window.PandaSave?.load() || { unlockedLevel: 1, starsByLevel: {} };
+  save.unlockedGame = Math.max(save.unlockedGame || 1, levelId + 1);
+  save.starsByGame = save.starsByGame || {};
+  save.starsByGame[levelId] = (save.starsByGame[levelId] || 0) + 1;
+  window.PandaSave?.save(save);
+}
+
+// Pick `count` unique wrong answers within [lo, hi] — `correct` is excluded.
+// Tries random offsets first (so wrong values look like common miscalculations
+// — off by 1, off by 2, etc.), then falls back to a deterministic sweep
+// through ±1, ±2, ±3 if random picks keep colliding.
+function pickWrongs(correct, count, lo, hi, offsets) {
+  const wrongs = [];
   let attempts = 0;
-  while (pairs.length < pairCount && attempts < 40) {
-    attempts += 1;
-    const [a, b] = FRIENDS[Math.floor(Math.random() * FRIENDS.length)];
-    const key = `${Math.min(a, b)}-${Math.max(a, b)}`;
-    if (pairs.some((p) => `${Math.min(p[0], p[1])}-${Math.max(p[0], p[1])}` === key)) continue;
-    if (used.has(a) || used.has(b)) continue;
-    pairs.push([a, b]);
-    used.add(a); used.add(b);
-  }
-  // Fill remaining cloud slots with non-conflicting distractors.
-  const set = new Set();
-  pairs.forEach((p) => p.forEach((v) => set.add(v)));
-  while (set.size < 6) {
-    const v = 1 + Math.floor(Math.random() * 9);
-    let conflict = false;
-    for (const existing of set) {
-      if (existing + v === TARGET) { conflict = true; break; }
+  while (wrongs.length < count && attempts < 120) {
+    const offset = offsets[Math.floor(Math.random() * offsets.length)];
+    const w = correct + offset;
+    if (w >= lo && w <= hi && w !== correct && !wrongs.includes(w)) {
+      wrongs.push(w);
     }
-    if (!conflict && !set.has(v)) set.add(v);
+    attempts++;
   }
-  return shuffle([...set]);
-}
-
-function pairsFor(roundIdx) {
-  const count = ROUND_PAIR_COUNT[roundIdx] || 2;
-  const cands = candidatesFor(roundIdx);
-  const pairs = [];
-  for (let i = 0; i < cands.length && pairs.length < count; i++) {
-    for (let j = i + 1; j < cands.length && pairs.length < count; j++) {
-      if (cands[i] + cands[j] === TARGET) pairs.push([cands[i], cands[j]]);
+  // Deterministic fallback: walk ±1, ±2, ±3, ... until we hit `count`.
+  if (wrongs.length < count) {
+    for (let d = 1; d <= 5 && wrongs.length < count; d++) {
+      for (const sign of [-1, 1]) {
+        const w = correct + sign * d;
+        if (w >= lo && w <= hi && w !== correct && !wrongs.includes(w)) {
+          wrongs.push(w);
+          if (wrongs.length >= count) break;
+        }
+      }
     }
   }
-  return pairs.slice(0, count);
+  return wrongs.slice(0, count);
 }
 
-function body(ctx) {
-  const { k, round } = ctx;
-  const cols = 3;
-  const cellW = 280;
-  const cellH = 220;
-  const gridX = 748 - ((cols - 1) * cellW) / 2;
-  const gridY = 680;
+// Type 1 (凑十): two addends sum to 10, third is a 1-9 decoy. Total in
+// [11, 19]. Wrong answers in [9, 21] (clamped to avoid 0 and 22+).
+function buildMake10Round() {
+  const pair = ALL_FRIENDS[Math.floor(Math.random() * ALL_FRIENDS.length)];
+  const c = 1 + Math.floor(Math.random() * 9);
+  const correct = TARGET + c;
+  const addends = [pair[0], pair[1], c];
+  const wrongs = pickWrongs(correct, 3, 9, 21, [-2, -1, 1, 2, 3]);
+  return {
+    type: "make10",
+    pair: [pair[0], pair[1]],
+    decoy: c,
+    addends,
+    answerChoices: shuffle([correct, ...wrongs]),
+    correct,
+  };
+}
 
-  // Tiny "found pairs" progress row above the grid.
-  const total = round.pairs.length;
-  for (let i = 0; i < total; i++) {
-    k.add([
-      k.rect(96, 36, { radius: 18 }),
-      k.color(255, 213, 90),
-      k.outline(3, k.rgb(...INK)),
-      k.pos(748 - (total - 1) * 56 + i * 112, 500),
-      k.anchor("center"),
-    ]);
-  }
+// Type 2 (凑小): three addends in [1, 5] summing to < 10, no pair sums to
+// 10. Wrong answers in [1, 11].
+function buildMakeSmallRound() {
+  let a, b, c;
+  let attempts = 0;
+  do {
+    a = 1 + Math.floor(Math.random() * 5);
+    b = 1 + Math.floor(Math.random() * 5);
+    c = 1 + Math.floor(Math.random() * 5);
+    attempts++;
+    if (attempts > 60) break;
+  } while (a + b + c >= 10 || a + b === 10 || a + c === 10 || b + c === 10);
+  const correct = a + b + c;
+  const addends = [a, b, c];
+  const wrongs = pickWrongs(correct, 3, 1, 11, [-2, -1, 1, 2]);
+  return {
+    type: "makeSmall",
+    addends,
+    answerChoices: shuffle([correct, ...wrongs]),
+    correct,
+  };
+}
 
-  const items = [];
-  round.candidates.forEach((v, i) => {
-    const col = i % cols;
-    const row = Math.floor(i / cols);
-    const x = gridX + col * cellW;
-    const y = gridY + row * cellH;
-    items.push(item(k, { value: v, sprite: "cloud", x, y, size: 180 }));
+function buildRound(roundIdx) {
+  const type = ROUND_TYPES[roundIdx % ROUND_TYPES.length];
+  return type === "make10" ? buildMake10Round() : buildMakeSmallRound();
+}
+
+// === Celebration ========================================================
+// On a correct tap: scale-pulse the cloud and burst sparkles around it.
+// Mirrors the boat game's reward beat so the kid feels a strong "yes!"
+// without changing the round's chrome.
+function celebrateCorrect(k, it) {
+  const root = it.node;
+  root.scale = k.vec2(1, 1);
+  k.tween(1, 1.3, 0.15, (v) => { root.scale = k.vec2(v, v); });
+  k.wait(0.15, () => {
+    k.tween(1.3, 1, 0.18, (v) => { root.scale = k.vec2(v, v); });
   });
-  ctx.items = items;
+  for (let s = 0; s < 6; s++) {
+    const sparkle = k.add([
+      k.text("✨", { size: 36 }),
+      k.color(...ORANGE),
+      k.pos(
+        it.x + (Math.random() - 0.5) * 140,
+        it.y + (Math.random() - 0.5) * 140,
+      ),
+      k.anchor("center"),
+      k.opacity(0),
+      k.z(5),
+    ]);
+    const delay = 0.2 + Math.random() * 0.4;
+    k.wait(delay, () => {
+      k.tween(0, 1, 0.2, (v) => { sparkle.opacity = v; });
+      k.wait(0.5, () => {
+        k.tween(1, 0, 0.3, (v) => { sparkle.opacity = v; });
+      });
+    });
+  }
 }
 
-export default createPairScene({
-  levelId: 2,
-  sceneName: "gameCloud",
-  introCue: "cloud-intro",
-  roundCount: 3,
-  target: TARGET,
-  candidates: candidatesFor,
-  pairs: pairsFor,
-  prompt: () => "把所有能凑成十的好朋友都找出来。",
-  body,
-  onCorrect(ctx, a, b) {
-    // A pair found — float the chosen clouds upward briefly.
-    const k = ctx.k;
-    window.PandaAudio.playCue("cloud-pair");
-    k.add([
-      k.text(`${a} + ${b} = ${TARGET}！`, { size: 52, font: FONT }),
-      k.color(...PINK),
-      k.pos(748, 580),
-      k.anchor("center"),
-    ]);
-  },
-  roundEndCue: () => null,
-  replayCue: () => null,
-});
+// === Victory modal ======================================================
+function showVictory(k, total, isLastRound, onNext) {
+  k.add([
+    k.rect(k.width(), k.height()),
+    k.color(0, 0, 0),
+    k.opacity(0.4),
+    k.pos(0, 0),
+    k.z(40),
+  ]);
+  const cardW = 760;
+  const cardH = 440;
+  const cx = k.width() / 2;
+  const cy = k.height() / 2;
+  k.add([
+    k.rect(cardW, cardH, { radius: 32 }),
+    k.color(...YELLOW),
+    k.outline(8, k.rgb(255, 255, 255)),
+    k.pos(cx, cy),
+    k.anchor("center"),
+    k.z(41),
+  ]);
+  k.add([
+    k.text("🌈", { size: 140 }),
+    k.pos(cx, cy - 130),
+    k.anchor("center"),
+    k.z(42),
+  ]);
+  k.add([
+    k.text(isLastRound ? "全部答对啦！" : "答对啦！", { size: 64, font: FONT }),
+    k.color(...INK),
+    k.pos(cx, cy + 0),
+    k.anchor("center"),
+    k.z(42),
+  ]);
+  k.add([
+    k.text(`答案是 ${total}！`, { size: 36, font: FONT }),
+    k.color(...SUCCESS),
+    k.pos(cx, cy + 70),
+    k.anchor("center"),
+    k.z(42),
+  ]);
+  iconButton(k, {
+    label: isLastRound ? "完成 🏠" : "下一轮 ▶",
+    x: cx, y: cy + 150, w: 360, h: 90, fontSize: 36,
+    z: 43,
+    onClick: onNext,
+  });
+}
+
+export default function scene(k) {
+  if (roundIdx === 0) window.PandaAudio.playCue("cloud-intro");
+
+  const round = buildRound(roundIdx);
+
+  // === Background ===
+  k.add([k.rect(k.width(), k.height()), k.color(...PAPER), k.z(-10)]);
+
+  // === HUD (back + round pill) ==========================================
+  iconButton(k, {
+    label: "←", x: 84, y: 110, w: 96, h: 72, fontSize: 44,
+    onClick: () => {
+      roundIdx = 0;
+      k.go("gamesPicker");
+    },
+  });
+  const pillW = 240;
+  const pillH = 64;
+  const pillX = k.width() - 84 - pillW / 2;
+  const pillY = 110;
+  k.add([
+    k.rect(pillW, pillH, { radius: 18 }),
+    k.color(255, 255, 255),
+    k.outline(4, k.rgb(...ORANGE)),
+    k.pos(pillX, pillY),
+    k.anchor("center"),
+    k.z(2),
+  ]);
+  k.add([
+    k.text(`第 ${roundIdx + 1} 轮 / 共 ${ROUND_COUNT} 轮`, { size: 26, font: FONT }),
+    k.color(...ORANGE),
+    k.pos(pillX, pillY),
+    k.anchor("center"),
+    k.z(2),
+  ]);
+
+  // === Title (the equation IS the title — the problem the kid reads) ==
+  // Rendered big at the top of the screen, no surrounding strip. The hint
+  // sits beneath it as a smaller subtitle. Per user feedback 2026-08-09:
+  // the equation needs to read as a "标题" — a clear problem statement
+  // — not as a tiny element inside a goal strip.
+  const titleY = 200;
+
+  // Equation: "a + b + c = ?" — addends in shuffled order.
+  let currentEq = expression(k, {
+    slots: [
+      round.addends[0], "+", round.addends[1], "+", round.addends[2], "=", "?",
+    ],
+    x: 748, y: titleY, size: 96,
+    colors: [BLUE, undefined, SUCCESS, undefined, ORANGE_DEEP, undefined, PINK],
+  });
+
+  // Initial hint — per round type, sits below the title.
+  const initialHint = round.type === "make10"
+    ? "凑十再加 — 哪个云朵是对的？"
+    : "把它们加起来 — 哪个云朵是对的？";
+  const hint = k.add([
+    k.text(initialHint, { size: 32, font: FONT }),
+    k.color(...PINK),
+    k.opacity(0.85),
+    k.pos(748, 360),
+    k.anchor("center"),
+    k.z(2),
+  ]);
+
+  function setEquation(slots, colors) {
+    if (currentEq) currentEq.destroy();
+    currentEq = expression(k, {
+      slots,
+      x: 748, y: titleY, size: 96,
+      colors,
+    });
+  }
+
+  function setHint(text) {
+    hint.text = text;
+  }
+
+  // === Cloud row (1 × 4) showing 4 answer choices =====================
+  // Per user feedback 2026-08-09: 4 choices (correct + 3 plausible wrongs),
+  // shuffled so the correct answer isn't always at the start. cellW 300
+  // places the leftmost cloud at x=298 and rightmost at x=1198, leaving
+  // ~170 px of canvas margin on each side.
+  const COLS = 4;
+  const cellW = 300;
+  const gridX = 748 - ((COLS - 1) * cellW) / 2;
+  const gridY = 640;
+  const items = [];
+  round.answerChoices.forEach((v, i) => {
+    const x = gridX + i * cellW;
+    const y = gridY;
+    const it = item(k, {
+      value: v,
+      sprite: "cloud",
+      x,
+      y,
+      size: 180,
+      // Cloud body is sprite-centered at y=128 (256×256 sprite); anchored
+      // at (x, y-16) scaled 0.6 the body lands at scene y-16. Pass that
+      // as the label offset so the digit sits in the middle of the cloud.
+      labelYOffset: -16,
+      hideFace: true,
+      noLabelBg: true,
+      noLabelBgTextColor: INK,
+      noLabelBgStrokeColor: [255, 255, 255],
+    });
+    it._baseY = it.node.pos.y;
+    it._phase = Math.random() * Math.PI * 2;
+    it._hugged = false;
+    it.node.onUpdate(() => {
+      if (it._hugged) return;
+      it.node.pos.y = it._baseY + Math.sin((k.time() + it._phase) * 1.6) * 8;
+    });
+    items.push(it);
+  });
+
+  // === Click wiring ====================================================
+  const state = { done: false };
+
+  function tryAnswer(idx) {
+    if (state.done) return;
+    const it = items[idx];
+
+    if (it.value === round.correct) {
+      // Correct — celebrate, dim the others, resolve the equation.
+      state.done = true;
+      items.forEach((other, i) => {
+        other._hugged = true;
+        if (i !== idx) other.setDisabled(true);
+      });
+      celebrateCorrect(k, it);
+
+      k.wait(0.5, () => {
+        if (round.type === "make10") {
+          // Resolved equation emphasizes the make-10 strategy:
+          // "10 + c = total" — the kid sees their mental shortcut.
+          setEquation(
+            [TARGET, "+", round.decoy, "=", round.correct],
+            [BLUE, undefined, ORANGE_DEEP, undefined, PINK],
+          );
+        } else {
+          // makeSmall: just the resolved sum.
+          setEquation(
+            [round.addends[0], "+", round.addends[1], "+", round.addends[2], "=", round.correct],
+            [BLUE, undefined, SUCCESS, undefined, ORANGE_DEEP, undefined, PINK],
+          );
+        }
+        setHint("对啦！");
+      });
+
+      buddy.setMood("cheer", { silent: true });
+      window.PandaAudio.playCue("cloud-pair");
+      window.PandaAudio.playAfter("cloud-pair", ["panda-celebrate"], { gapMs: 200 });
+
+      window.PandaAudio.playAfter(
+        "panda-celebrate",
+        ["cloud-done"],
+        { gapMs: 0, seqGapMs: 0 },
+        () => {
+          showVictory(k, round.correct, roundIdx + 1 >= ROUND_COUNT, () => {
+            if (roundIdx + 1 < ROUND_COUNT) {
+              roundIdx += 1;
+              k.go("gameCloud");
+            } else {
+              saveProgress(3);  // gameCloud is levelId 3; unlocks feed (id 4)
+              roundIdx = 0;
+              k.go("gamesPicker");
+            }
+          });
+        },
+      );
+    } else {
+      // Wrong — shake + grey out + hint. Kid can keep trying on the
+      // remaining clouds.
+      it._hugged = true;
+      it.shake();
+      it.setDisabled(true);
+      buddy.setMood("think");
+      setHint("再想想！");
+    }
+  }
+
+  items.forEach((it, idx) => {
+    it.node.onClick(() => {
+      if (state.done || it._hugged) return;
+      tryAnswer(idx);
+    });
+  });
+
+  // Panda at the bottom-left — same position as the panda-park reference.
+  // (No click handler here — wrong picks don't reset, since the kid just
+  // picks another cloud. The panda is a passive cheerleader.)
+  const buddy = panda(k, { x: 130, y: 940, size: 160 });
+}
