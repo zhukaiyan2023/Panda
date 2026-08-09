@@ -15,6 +15,8 @@
 // Naming convention:
 //   l1-intro-{a}-{b}-{c}      L1 step 1 phase 1 decompose sentence
 //   l1-sub-{a}-{b}            L1 step 1 phase 2 sub-question
+//   l1-step2-{pairSum}-{third}
+//                             L1 step 2 simplified question ("pairSum加third等于几")
 //   l1-rwd-{a}-{b}-{c}-{ans}  L1 step 2 reward ("X加Y加Z等于答")
 //   l2-s1-{a}-{b}             L2 step 1 ("我们来计算 a 加 b ...")
 //   l2-s2-{big}               L2 step 2 ("大数是 big, 好朋友是几")
@@ -105,6 +107,17 @@ for (const r of l1.rounds) {
   composites.push({
     id: `l1-rwd-${a}-${b}-${c}-${r.answer}`,
     text: `${numZh(a)}加${numZh(b)}加${numZh(c)}等于${numZh(r.answer)}`,
+  });
+  // L1 step 2 simplified question: "pairSum 加 third 等于几".
+  // The old code chained 4 cues (n-pairSum + q-plus + n-third +
+  // q-equals) which read as 4 separate words. Pre-bake so it sounds
+  // like one phrase.
+  const pairSum = pair[0] + pair[1];
+  const thirdIdx = r.nums.findIndex((n) => n !== pair[0] && n !== pair[1]);
+  const third = r.nums[thirdIdx];
+  composites.push({
+    id: `l1-step2-${pairSum}-${third}`,
+    text: `${numZh(pairSum)}加${numZh(third)}等于几`,
   });
 }
 

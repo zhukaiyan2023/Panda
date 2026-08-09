@@ -108,6 +108,10 @@ const CUE_IDS = [
   // L1 — 三数相加 (6 rounds)
   "l1-intro-2-3-4", "l1-intro-1-5-3", "l1-intro-3-7-2", "l1-intro-4-2-1", "l1-intro-6-4-5", "l1-intro-2-2-3",
   "l1-sub-2-3", "l1-sub-1-5", "l1-sub-3-7", "l1-sub-4-2", "l1-sub-6-4", "l1-sub-2-2",
+  // L1 step 2 simplified question — "pairSum 加 third 等于几". Pre-baked
+  // so the kid hears it as one phrase, not 4 chained cues (the old
+  // [n-pairSum, q-plus, n-third, q-equals] read as 4 separate words).
+  "l1-step2-5-4", "l1-step2-6-3", "l1-step2-10-2", "l1-step2-6-1", "l1-step2-10-5", "l1-step2-4-3",
   "l1-rwd-2-3-4-9", "l1-rwd-1-5-3-9", "l1-rwd-3-7-2-12", "l1-rwd-4-2-1-7", "l1-rwd-6-4-5-15", "l1-rwd-2-2-3-7",
   // L2 — 凑十法 (6 rounds; l2-s2-7 deduped since rounds 2 & 4 share big=7;
   //               l2-rwd-*-13 deduped since rounds 1-4 share answer=13)

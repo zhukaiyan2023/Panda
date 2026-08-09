@@ -408,12 +408,13 @@ export default createRoundScene({
       // node (not setEquation) so the buildStep path doesn't overwrite it.
       parenthesizedForm(ctx, pair, third, aIdx, bIdx, thirdIdx);
 
-      // Step 2 reads the simplified result question: "X 加 Y 等于几"
-      // (n-pairSum + q-plus + n-third + q-equals). The old "几加 X 加 Y"
-      // phrasing made it sound like a chained operation question
-      // instead of a result question — the child has already added the
-      // pair in step 1, so step 2 should ask "what does this equal?".
-      speakSequence(ctx.k, [`n-${pairSum}`, "q-plus", `n-${third}`, "q-equals"], ctx);
+      // Step 2 reads the simplified result question as one pre-baked
+      // composite mp3 (e.g. "五加四等于几"). The old code chained 4
+      // cues ([n-pairSum, q-plus, n-third, q-equals]) which read as 4
+      // separate words on the kid's ear. The child has already added
+      // the pair in step 1, so step 2 should ask "what does this
+      // equal?" as one fluent phrase.
+      speakSequence(ctx.k, [`l1-step2-${pairSum}-${third}`], ctx);
 
       return {
         body,
