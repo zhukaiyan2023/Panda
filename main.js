@@ -63,7 +63,12 @@ const CUE_IDS = [
   // naturally: "what is three plus five?" in three concatenated words.
   "q-what-is", "q-plus", "q-equals",
   "round-start", "round-end",
-  "lvl-1-intro", "lvl-2-intro", "lvl-3-intro", "lvl-done",
+  // L1 entry — greeting plays once on entering the level, then the
+  // per-round "decompose" sentence is built at runtime by chaining
+  // these number-agnostic chunks with the universal n-* / q-* cues.
+  "lvl-1-greeting",
+  "lvl-1-decomp-pre", "lvl-1-decomp-eq", "lvl-1-decomp-after-b", "lvl-1-decomp-q-pre",
+  "lvl-2-intro", "lvl-3-intro", "lvl-done",
   "panda-hi", "panda-celebrate",
   "tap-unlock", "level-locked", "next", "back",
   "boat-intro", "boat-pair", "boat-done",
@@ -120,9 +125,13 @@ function playCue(id) {
 // distinct. Used for "what is two plus three plus four" — chained from the
 // individual number cues and a couple of glue words ("what is", "plus").
 // The verifier bypasses audio entirely so sequence length is fine in tests.
-function playSequence(ids, gapMs = 90) {
+//
+// startDelayMs (optional) lets the caller wait for a previous cue to finish
+// before starting this sequence — e.g. wait for the L1 greeting to land,
+// then play the per-round decompose sentence.
+function playSequence(ids, gapMs = 90, startDelayMs = 0) {
   if (!Array.isArray(ids) || ids.length === 0) return;
-  let delay = 0;
+  let delay = startDelayMs;
   ids.forEach((id, i) => {
     setTimeout(() => playCue(id), delay);
     // First cue waits for itself to mostly finish; later cues chain on the

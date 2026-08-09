@@ -17,10 +17,28 @@
 //   * all punctuation is half-width (the TTS speaks it naturally).
 
 module.exports = [
-  // ===== level intros =====
-  // Spoken once when the player first opens a level — a one-syllable
-  // framing so the child knows what kind of game is starting.
-  { id: "lvl-1-intro", text: "三数相加" },
+  // ===== L1 (三数相加) spoken entry =====
+  // The L1 entry is a two-part sentence: a fixed greeting, then a 1s
+  // pause, then a per-round "decompose" sentence that reads out the
+  // round's actual numbers. The decompose is built at runtime by
+  // scenes/level1.js from these number-agnostic chunks plus the
+  // universal n-0..n-10 + q-plus + q-equals cues. Numbers are NEVER
+  // baked into a per-round file — any L1 round can use this set.
+  //
+  // Greeting plays once when the user first opens L1.
+  { id: "lvl-1-greeting", text: "你好，小朋友，我们来学习三数相加。准备好了吗？" },
+  // Chunks of the per-round decompose sentence. The full sentence for
+  // a round with nums [a,b,c] reads:
+  //   先看下 a 加 b 加 c 等于几，这个问题可以分解成我们先看看前两个数相加
+  //   a 加 b 等于几，再加上 c，小朋友 a 加 b 等于几
+  { id: "lvl-1-decomp-pre",      text: "先看下" },
+  { id: "lvl-1-decomp-eq",       text: "等于几，这个问题可以分解成我们先看看前两个数相加" },
+  { id: "lvl-1-decomp-after-b",  text: "等于几，再加上" },
+  { id: "lvl-1-decomp-q-pre",    text: "小朋友" },
+
+  // ===== other level intros =====
+  // L2 and L3 still use the one-syllable framing while their own
+  // per-round intros are designed.
   { id: "lvl-2-intro", text: "凑十法" },
   { id: "lvl-3-intro", text: "二十以内" },
 

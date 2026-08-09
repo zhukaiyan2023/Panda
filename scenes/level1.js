@@ -191,17 +191,53 @@ function mergedRow(ctx, nums, opts = {}) {
   return root;
 }
 
-// Spoken intro for a step. Step 1 reads the sub-question "what is A plus B"
-// so the child hears JUST the pair they're being asked to add first. Step 2
-// reads the simplified form "what is pairSum plus third".
+// Spoken intro for a step. Step 2 reads the simplified form
+// "what is pairSum plus third". Step 1 doesn't need its own prompt — the
+// per-round decompose sentence (built in the step 1 factory below) already
+// ends with the step-1 sub-question, so adding another spoken prompt would
+// just repeat it.
 function speakSequence(k, ids) {
   k.wait(0.1, () => window.PandaAudio.playSequence(ids));
+}
+
+// Builds the per-round L1 "decompose" sentence as a sequence of universal
+// audio cues. The numbers are read from the individual n-0..n-10 cues, the
+// connectors ("加", "等于几") and the fixed chunks are pre-baked — the
+// TTS never re-synthesizes for a new round, and the same set works for
+// any [a, b, c] in L1.
+//
+// For nums [a, b, c] the sentence reads:
+//
+//   先看下 a 加 b 加 c 等于几，这个问题可以分解成我们先看看前两个数相加
+//   a 加 b 等于几，再加上 c，小朋友 a 加 b 等于几
+//
+// startDelayMs lets the caller delay the sentence until the level-entry
+// greeting has finished playing (round 0 only — the greeting is one-time).
+function buildL1DecomposeIds(a, b, c) {
+  return [
+    "lvl-1-decomp-pre",
+    `n-${a}`, "q-plus",
+    `n-${b}`, "q-plus",
+    `n-${c}`,
+    "lvl-1-decomp-eq",
+    `n-${a}`, "q-plus",
+    `n-${b}`,
+    "lvl-1-decomp-after-b",
+    `n-${c}`,
+    "lvl-1-decomp-q-pre",
+    `n-${a}`, "q-plus",
+    `n-${b}`,
+    "q-equals",
+  ];
 }
 
 export default createRoundScene({
   levelId: 1,
   sceneName: "level1",
-  // No introCue: the spoken equation intro already introduces the round.
+  // Greeting plays once when the user first opens L1. The per-round
+  // decompose sentence (fired inside step 1) waits for it to finish
+  // plus a 1s pause on round 0, then chains on subsequent rounds.
+  introCue: "lvl-1-greeting",
   // Two teaching beats: add the first pair, then add the rest.
   stepLabels: ["两数相加", "计算结果"],
 
@@ -220,10 +256,22 @@ export default createRoundScene({
       // Persistent anchor at top.
       ctx.setAnchorEquation(anchorSlots(round.nums, "?"));
 
-      // Voice: "what is A plus B" — just the pair, not the whole anchor.
-      // The anchor's "?" is still visible, so the child hears the piece
-      // they're being asked to add first.
-      speakSequence(ctx.k, ["q-what-is", `n-${pair[0]}`, "q-plus", `n-${pair[1]}`]);
+      // Per-round spoken intro. The full decompose sentence reads
+      // "先看下 a 加 b 加 c 等于几 ... 小朋友 a 加 b 等于几" — on round 0
+      // it's chained after the one-time greeting + 1s pause, on later
+      // rounds it starts immediately. We rely on universal number +
+      // connector cues so the same set works for any L1 round.
+      const [a, b, c] = round.nums;
+      const decompIds = buildL1DecomposeIds(a, b, c);
+      let startDelayMs = 100; // small delay so the first render lands
+      if (ctx.ri === 0) {
+        const greeting = window.PandaAudio.audio["lvl-1-greeting"];
+        // 1s pause after the greeting ends — matches the spec
+        // "停顿1s" between greeting and decompose.
+        const greetingDur = Number.isFinite(greeting?.duration) ? greeting.duration : 3.0;
+        startDelayMs = Math.round(greetingDur * 1000) + 1000;
+      }
+      window.PandaAudio.playSequence(decompIds, 260, startDelayMs);
 
       return {
         body,
