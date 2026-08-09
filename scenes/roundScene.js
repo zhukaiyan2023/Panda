@@ -236,7 +236,16 @@ export default function createRoundScene(config) {
       const stepCfg = config.steps[stepNumber - 1];
       if (!stepCfg) return;
       const built = stepCfg(ctx, prev) || {};
-      if (built.equation) setEquation(built.equation, built.equationOpts || {});
+      // deferEquation lets a step own when its sub-question appears.
+      // The step still returns the equation so onAdvance() can use it,
+      // but buildStep skips the immediate render — the step's audio
+      // chain is responsible for calling setEquation from its onComplete
+      // callback. Used by L1 step 1 so "2+3=?" only appears AFTER the
+      // audio has read "2+3+4等于几", not at the same instant the
+      // explanation starts.
+      if (built.equation && !built.deferEquation) {
+        setEquation(built.equation, built.equationOpts || {});
+      }
       if (built.body) state.body = built.body;
       if (built.reveal) reveal(built.reveal);
       if (built.cue) window.PandaAudio.playCue(built.cue);

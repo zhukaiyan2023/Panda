@@ -212,7 +212,7 @@ function speakSequence(k, ids, ctx) {
   k.wait(0.1, () => window.PandaAudio.playSequence(ids));
 }
 
-// Builds the per-round L1 "decompose" sentence as a sequence of universal
+// Builds the per-round L1 "decompose" sentence as two phases of universal
 // audio cues. The numbers are read from the individual n-0..n-10 cues, the
 // connectors ("加", "等于几") and the fixed chunks are pre-baked — the
 // TTS never re-synthesizes for a new round, and the same set works for
@@ -223,25 +223,33 @@ function speakSequence(k, ids, ctx) {
 //   先看下 a 加 b 加 c 等于几，这个问题可以分解成我们先看看前两个数相加。
 //   a 加 b 等于几
 //
+// The split lets the step-1 sub-question ("a + b = ?") appear at the
+// natural break between explanation and question. Phase 1 ends with
+// the first "等于几" (the explanation of the whole problem); the kid
+// hears "2+3+4等于几, 这个问题可以分解成..." and THEN sees the
+// "2+3=?" they're meant to answer, paired with the phase-2 question
+// "2 加 3 等于几". Showing the sub-question immediately (the old
+// behavior) made the screen busy before the kid knew the strategy.
+//
 // (Earlier versions also said "再加上 c" and re-prompted "小朋友
 // a 加 b 等于几" at the end — the user trimmed those as redundant:
 // the equation is already on screen, and the question form at the
 // end is what the child picks, so two prompts of the same question
 // were overkill.)
-//
-// startDelayMs lets the caller delay the sentence until the level-entry
-// greeting has finished playing (round 0 only — the greeting is one-time).
-function buildL1DecomposeIds(a, b, c) {
+function buildL1Phase1Ids(a, b, c) {
+  // "先看下 a 加 b 加 c 等于几，这个问题可以分解成我们先看看前两个数相加。"
   return [
     "lvl-1-decomp-pre",
     `n-${a}`, "q-plus",
     `n-${b}`, "q-plus",
     `n-${c}`,
     "lvl-1-decomp-eq",
-    `n-${a}`, "q-plus",
-    `n-${b}`,
-    "q-equals",
   ];
+}
+
+function buildL1Phase2Ids(a, b) {
+  // "a 加 b 等于几" — the actual question for step 1.
+  return [`n-${a}`, "q-plus", `n-${b}`, "q-equals"];
 }
 
 // Maps a non-negative integer to the cue id(s) that read it aloud in
@@ -296,38 +304,59 @@ export default createRoundScene({
       // Persistent anchor at top.
       ctx.setAnchorEquation(anchorSlots(round.nums, "?"));
 
-      // Per-round spoken intro. The full decompose sentence reads
-      // "先看下 a 加 b 加 c 等于几 ... 小朋友 a 加 b 等于几" — on round 0
-      // it's chained after the one-time greeting + 1s pause, on later
-      // rounds it starts immediately. We rely on universal number +
-      // connector cues so the same set works for any L1 round.
+      // The sub-question "pair[0] + pair[1] = ?" is deferred until
+      // phase 1 of the per-round audio finishes — the kid hears
+      // "2+3+4等于几, 这个问题可以分解成我们先看看前两个数相加"
+      // FIRST, and THEN sees "2+3=?" paired with the phase-2 question
+      // "2 加 3 等于几". Showing it immediately (the old behavior) made
+      // the screen busy before the kid had heard the strategy.
       //
-      // playAfter() hooks the greeting's `ended` event so the 1s pause
-      // tracks the greeting's real finish time, not a setTimeout
-      // estimate — if the audio.duration wasn't ready when we scheduled
-      // it, the old code would start the decompose mid-greeting.
+      // phase 1 chain runs the full greeting-then-decompose timing on
+      // round 0 (chained off lvl-1-greeting's `ended` event), or just
+      // the decompose on later rounds. playAfter / playSequence forward
+      // firePhase2 to onComplete, which fires after the LAST cue's
+      // `ended` event — i.e. after the audio has actually finished.
       const [a, b, c] = round.nums;
-      const decompIds = buildL1DecomposeIds(a, b, c);
+      const phase1Ids = buildL1Phase1Ids(a, b, c);
+      const phase2Ids = buildL1Phase2Ids(pair[0], pair[1]);
+
+      const firePhase2 = () => {
+        // Show the step-1 sub-question NOW — the kid has heard the
+        // setup and is being asked the actual question.
+        ctx.setEquation({
+          slots: [pair[0], "+", pair[1], "=", "?"],
+          colors: [COLORS[aIdx], undefined, COLORS[bIdx], undefined, undefined],
+        }, { y: 340, size: 82 });
+        // Play the question right after the equation appears.
+        window.PandaAudio.playSequence(phase2Ids, 260, 100);
+      };
+
       if (ctx.ri === 0) {
-        window.PandaAudio.playAfter("lvl-1-greeting", decompIds, {
-          gapMs: 1000,    // "停顿1s" between greeting and decompose
-          seqGapMs: 260,  // breathing room between words in the sentence
-        });
+        window.PandaAudio.playAfter(
+          "lvl-1-greeting", phase1Ids,
+          {
+            gapMs: 1000,    // "停顿1s" between greeting and phase 1
+            seqGapMs: 260,  // breathing room between words in the sentence
+          },
+          firePhase2,
+        );
       } else {
-        // Subsequent rounds: no greeting, just play the decompose.
-        // 100ms delay so the first render lands before the audio starts.
-        window.PandaAudio.playSequence(decompIds, 260, 100);
+        // Subsequent rounds: no greeting, just play phase 1 and chain
+        // phase 2. 100 ms delay so the first render lands before the
+        // audio starts.
+        window.PandaAudio.playSequence(phase1Ids, 260, 100, firePhase2);
       }
 
       return {
         body,
+        deferEquation: true,
         equation: {
           slots: [pair[0], "+", pair[1], "=", "?"],
           colors: [COLORS[aIdx], undefined, COLORS[bIdx], undefined, undefined],
         },
-        // Step 1 sub-question sits directly below the anchor so the child
-        // reads "2+3+4=?" then "2+3=?" as a single thought. The cells row
-        // sits below as the visual aid.
+        // Step 1 sub-question sits directly below the anchor so the
+        // child reads "2+3+4=?" then "2+3=?" as a single thought. The
+        // cells row sits below as the visual aid.
         equationOpts: { y: 340, size: 82 },
         // No `cue` here — the L1 step-1 audio is the per-round
         // decompose sentence fired above (via playAfter). The old
