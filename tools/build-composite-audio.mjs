@@ -258,6 +258,31 @@ for (const r of l2Pool) {
       id: `l2-s4-${small}-${need}-${rest}-${big}`,
       text: `${numZh(small)}分成${numZh(need)}加${numZh(rest)}，算一算${numZh(big)}加${numZh(need)}加${numZh(rest)}等于几`,
     });
+    // Comparison reveal audio — reads "a 大于 b" or "a 小于 b"
+    // after the kid picks the right sign in step 1. Skipped when
+    // a == b (the equal case auto-advances, no comparison pick).
+    if (a !== b) {
+      const sign = a > b ? "大于" : "小于";
+      composites.push({
+        id: `l2-cmp-${a}-${b}`,
+        text: `${numZh(a)}${sign}${numZh(b)}`,
+      });
+    }
+    // Step 4 SWAP variant — fires ONLY when a < b (smaller addend
+    // comes first) AND rest ≠ need (the split has two non-zero
+    // pieces in different order). The visual for these rounds
+    // shows "(rest+need)+b = ?" preserving question order, but
+    // the canonical l2-s4 audio still says "big+need+rest" which
+    // would re-introduce the swap jump the visual removes. The
+    // "s" suffix marks the swapped text variant. When rest ==
+    // need, both orderings are visually identical so no swap
+    // audio needed.
+    if (a < b && rest !== need) {
+      composites.push({
+        id: `l2-s4s-${a}-${b}-${need}-${rest}-${big}`,
+        text: `${numZh(small)}分成${numZh(rest)}加${numZh(need)}，算一算${numZh(rest)}加${numZh(need)}加${numZh(big)}等于几`,
+      });
+    }
   } else {
     // Non-make-ten: single-step scene, just the prompt + the shared reward.
     // The text is shorter than the make-ten prompt (no compare / friend /

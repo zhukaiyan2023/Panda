@@ -234,10 +234,15 @@ export default function createRoundScene(config) {
       state.locked.clear();
     }
 
-    function renderButtons(values, correct, onPick) {
-      const buttonW = 180;
-      const buttonH = 132;
-      const gap = 24;
+    function renderButtons(values, correct, onPick, opts = {}) {
+      // Per-step button style. Most steps use the wide numeric buttons
+      // (180×132, sized for ≥44pt touch targets on a row of 4). A few
+      // steps (L2 step 1's >/< compare, anything with 2 large emojis
+      // instead of digits) want small SQUARE buttons — pass
+      // buttonW=buttonH to swap. The gap auto-fits any value count.
+      const buttonW = opts.buttonW ?? 180;
+      const buttonH = opts.buttonH ?? 132;
+      const gap = opts.gap ?? 24;
       const ordered = shuffle(values);
       const totalW = ordered.length * buttonW + (ordered.length - 1) * gap;
       const startX = LAYOUT.barX - totalW / 2 + buttonW / 2;
@@ -286,6 +291,13 @@ export default function createRoundScene(config) {
           built.question.values,
           built.question.correct,
           (v, i) => onPick(v, i, built, prev),
+          {
+            // Optional per-step button style — see renderButtons().
+            // L2 step 1 passes small squares for the >/< compare.
+            buttonW: built.question.buttonW,
+            buttonH: built.question.buttonH,
+            gap: built.question.gap,
+          },
         );
       }
     }

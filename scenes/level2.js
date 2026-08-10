@@ -42,10 +42,22 @@ function bigger(a, b) { return a >= b ? a : b; }
 function smaller(a, b) { return a >= b ? b : a; }
 
 // Persistent anchor ("a + b = ?") rendered at the top, large.
+//
+// COL_BIG (blue) lands on whichever addend is the larger one — NOT
+// always round.a. Otherwise for 6+7 the anchor reads "6 (blue) +
+// 7 (pink)" and contradicts the step-1 sub-question "6 (pink) ?
+// 7 (blue)", where COL_BIG is on the actually-larger side. The
+// contradiction is especially confusing for the kid right after the
+// comparison step, where they just proved to themselves which is
+// bigger. Mirrors the same left-is-big / right-is-big color rule used
+// by step 1 below.
 function anchorSlots(round, sumSlot) {
+  const aIsBig = round.a > round.b;
   return {
     slots: [round.a, "+", round.b, "=", sumSlot],
-    colors: [COL_BIG, undefined, COL_SMALL, undefined, undefined],
+    colors: aIsBig
+      ? [COL_BIG, undefined, COL_SMALL, undefined, undefined]
+      : [COL_SMALL, undefined, COL_BIG, undefined, undefined],
   };
 }
 
@@ -165,6 +177,17 @@ function buildL2Step1Ids(a, b) {
   return [`l2-s1-${a}-${b}`];
 }
 
+// Comparison reveal — reads "a 大于 b" or "a 小于 b" after the kid
+// picks the correct sign in step 1. Same audio plays whether the
+// kid is hearing the round for the first time or revisiting it —
+// the spoken comparison follows the kid's actual answer direction.
+// Skipped for a == b (the equal case auto-advances with no
+// comparison pick, so there's no sign to read aloud).
+function buildL2CmpIds(a, b) {
+  if (a === b) return [];
+  return [`l2-cmp-${a}-${b}`];
+}
+
 // Non-make-ten step 1 — just the prompt "我们来计算 a 加 b 等于几". The
 // 4-step make-a-ten teaching would lie for simple / 2-digit / trivial
 // rounds (no big's-friend lookup applies), so the kid gets a single
@@ -191,6 +214,19 @@ function buildL2Step3Ids(small, need) {
 //   big 加 need 加 rest 等于几"
 function buildL2Step4Ids(big, small, need, rest) {
   return [`l2-s4-${small}-${need}-${rest}-${big}`];
+}
+
+// Step 4 SWAP variant — fires only when the smaller addend comes
+// first (round.a < round.b, e.g. 6+9) AND rest ≠ need (the split
+// has two non-zero pieces in different order). The visual for these
+// rounds shows "(rest+need)+b = ?" preserving question order, but
+// the canonical l2-s4 audio says "big+need+rest" — re-introducing
+// the swap jump the visual removes. The "s" suffix marks the
+// swapped text variant. When rest == need both orderings are
+// visually identical so no swap audio needed.
+function buildL2Step4SwapIds(a, b, big, small, need, rest) {
+  if (!(a < b && rest !== need)) return null;
+  return [`l2-s4s-${a}-${b}-${need}-${rest}-${big}`];
 }
 
 // Fires a per-step L2 audio chain. Three cases:
@@ -242,14 +278,31 @@ export default createRoundScene({
   stepLabels: ["比一比", "凑成十", "拆一拆", "算一算"],
 
   steps: [
-    // Step 1 — Compare. Every L2 round is make-ten, so this step shows
-    // "big ? small" and asks the kid to pick > / <. The 4-step
-    // scaffolding (compare → find-friend → split → count) applies
-    // to every round.
+    // Step 1 — Compare. Every L2 round is make-ten, so this step asks
+    // the kid to pick > / < between the two addends. The 4-step
+    // scaffolding (compare → find-friend → split → count) applies to
+    // every round.
+    //
+    // Per user feedback (2026-08-10): when the smaller addend comes
+    // first in the round (e.g. 6+7), the sub-question used to read
+    // "7 ? 6" (big-first), forcing the child to mentally re-order the
+    // numbers before answering. Now we keep round.a on the LEFT and
+    // round.b on the RIGHT — same order as the persistent anchor
+    // above — and let COL_BIG (blue) land on whichever slot is the
+    // larger addend. The correct sign is derived from the same
+    // "which side is bigger" check.
+    //
+    // The compare options use SMALL SQUARE buttons (110×110) styled
+    // like little input boxes, not the wide numeric answer buttons
+    // used elsewhere — visually distinct from a 4-button number row
+    // and big enough for the kid's fingers (≥44pt touch target on
+    // iPad). Per user feedback: "比较大小这地方，能不能用成小的正方形
+    // 输入框那种".
     (ctx, round) => {
       const big = bigger(round.a, round.b);
       const small = smaller(round.a, round.b);
       const isEqual = round.a === round.b;
+      const leftIsBig = round.a > round.b;
       // Frames are visible from step 1 — the child needs to SEE the two
       // counts before picking > / <, not just read the numbers.
       tenFramePair(ctx, round);
@@ -276,25 +329,61 @@ export default createRoundScene({
       // a 还是 b 谁大" — uses round.a / round.b in their original
       // order so the prompt matches the visible equation above.
       fireL2StepAudio(ctx, buildL2Step1Ids(round.a, round.b), 1);
+      // Keep round.a on the LEFT, round.b on the RIGHT. COL_BIG lives
+      // on whichever slot holds the bigger addend — so for 6+7 the
+      // sub-question reads "6 [?] 7" with 6 pink and 7 blue, and the
+      // correct pick is "<" (leftIsBig is false here).
+      const slots = [round.a, "?", round.b];
+      const colors = leftIsBig
+        ? [COL_BIG, undefined, COL_SMALL]
+        : [COL_SMALL, undefined, COL_BIG];
+      // After correct pick, the "?" slot fills with the picked sign
+      // and turns COL_NEED (orange) so the eye sees the symbol as a
+      // freshly-revealed piece of info, not part of the original
+      // equation. Outer slots keep their COL_BIG/COL_SMALL.
+      const revealColors = leftIsBig
+        ? [COL_BIG, COL_NEED, COL_SMALL]
+        : [COL_SMALL, COL_NEED, COL_BIG];
+      const compareCorrect = leftIsBig ? ">" : "<";
       return {
-        equation: {
-          slots: [big, "?", small],
-          colors: [COL_BIG, undefined, COL_SMALL],
-        },
+        equation: { slots, colors },
         // Sub-question sits BELOW the ten frames so the visual flow is
         // anchor → frames → comparison question → buttons.
         equationOpts: { y: 660, size: 82 },
         // No `cue:` — the L2 step-1 audio is the contextual sentence
-        // fired via fireL2StepAudio above.
+        // fired via fireL2StepAudio above. Small SQUARE compare
+        // buttons (110×110) — renderButtons picks these up via opts
+        // forwarded from built.question. Distinct from the wide 4-row
+        // number buttons used in steps 2/3/4.
         question: {
-          correct: ">",
+          correct: compareCorrect,
           values: [">", "<"],
+          buttonW: 110,
+          buttonH: 110,
+          gap: 40,
         },
         onAdvance: () => {
           ctx.setEquation({
-            slots: [big, ">", small],
-            colors: [COL_BIG, COL_NEED, COL_SMALL],
+            slots: [round.a, compareCorrect, round.b],
+            colors: revealColors,
           }, { y: 660, size: 82 });
+          // Read the revealed comparison aloud so the kid hears
+          // "X 大于 Y" / "X 小于 Y" matching the visual they just
+          // unlocked. Chained off ctx.lastEncourageId (the actual
+          // last cue of the tier-based cheer chain) so the reveal
+          // starts AFTER the celebration tail and never overlaps
+          // it. roundScene awaits the returned Promise so the kid
+          // hears the comparison before the next step's prompt
+          // fires. The previous version revealed silently — kid
+          // saw the >/< but never heard what they just learned.
+          return new Promise((resolve) => {
+            window.PandaAudio.playAfter(
+              ctx.lastEncourageId,
+              buildL2CmpIds(round.a, round.b),
+              { gapMs: 200, seqGapMs: 40 },
+              resolve,
+            );
+          });
         },
       };
     },
@@ -358,25 +447,62 @@ export default createRoundScene({
         },
       };
     },
-    // Step 4 — Count: a + (need + rest) = ?
+    // Step 4 — Count: a + (need + rest) = ?  (or (rest+need)+b=? when a<b)
     // The parentheses group the split visually so the child sees the pair
     // that makes ten as a single chunk: "8 + (2 + 3) = ?" reads as
     // "eight plus the split of five" — ten stays implicit. Every L2
     // round is make-ten so the round finishes on the kid's pick.
+    //
+    // Per user feedback (2026-08-10): when the first addend is the
+    // smaller one (round.a < round.b, e.g. 6+9), the kid has to mentally
+    // "swap" to apply the make-a-ten strategy (treat as 9+6, then split
+    // 6). Showing the decomposition in place — "(rest + need) + b = ?"
+    // instead of "big + (need + rest) = ?" — removes that implicit jump.
+    // The decomposition inside the parens also flips to rest-first to
+    // match how the kid reads "6 → 5+1" mentally (subtract need to leave
+    // rest). When a >= b, keep the canonical big-first form — no jump
+    // to remove there.
     (ctx, round) => {
       const big = bigger(round.a, round.b);
       const small = smaller(round.a, round.b);
       tenFramePair(ctx, round);
       ctx.setAnchorEquation(anchorSlots(round, "?"), { y: 260 });
       // Per-step audio prompt. "small 分成 need 加 rest，算一算 big 加
-      // need 加 rest 等于几" — restates the split result and prompts
-      // the final calculation. q-equals ("等于几") is the question
-      // form for the child's pick.
-      fireL2StepAudio(ctx, buildL2Step4Ids(big, small, round.need, round.rest), 4);
+      // need 加 rest 等于几" for the canonical (a ≥ b or rest == need)
+      // case. For the a<b && rest != need case (e.g. 6+9), the audio
+      // swaps to "small 分成 rest 加 need，算一算 rest 加 need 加 big 等
+      // 于几" so the spoken sentence matches the visual "(rest+need)
+      // +b" decomposition. The previous "audio says big+need+rest
+      // but visual shows (rest+need)+b" mismatch is fixed by this
+      // conditional pick. buildL2Step4SwapIds returns null when no
+      // swap is needed, falling back to the canonical buildL2Step4Ids.
+      fireL2StepAudio(
+        ctx,
+        buildL2Step4SwapIds(round.a, round.b, big, small, round.need, round.rest)
+          || buildL2Step4Ids(big, small, round.need, round.rest),
+        4,
+      );
+      const aIsSmall = round.a < round.b;
+      // Pre-answer equation + reveal-equation slot/color pairs. The two
+      // cases only differ by which slot the unknown lives in and the
+      // color of round.b/round.a (COL_BIG always lands on the BIG
+      // addend, regardless of which original slot it came from).
+      const eqSlots = aIsSmall
+        ? ["(", round.rest, "+", round.need, ")", "+", round.b, "=", "?"]
+        : [round.a, "+", "(", round.need, "+", round.rest, ")", "=", "?"];
+      const eqColors = aIsSmall
+        ? [undefined, COL_REST, undefined, COL_NEED, undefined, undefined, COL_BIG, undefined, undefined]
+        : [COL_BIG, undefined, undefined, COL_NEED, undefined, COL_REST, undefined, undefined, undefined];
+      const revealSlots = aIsSmall
+        ? ["(", round.rest, "+", round.need, ")", "+", round.b, "=", round.answer]
+        : [round.a, "+", "(", round.need, "+", round.rest, ")", "=", round.answer];
+      const revealColors = aIsSmall
+        ? [undefined, COL_REST, undefined, COL_NEED, undefined, undefined, COL_BIG, undefined, INK]
+        : [COL_BIG, undefined, undefined, COL_NEED, undefined, COL_REST, undefined, undefined, INK];
       return {
         equation: {
-          slots: [big, "+", "(", round.need, "+", round.rest, ")", "=", "?"],
-          colors: [COL_BIG, undefined, undefined, COL_NEED, undefined, COL_REST, undefined, undefined, undefined],
+          slots: eqSlots,
+          colors: eqColors,
         },
         equationOpts: { y: 660, size: 80 },
         question: {
@@ -395,8 +521,8 @@ export default createRoundScene({
         onAdvance: () => {
           ctx.setAnchorEquation(anchorSlots(round, round.answer), { y: 260 });
           ctx.setEquation({
-            slots: [big, "+", "(", round.need, "+", round.rest, ")", "=", round.answer],
-            colors: [COL_BIG, undefined, undefined, COL_NEED, undefined, COL_REST, undefined, undefined, INK],
+            slots: revealSlots,
+            colors: revealColors,
           }, { y: 660, size: 80 });
           return new Promise((resolve) => {
             window.PandaAudio.playAfter(

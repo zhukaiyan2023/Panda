@@ -74,6 +74,26 @@ for (const r of l2) {
     push(`l2-s2-${big}`);
     push(`l2-s3-${small}-${r.need}`);
     push(`l2-s4-${small}-${r.need}-${r.rest}-${big}`);
+    // Comparison reveal audio — reads "a 大于 b" or "a 小于 b"
+    // after the kid picks the right sign in step 1. Same
+    // (> / <) prompt for both orderings of the same unordered
+    // pair, since the spoken comparison naturally follows the
+    // kid's actual answer direction. Skipped when a == b
+    // (the equal case auto-advances with no comparison pick).
+    if (r.a !== r.b) {
+      push(`l2-cmp-${r.a}-${r.b}`);
+    }
+    // Step 4 swap audio — fires ONLY when the smaller addend
+    // comes first (round.a < round.b) AND the split has two
+    // non-zero pieces in different order (rest ≠ need). For
+    // those rounds the visual shows "(rest+need)+b = ?"
+    // (preserving question order) but the canonical
+    // l2-s4 audio still says "big+need+rest", which would
+    // re-introduce the swap jump we just removed. The "s"
+    // suffix marks the swapped text variant.
+    if (r.a < r.b && r.rest !== r.need) {
+      push(`l2-s4s-${r.a}-${r.b}-${r.need}-${r.rest}-${big}`);
+    }
   } else {
     push(`l2-simple-${r.a}-${r.b}`);
   }
