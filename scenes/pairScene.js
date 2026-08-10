@@ -29,8 +29,8 @@ import stepBar from "../components/stepBar.js";
 import panda from "../components/panda.js";
 import { iconButton } from "../components/choice.js";
 import { INK, PAPER, FONT } from "../components/theme.js";
-
-const ENCOURAGE = ["enc-great", "enc-awesome", "enc-amazing", "enc-nice"];
+import { pickCheerCue, pickWrongCue } from "../audio/praise.js";
+import { celebrate } from "../components/celebration.js";
 
 // Picks that happen during one round share the same step bar. Each correct
 // pick moves the bar forward; the round is complete when step === roundSteps.
@@ -45,13 +45,22 @@ function shuffle(arr) {
   return copy;
 }
 
-// Default wrong-pick handler: shake the two most recently picked items in red.
+// Default wrong-pick handler: panda sprite switches to "thinking" pose.
+// The audio cue for the wrong pick is fired explicitly in tryPair
+// (pickWrongCue → enc-wrong-N), so defaultOnWrong runs silent —
+// otherwise setMood("think") would re-fire "enc-try" (now gone) on top
+// of the explicit enc-wrong-N, double-playing the audio.
 function defaultOnWrong(ctx, a, b) {
-  ctx.buddy.setMood("think");
+  ctx.buddy.setMood("think", { silent: true });
 }
 
 export default function createPairScene(config) {
   let roundIdx = 0;
+  // Streak of consecutive correct picks across this game's session —
+  // drives the process-praise tier in tryPair. Resets on wrong pick or
+  // when the kid taps ←. Lives on the scene closure (above drawRound)
+  // so it persists across the rounds of one play-through.
+  let streak = 0;
 
   function drawRound(k, round) {
     const state = {
@@ -71,6 +80,7 @@ export default function createPairScene(config) {
       x: 84, y: 92, w: 96, h: 72, fontSize: 44,
       onClick: () => {
         roundIdx = 0;
+        streak = 0;
         k.go("gamesPicker");
       },
     });
@@ -90,7 +100,7 @@ export default function createPairScene(config) {
       k.anchor("center"),
     ]);
 
-    const buddy = panda(k, { x: 170, y: 640, size: 230 });
+    const buddy = panda(k, { x: 170, y: 640, size: 180 });
 
     // The prompt: e.g. "Pick two boats that make 10".
     k.add([
@@ -126,36 +136,64 @@ export default function createPairScene(config) {
 
       if (sum === config.target) {
         // Correct — record, animate, advance step.
+        streak += 1;
         state.selections.push(aIdx, bIdx);
         state.foundPairs += 1;
         ctx.items[aIdx].setDisabled(true);
         ctx.items[bIdx].setDisabled(true);
         ctx.onCorrect(ctx, a, b);
 
-        const enc = config.correctCue?.(a, b) || ENCOURAGE[state.foundPairs % ENCOURAGE.length];
-        window.PandaAudio.playCue(enc);
-        // Chain the panda's own cheer ("好棒") off the enc cue so the
-        // kid hears "耶！" then "好棒" without overlap. roundScene does
-        // the same — keep both call sites consistent.
-        window.PandaAudio.playAfter(
-          enc,
-          ["panda-celebrate"],
-          { gapMs: 200, seqGapMs: 0 },
-        );
+        // Tier-based dispatch (see audio/praise.js) — same system as
+        // roundScene. The chain already includes the panda-cue on
+        // streak-3+ (panda-praise-N) or level-complete (panda-cheer-N);
+        // no separate playAfter → panda-celebrate call needed. The old
+        // pattern double-played the panda voice on every correct pick.
+        //
+        // `isRoundComplete` flips to true when this is the last pair in
+        // the round — that dispatches the "level" tier (enc-level-N +
+        // panda-cheer-N) so the round-end navigation chains off an
+        // appropriately celebratory last cue.
+        const isRoundComplete = state.foundPairs >= totalSteps;
+        const { chain, lastEncourageId, tier } = pickCheerCue({
+          streak,
+          isRoundComplete,
+          levelId: config.levelId,
+          // Discovery feedback (math-specific praise like "你找到了能
+          // 凑成十的一对") doesn't apply to pair games — the kid isn't
+          // learning a math rule here, just playing a memory/matching
+          // game with target=10. Gate hasDiscovery off.
+          hasDiscovery: false,
+        });
+        ctx.lastEncourageId = lastEncourageId;
+        window.PandaAudio.playSequence(chain, 200, 0);
         buddy.setMood("cheer", { silent: true });
+        // Visual celebration at the midpoint of the two picked items
+        // so the burst lands between the boat/cloud/bubble the kid
+        // just matched, not at a random spot.
+        const aNode = ctx.items[aIdx].node;
+        const bNode = ctx.items[bIdx].node;
+        const mx = (aNode.pos.x + bNode.pos.x) / 2;
+        const my = (aNode.pos.y + bNode.pos.y) / 2;
+        celebrate(k, {
+          tier,
+          anchor: { x: mx, y: my },
+          pandaBody: buddy?.body,
+          pandaBaseSize: 180,
+        });
 
-        if (state.foundPairs >= totalSteps) {
+        if (isRoundComplete) {
           state.done = true;
           bar.setStep(totalSteps + 1);
-          // Wait for the "好棒" celebration to actually end before
+          // Wait for the celebration audio to actually end before
           // playing the round-end cue and navigating. playAfter hooks
-          // panda-celebrate's `ended` event — no k.wait guess needed.
-          // If roundEndCue returns null (gameBoat, etc.), the chain is
-          // empty and onComplete fires immediately after the gap.
+          // ctx.lastEncourageId's `ended` event — no k.wait guess.
+          // Was hardcoded to "panda-celebrate" before; now follows
+          // the actual last cue of the new tier chain (panda-cheer-N
+          // on round-complete, panda-praise-N on streak tiers).
           if (roundIdx + 1 < config.roundCount) {
             const endIds = config.roundEndCue(round) ? [config.roundEndCue(round)] : [];
             window.PandaAudio.playAfter(
-              "panda-celebrate",
+              ctx.lastEncourageId,
               endIds,
               { gapMs: 0, seqGapMs: 0 },
               () => {
@@ -166,7 +204,7 @@ export default function createPairScene(config) {
           } else {
             saveProgress(config.levelId);
             window.PandaAudio.playAfter(
-              "panda-celebrate",
+              ctx.lastEncourageId,
               ["lvl-done"],
               { gapMs: 0, seqGapMs: 0 },
               () => {
@@ -181,12 +219,19 @@ export default function createPairScene(config) {
           state.selections.length = 0;
         }
       } else {
-        // Wrong — shake both items, encourage, no progress. The "enc-try"
-        // audio is fired by setMood("think") below via panda.js's built-in
-        // MOOD_CUE mapping; don't playCue("enc-try") here too — that would
-        // double-fire and overlap with the panda cheer.
+        // Wrong — shake both items, encourage, no progress. Plays an
+        // enc-wrong-N cue from the new tier system (the old "enc-try"
+        // cue is GONE). panda.js's setMood("think") would have fired
+        // enc-try automatically — but now we explicitly play an
+        // enc-wrong-N here so the wrong-path audio is consistent
+        // across pair games. Pass {silent: true} to setMood so the
+        // panda changes pose without double-playing its own audio.
+        streak = 0;
         ctx.items[aIdx].shake();
         ctx.items[bIdx].shake();
+        buddy.setMood("think", { silent: true });
+        window.PandaAudio.stopAllAudio();
+        window.PandaAudio.playCue(pickWrongCue());
         ctx.onWrong(ctx, a, b);
       }
     }

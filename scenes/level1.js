@@ -145,9 +145,16 @@ function mergedRow(ctx, nums, opts = {}) {
   const { k } = ctx;
   const { highlight = null, boundary = null, flushBoundary = false, y: rowY = 480 } = opts;
   const total = nums.reduce((a, b) => a + b, 0);
-  const cell = 72;
-  const gap = 8;
-  const extraGap = 40;
+  // Cells shrunk from 72 → 52, gap 8 → 6, extraGap 40 → 28 (2026-08-10).
+  // The previous 72-px squares made the largest make-a-ten row (e.g.
+  // 6+4+5 = 15 cells with boundary) span 1256 px — wider than the
+  // 1366-px canvas — so the body row ended up exactly under the panda
+  // at the left edge. 52-px cells give the 15-cell case an 894-px
+  // row, leaving ~35 px clearance from the (new) 180-px panda and
+  // ~30 px from the canvas edge.
+  const cell = 52;
+  const gap = 6;
+  const extraGap = 28;
 
   // Compute each cell's x offset from the first cell. `boundary` widens the
   // gap immediately before and after that group; `flushBoundary` zeroes
@@ -249,16 +256,16 @@ function mergedRow(ctx, nums, opts = {}) {
 // ends with the step-1 sub-question, so adding another spoken prompt would
 // just repeat it.
 //
-// When called after a correct pick, chains off "panda-celebrate" — the
-// actual last cue of the cheer audio — so the next step's prompt
-// starts immediately when the celebration ends, with no fixed
-// setTimeout and no overlap with the celebration tail. The previous
-// reference (ctx.lastEncourageId, the "enc-great" cue) was already
-// `ended` by the time buildStep ran, so playAfter would kick off
-// immediately and overlap with panda-celebrate.
+// When called after a correct pick, chains off ctx.lastEncourageId — the
+// actual last cue of the cheer audio set by onPick (enc-first-N on the
+// first pick, panda-praise-N on streak-3+, panda-cheer-N on level-
+// complete). The old reference was hardcoded to "panda-celebrate",
+// which is gone from CUE_IDS. Chaining off the actual last cue means
+// the next step's prompt starts immediately when the celebration ends,
+// with no fixed setTimeout and no overlap with the celebration tail.
 function speakSequence(k, ids, ctx) {
   if (ctx && ctx.lastEncourageId) {
-    window.PandaAudio.playAfter("panda-celebrate", ids, {
+    window.PandaAudio.playAfter(ctx.lastEncourageId, ids, {
       gapMs: 400,
       seqGapMs: 40,    // closer to "fluent speech" than the prior 200ms
     });
@@ -336,10 +343,18 @@ export default createRoundScene({
   // of them on first entry and walks through in random order.
   poolGen: () => poolGens[1](),
   sampleSize: 10,
-  // Greeting plays once when the user first opens L1. The per-round
-  // decompose sentence (fired inside step 1) waits for it to finish
-  // plus a 1s pause on round 0, then chains on subsequent rounds.
-  introCue: "lvl-1-greeting",
+  // No topic-intro greeting on entry — per user feedback 2026-08-10.
+  // The old "小朋友好，我们来学习三数相加" greeting was a vague topic
+  // statement that ate ~4s before any guidance appeared; kids heard
+  // "we're learning X" but no instruction on what to DO. Now the
+  // step 1 phase-1 audio IS the entry guidance:
+  //   "先看下 a+b+c 等于几，这个问题可以分解成我们先看看前两个数相加"
+  // — it tells the kid the strategy ("decompose") and the question
+  // ("what does this equal?") in one fluent sentence.
+  //
+  // (Subsequent rounds also play the same phase-1 audio — same
+  // strategy prompt, just for the new round's numbers.)
+  // introCue intentionally omitted.
   // Two teaching beats: add the first pair, then add the rest.
   stepLabels: ["两数相加", "计算结果"],
 
@@ -373,10 +388,10 @@ export default createRoundScene({
       //     相加等于10" — the kid picks the pair (e.g. "4+6") that
       //     matches the triple, practising the make-a-ten strategy.
       //
-      // phase 1 chain runs the full greeting-then-decompose timing on
-      // round 0 (chained off lvl-1-greeting's `ended` event), or just
-      // the decompose on later rounds. playAfter / playSequence forward
-      // firePhase2 to onComplete, which fires after the LAST cue's
+      // phase 1 chain plays the per-round decompose sentence directly on
+      // every round (no entry greeting — see config-level comment).
+      // playSequence forwards firePhase2 to onComplete, which fires
+      // after the LAST cue's
       // `ended` event — i.e. after the audio has actually finished.
       const [a, b, c] = round.nums;
       const phase1Ids = isMakeTen
@@ -406,23 +421,12 @@ export default createRoundScene({
         window.PandaAudio.playSequence(phase2Ids, 40, 100);
       };
 
-      if (ctx.ri === 0) {
-        window.PandaAudio.playAfter(
-          "lvl-1-greeting", phase1Ids,
-          {
-            gapMs: 1000,    // "停顿1s" between greeting and phase 1
-            seqGapMs: 40,   // tighter rhythm — 260ms made the per-round
-                            // sentence feel like a word list, not a
-                            // sentence (per user feedback 2026-08-09)
-          },
-          firePhase2,
-        );
-      } else {
-        // Subsequent rounds: no greeting, just play phase 1 and chain
-        // phase 2. 100 ms delay so the first render lands before the
-        // audio starts.
-        window.PandaAudio.playSequence(phase1Ids, 40, 100, firePhase2);
-      }
+      // No more round-0 special case — the per-round phase-1 audio IS
+      // the entry guidance now. 100ms settle delay so the first
+      // render lands before the audio starts; phase 2 chains via
+      // playSequence's onComplete (fires after phase 1's `ended`
+      // event, not a setTimeout estimate).
+      window.PandaAudio.playSequence(phase1Ids, 40, 100, firePhase2);
 
       return {
         body,
@@ -547,14 +551,17 @@ export default createRoundScene({
           // Read the full equation back as the reward: "X 加 Y 加 Z
           // 等于 答". Return a Promise that resolves when the audio
           // chain finishes — roundScene awaits it before advancing
-          // to the next round. playAfter hooks "panda-celebrate"'s
-          // `ended` event so the reward starts AFTER the celebration
-          // (not after `enc-great`, which had already ended and would
-          // have caused the reward to fire on top of panda-celebrate).
+          // to the next round. playAfter hooks the celebration's
+          // actual last cue (ctx.lastEncourageId, set by onPick to
+          // the LAST cue of the new tier-based cheer chain —
+          // enc-first-N / panda-praise-N / panda-cheer-N) so the
+          // reward starts AFTER the celebration tail and never
+          // overlaps it. The old hardcoded "panda-celebrate" cue
+          // is gone from CUE_IDS.
           const answerIds = buildL1AnswerIds(a, b, c, round.answer);
           return new Promise((resolve) => {
             window.PandaAudio.playAfter(
-              "panda-celebrate",
+              ctx.lastEncourageId,
               answerIds,
               { gapMs: 200, seqGapMs: 200 },
               resolve,

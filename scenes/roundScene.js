@@ -27,8 +27,9 @@ import stepBar from "../components/stepBar.js";
 import panda from "../components/panda.js";
 import choice, { iconButton } from "../components/choice.js";
 import { INK, PAPER, FONT } from "../components/theme.js";
+import { pickCheerCue, pickWrongCue } from "../audio/praise.js";
+import { celebrate } from "../components/celebration.js";
 
-const ENCOURAGE = ["enc-great", "enc-awesome", "enc-amazing", "enc-nice"];
 // Long enough for a slow voice to land a one-word prompt and the child to
 // look at the buttons before the timer expires. The verifier flips a global
 // flag to skip these pauses; in-game timing is unchanged.
@@ -47,9 +48,16 @@ export const LAYOUT = {
   revealY: 690,
   revealStride: 74,
   buttonY: 838,
+  // Panda shrunk from 230 → 180 (2026-08-10). The previous size made
+  // the panda dominate the left third of the canvas and could press
+  // against the body row when an L1 round carried the maximum 10 beads
+  // (body left edge ≈ x=320, panda right edge ≈ x=285 — only 35 px of
+  // clearance). 180 × 180 with the same (x, y) anchor gives ~50 px of
+  // margin from the body, ~50 px from the buttons, and stops the panda
+  // from competing visually with the equation.
   pandaX: 170,
   pandaY: 640,
-  pandaSize: 230,
+  pandaSize: 180,
 };
 
 const MAX_REVEAL_LINES = 2;
@@ -92,6 +100,13 @@ function saveProgress(levelId) {
 
 export default function createRoundScene(config) {
   let roundIdx = 0;
+  // Streak of consecutive correct picks across rounds AND steps in this
+  // session — drives the process-praise tier in onPick. Resets to 0 on
+  // wrong pick (a real mistake, not just disabled re-tap) or when the
+  // kid taps ← (intentional: a fresh entry shouldn't inherit another
+  // session's run). Lives on the scene closure (above drawRound) so it
+  // persists across the 10 sampled rounds within one play-through.
+  let streak = 0;
   // Sampled round sequence for this session — drawn once when the scene
   // starts (roundIdx === 0), then walked through in order. The next time
   // the kid enters this level, a fresh sample is drawn. Pool comes from
@@ -112,6 +127,7 @@ export default function createRoundScene(config) {
       fontSize: 44,
       onClick: () => {
         roundIdx = 0;
+        streak = 0;
         k.go("levelPicker");
       },
     });
@@ -221,14 +237,15 @@ export default function createRoundScene(config) {
       const startX = LAYOUT.barX - totalW / 2 + buttonW / 2;
 
       ordered.forEach((v, i) => {
+        const bx = startX + i * (buttonW + gap);
         const btn = choice(k, {
           label: String(v),
-          x: startX + i * (buttonW + gap),
+          x: bx,
           y: LAYOUT.buttonY,
           w: buttonW, h: buttonH,
           onClick: () => onPick(v, i),
         });
-        state.buttons.push({ btn, value: v });
+        state.buttons.push({ btn, value: v, x: bx, y: LAYOUT.buttonY });
       });
       return state.buttons;
     }
@@ -276,28 +293,61 @@ export default function createRoundScene(config) {
       // Any tap on an answer button — right or wrong — stops whatever
       // spoken sentence was still going. The kid has engaged; the
       // remaining audio for this step is no longer relevant. The
-      // correct branch immediately plays an encouragement on top of
-      // the silence; the wrong branch sits in silence until the kid
-      // taps another button.
+      // correct branch immediately plays the tier-based cheer chain
+      // on top of the silence; the wrong branch sits in silence for
+      // the enc-wrong cue.
       window.PandaAudio.stopAllAudio();
       if (value === stepCfg.question.correct) {
+        streak += 1;
         state.locked.add(idx);
         state.buttons[idx].btn.setCorrect();
         buddy.setMood("cheer", { silent: true });
-        const encourageId = ENCOURAGE[(ri + config.levelId) % ENCOURAGE.length];
-        // Stash on ctx so a step's onAdvance can chain audio after
-        // the encouragement's `ended` event (e.g. L1 step 2 reads
-        // the equation reward off the encouragement rather than
-        // guessing with a setTimeout).
-        ctx.lastEncourageId = encourageId;
-        window.PandaAudio.playCue(encourageId);
-        // Chain the panda's own cheer ("好棒") off the encouragement
-        // so the kid hears "耶！" then "好棒" without overlapping.
-        // Without this, panda.js's setMood would fire panda-celebrate
-        // on top of the enc cue — wall of sound.
-        window.PandaAudio.playAfter(
-          encourageId, ["panda-celebrate"], { gapMs: 200, seqGapMs: 0 },
-        );
+        // Tier-based dispatch (see audio/praise.js). Returns the chain
+        // to play as a sequence, the id of the LAST cue in that chain
+        // (used as the anchor for onAdvance audio gates), and the
+        // tier name for logging.
+        //
+        // Chain shapes:
+        //   first    → [enc-first-N]                   (or + enc-specific-N for L2/L3 discovery)
+        //   streak3  → [enc-streak3-N, panda-praise-N] (panda joins at 3)
+        //   streak5  → [enc-streak5-N, panda-praise-N]
+        //   streak10 → [enc-streak10-N, panda-praise-N]
+        //   level    → [enc-level-N,    panda-cheer-N]
+        //
+        // No more "好棒 / panda-celebrate" double-praise stacking —
+        // the panda-cue only fires on streak-3+ or level-complete.
+        const isRoundComplete = state.step >= config.steps.length;
+        const { chain, lastEncourageId, tier } = pickCheerCue({
+          streak,
+          isRoundComplete,
+          levelId: config.levelId,
+          hasDiscovery: !!stepCfg.hasDiscovery,
+        });
+        // Stash on ctx so a step's onAdvance can chain its post-celebration
+        // audio (e.g. L1 step 2's equation read-back) off the actual
+        // LAST cue in the chain — first-tier ends on enc-first-N,
+        // streak tiers end on panda-praise-N, level-complete ends on
+        // panda-cheer-N. Was hardcoded to "panda-celebrate" before;
+        // now follows whichever cue actually played.
+        ctx.lastEncourageId = lastEncourageId;
+        // Play the chain as one playSequence. seqGapMs 200 gives the
+        // enc + panda-cue room to breathe without dragging. The
+        // chain uses playCueRaw internally (per the function's
+        // contract), so it won't cancel itself mid-flight.
+        window.PandaAudio.playSequence(chain, 200, 0);
+        // Visual celebration — tier-matched fireworks / sparkles that
+        // run in parallel with the audio chain. See
+        // components/celebration.js. The anchor is the tapped button so
+        // the first-correct sparkle bursts out of where the kid tapped,
+        // not from a random spot. The panda body is passed only for the
+        // level-complete hop.
+        const tappedBtn = state.buttons[idx];
+        celebrate(k, {
+          tier,
+          anchor: tappedBtn ? { x: tappedBtn.x, y: tappedBtn.y } : null,
+          pandaBody: buddy?.body,
+          pandaBaseSize: LAYOUT.pandaSize,
+        });
         // stepCfg.onAdvance may return a thenable (Promise) — for
         // audio-gated advances like L1 step 2's equation read-back,
         // the promise resolves when the audio chain finishes, and
@@ -305,7 +355,7 @@ export default function createRoundScene(config) {
         // advancePauseMs.
         //
         // For steps whose onAdvance returns no Promise, advance is
-        // gated on the cheer chain's last cue ("panda-celebrate")
+        // gated on the cheer chain's last cue (ctx.lastEncourageId)
         // firing its `ended` event — fully event-driven. The old
         // k.wait(d, advance) timer based the transition on a fixed
         // ms guess, which the user flagged as too slow and prone to
@@ -326,16 +376,16 @@ export default function createRoundScene(config) {
           advanceResult.then(adv);
         } else {
           // Default: advance when the celebration audio's last cue
-          // ends. The cheer chain is set up above (playAfter(enc,
-          // [panda-celebrate])) and the same "panda-celebrate" cue is
-          // referenced by every level's fireStepAudio so each new
-          // step's audio chains off the celebration too — one shared
-          // anchor cue, no race between visual and audio gates.
-          const pcEl = window.PandaAudio.audio["panda-celebrate"];
-          if (pcEl) {
-            pcEl.addEventListener("ended", () => adv(), { once: true });
+          // ends. The cheer chain (enc + maybe panda-cue) is playing
+          // now via playSequence; we wait on its last cue. Each
+          // level's fireStepAudio chains the next step's audio off
+          // this same ctx.lastEncourageId so the new step audio never
+          // starts before the celebration's tail finishes.
+          const lastEl = window.PandaAudio.audio[lastEncourageId];
+          if (lastEl) {
+            lastEl.addEventListener("ended", () => adv(), { once: true });
           } else {
-            // panda-celebrate audio element missing — fall back to
+            // lastEncourageId audio element missing — fall back to
             // immediate advance so the kid isn't stuck.
             adv();
           }
@@ -347,8 +397,22 @@ export default function createRoundScene(config) {
           k.wait(d, adv);
         }
       } else {
+        // Wrong pick — break the streak (a wrong answer is exactly the
+        // "real mistake" that should reset run-length). Then play a
+        // wrong-answer cue from the new tier system: universal
+        // enc-wrong-N (any level) or enc-near-N for near-miss
+        // coaching in L2/L3 (the level opts in via stepCfg.isNearMiss).
+        //
+        // No longer relies on panda.js's MOOD_CUE.think firing enc-try
+        // (the old "enc-try" cue is GONE). buddy.setMood runs with
+        // {silent: true} so the panda sprite changes to its "thinking"
+        // pose without double-playing its own audio — we explicitly
+        // fire the wrong cue below.
+        streak = 0;
         state.buttons[idx].btn.setDisabled(true);
-        buddy.setMood("think");
+        buddy.setMood("think", { silent: true });
+        const wrongCue = pickWrongCue({ isNearMiss: !!stepCfg.isNearMiss });
+        window.PandaAudio.playCue(wrongCue);
       }
     }
 

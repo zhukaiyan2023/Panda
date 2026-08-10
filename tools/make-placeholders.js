@@ -11,18 +11,26 @@ const fs = require("fs");
 const path = require("path");
 
 const CUE_IDS = [
-  "enc-great", "enc-awesome", "enc-amazing", "enc-nice", "enc-try",
+  // 2026-08-10 process-praise tier rewrite: the old 5 enc-* + panda-celebrate
+  // placeholders are replaced by 6 representative cues from the new 32-cue
+  // system. The actual runtime list lives in main.js CUE_IDS (1098 entries
+  // including per-round composites) — this file generates a small sampling
+  // of silent placeholders for offline dev only.
+  "enc-first-1", "enc-streak3-1", "enc-streak5-1", "enc-streak10-1", "enc-wrong-1", "panda-praise-1",
   "n-0", "n-1", "n-2", "n-3", "n-4", "n-5", "n-6", "n-7", "n-8", "n-9", "n-10",
   "q-what-is", "q-plus", "q-equals", "equals",
-  "lvl-1-greeting", "lvl-1-decomp-pre", "lvl-1-decomp-eq",
+  // 2026-08-10: removed lvl-1-greeting (L1 entry) and lvl-3-intro
+  // (L3 entry) — both were vague topic-statement intros with no
+  // instruction for what the kid should do. Per-round step audio is
+  // now the entry guidance.
+  "lvl-1-decomp-pre", "lvl-1-decomp-eq",
   "l1-sub-find-ten",
   "lvl-2-step-1-pre", "lvl-2-step-1-eq", "lvl-2-step-1-or", "lvl-2-step-1-q",
   "lvl-2-step-2-big-pre", "lvl-2-step-2-find", "lvl-2-step-2-friend-pre", "lvl-2-step-2-q",
   "lvl-2-step-3-split-pre", "lvl-2-step-3-friend-pre", "lvl-2-step-3-then", "lvl-2-step-3-can-split", "lvl-2-step-3-q",
   "lvl-2-step-4-split", "lvl-2-step-4-calc",
-  "lvl-3-intro", "lvl-3-step-1-pre", "lvl-3-step-1-q",
+  "lvl-3-step-1-pre", "lvl-3-step-1-q",
   "lvl-done",
-  "panda-celebrate",
   "boat-intro", "boat-pair", "boat-done",
   "cloud-intro", "cloud-pair", "cloud-done",
   "bounce-intro", "bounce-pop", "bounce-done",

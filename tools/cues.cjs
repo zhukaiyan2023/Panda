@@ -24,9 +24,23 @@
 //   panda-hi         — no caller
 //   round-start / -end, tap-unlock, level-locked, next, back
 //                    — no caller
-//   panda-celebrate  — was blocked by `silent: true` on every cheer;
-//                      unblocked in roundScene + pairScene so the panda
-//                      actually speaks on a correct pick (kept the cue)
+//   panda-celebrate  — DELETED 2026-08-10. Was a "好棒" person-praise
+//                      cue that fired on every correct pick, stacking
+//                      on top of the rotated enc-* cue (double-praise
+//                      inflation — see tools/panda-praise-redesign-report.md).
+//                      All call sites that hardcoded "panda-celebrate"
+//                      now use ctx.lastEncourageId, which roundScene
+//                      and pairScene set to the actual last cue of
+//                      the new tier-based cheer chain (enc-streak3-N,
+//                      panda-praise-N, enc-level-N, or panda-cheer-N).
+//   enc-great/enc-awesome/enc-amazing/enc-nice
+//                  — DELETED 2026-08-10. Replaced by the enc-first-N,
+//                    enc-streak3-N, enc-streak5-N, enc-streak10-N,
+//                    enc-level-N tier system (see audio/praise.js).
+//   enc-try          — DELETED 2026-08-10. Replaced by enc-wrong-N
+//                    (universal) and enc-near-N (凑十法 coaching).
+//                    panda.js's MOOD_CUE.think now points to
+//                    pickStaticWrongCue() from audio/praise.js.
 //
 // Notes for translators:
 //   * numbers stay as "一".."十" — they're read as separate cues and chained
@@ -37,33 +51,37 @@
 
 module.exports = [
   // ===== L1 (三数相加) spoken entry =====
-  // The L1 entry is a two-part sentence: a fixed greeting, then a 1s
-  // pause, then a per-round "decompose" sentence that reads out the
-  // round's actual numbers. The decompose is built at runtime by
-  // scenes/level1.js from these number-agnostic chunks plus the
-  // universal n-0..n-10 + q-plus + q-equals cues. Numbers are NEVER
-  // baked into a per-round file — any L1 round can use this set.
-  //
-  // Greeting plays once when the user first opens L1. Single sentence,
-  // matches the L2 ("凑十法") and L3 ("二十以内") greeting style.
-  { id: "lvl-1-greeting", text: "小朋友好，我们来学习三数相加" },
-  // Chunks of the per-round decompose sentence. The full sentence for
-  // a round with nums [a,b,c] reads:
+  // The L1 entry has NO greeting audio — per user feedback 2026-08-10.
+  // The old "lvl-1-greeting" ("小朋友好，我们来学习三数相加") was a vague
+  // topic statement that ate ~4s before any guidance appeared; it gave
+  // no instruction for what the kid should DO. The per-round "decompose"
+  // sentence now IS the entry guidance — built at runtime by scenes/
+  // level1.js from these number-agnostic chunks plus the universal
+  // n-0..n-10 + q-plus + q-equals cues. For nums [a,b,c] the full
+  // sentence reads:
   //   先看下 a 加 b 加 c 等于几，这个问题可以分解成我们先看看前两个数相加。
   //   a 加 b 等于几
   // (Earlier versions also prompted "再加上 c" and a repeat
   // "小朋友 a 加 b 等于几" — the user found those redundant. The
   // simplified sentence ends at the actual question for step 1.)
+  // Numbers are NEVER baked into a per-round file — any L1 round uses
+  // this same set.
   { id: "lvl-1-decomp-pre",      text: "先看下" },
   { id: "lvl-1-decomp-eq",       text: "等于几，这个问题可以分解成我们先看看前两个数相加。" },
 
   // ===== other level intros =====
   // L2 (凑十法) drops the kid straight into round 0 step 1 — the lvl-2-intro
   // greeting ("现在我们一起学习凑十法") was removed per user feedback. The
+  // L3 ("二十以内") lvl-3-intro ("现在我们一起学习二十以内的计算", the
+  // "big numbers" voice) was ALSO removed 2026-08-10 for the same reason:
+  // both were vague topic statements with no instruction for what the
+  // kid should DO. The per-step audio now IS the entry guidance.
   // per-step audio already names the strategy on the first round.
-  // L3 (二十以内) keeps its entry greeting, then per-step contextual
-  // sentences take over (see the lvl-3-step-N-* chunks below).
-  { id: "lvl-3-intro", text: "小朋友好，现在我们一起学习二十以内的计算" },
+  // L3 (二十以内) has NO entry greeting — removed 2026-08-10. The
+  // per-round step 1 audio ("11+8等于几，我们先把 11 进行拆分，拆成十加几")
+  // IS the entry guidance: names the equation AND the strategy in one
+  // fluent sentence. See the lvl-3-step-N-* chunks below for the
+  // number-agnostic pieces.
 
   // ===== L2 per-step sentences (凑十法) =====
   // Each teaching beat is a long contextual sentence that walks the
@@ -166,29 +184,89 @@ module.exports = [
   { id: "n-18", text: "十八" },
   { id: "n-19", text: "十九" },
 
-  // ===== encouragements =====
-  // One exclamation each, rotated on a correct answer. Cheerful Mandarin
-  // interjections a toddler can mimic — none of them praise the child
-  // explicitly (Chinese parents use praise sparingly; a 3 year old
-  // understands "耶！" or "哇！" without needing "你真棒").
-  { id: "enc-great",   text: "耶！" },
-  { id: "enc-awesome", text: "太棒啦！" },
-  { id: "enc-amazing", text: "哇！" },
-  { id: "enc-nice",    text: "真好！" },
-  { id: "enc-try",     text: "再试试" },
+  // ===== encouragements (process-praise tier system) =====
+  // Redesigned 2026-08-10 per the praise audit (see
+  // tools/panda-praise-redesign-report.md). Three principles drove the
+  // rewrite:
+  //
+  //   1. Process praise over person praise (Dweck 1998). Every cue
+  //      prioritises "你试了 / 你找到了" over "你真聪明 / 好棒" —
+  //      person praise in failure context destroys persistence, and the
+  //      3-6 yr brain reads generic delight as "I did the right thing"
+  //      without learning WHAT they did right.
+  //
+  //   2. Streak-based escalation. The first correct pick and the 30th
+  //      correct pick no longer sound the same. The five tiers are
+  //      dispatched by audio/praise.js::pickTier based on the kid's
+  //      running streak. Tier "first" is the only one that fires on
+  //      every correct pick; higher tiers build on it.
+  //
+  //   3. No more "panda-celebrate" double-praise stacking. The panda
+  //      character cue only fires on tier >= "streak3" (and on level
+  //      complete as a "cheer" not "praise"). This keeps the panda
+  //      voice rare and high-value, avoiding the Aronson-effect
+  //      inflation where every correct = two cheers = zero signal.
+  //
+  // All 33 cues below are 1-2s (math-discovery ≤3s), Mandarin-only,
+  // and never overlap with the step's system prompt audio. Callers
+  // stopAllAudio() before invoking pickCheerCue()/pickWrongCue() so
+  // the per-step audio chain and the encouragement never play at the
+  // same moment.
+  //
+  // --- Tier: first-correct (every correct pick, no panda) ---
+  { id: "enc-first-1", text: "答对啦！" },
+  { id: "enc-first-2", text: "找对啦！" },
+  { id: "enc-first-3", text: "对喽！" },
+  { id: "enc-first-4", text: "好眼力！" },
+  // --- Tier: streak-3 (consecutive correct, panda joins) ---
+  { id: "enc-streak3-1", text: "连着对了三题！" },
+  { id: "enc-streak3-2", text: "你越来越快了！" },
+  { id: "enc-streak3-3", text: "小熊猫觉得你很认真！" },
+  // --- Tier: streak-5 (process-praise strong signal) ---
+  { id: "enc-streak5-1", text: "你试了好几次才对，这叫有耐心！" },
+  { id: "enc-streak5-2", text: "你找到方法啦！" },
+  { id: "enc-streak5-3", text: "连对五题啦！" },
+  // --- Tier: streak-10 (celebration + 称号) ---
+  { id: "enc-streak10-1", text: "连对十题！凑十小达人！" },
+  { id: "enc-streak10-2", text: "哇，十题都对！" },
+  { id: "enc-streak10-3", text: "小熊猫都为你鼓掌！" },
+  // --- Tier: level-complete (always enc-level + panda-cheer) ---
+  { id: "enc-level-1", text: "这一关全部完成啦！" },
+  { id: "enc-level-2", text: "你过关啦！" },
+  { id: "enc-level-3", text: "太厉害啦！" },
+  { id: "enc-level-4", text: "全部找对啦！" },
+  // --- Wrong-answer (universal, all levels) ---
+  { id: "enc-wrong-1", text: "没关系，再试一次" },
+  { id: "enc-wrong-2", text: "别着急，再看看" },
+  { id: "enc-wrong-3", text: "我们再来一次吧" },
+  // --- Near-miss wrong (凑十法专属 coaching; L2/L3 only) ---
+  { id: "enc-near-1", text: "差一点啦，再想想" },
+  { id: "enc-near-2", text: "你选的里面有 5，再找一个就能凑十" },
+  { id: "enc-near-3", text: "就快找到啦，别放弃" },
+  // --- Math-discovery feedback (process-praise on specific finding;
+  //     L2/L3 only — L1 kids can't parse the math language yet) ---
+  { id: "enc-specific-pair",  text: "你找到了能凑成十的一对！" },
+  { id: "enc-specific-double", text: "你找到了双胞胎，5 和 5！" },
+  { id: "enc-specific-decomp", text: "你把 8 分成了两部分！" },
+  { id: "enc-specific-friend", text: "你找到了 10 的好朋友！" },
+
+  // ===== panda character cues =====
+  // The panda speaks in its own voice (recorded separately to give a
+  // warmer, slower, first-person "小熊猫觉得..." cadence). It only
+  // joins the cheer on tier >= streak3, and only on level-complete
+  // for the cheer. This is the new home of the old "panda-celebrate"
+  // "好棒" cue — that string was deleted because it's person-praise
+  // and was double-firing on every correct pick. Every call site that
+  // referenced "panda-celebrate" now uses ctx.lastEncourageId (set by
+  // roundScene.onPick to the actual last cue of the cheer chain).
+  { id: "panda-praise-1", text: "小熊猫觉得你很会想办法！" },
+  { id: "panda-praise-2", text: "小熊猫也想去试试看！" },
+  { id: "panda-praise-3", text: "小熊猫陪你一起想！" },
+  { id: "panda-cheer-1",  text: "小熊猫跳起来啦！" },
+  { id: "panda-cheer-2",  text: "小熊猫拍拍手！" },
 
   // ===== round / level flow =====
   { id: "lvl-done",    text: "全部完成啦" },
-
-  // ===== panda teacher feedback =====
-  // The panda is the heart of the game; when it cheers, the kid should
-  // hear it. The previous version blocked panda-celebrate with
-  // `silent: true` on every cheer (because the panda mood triggered the
-  // cue automatically via components/panda.js). The fix was to drop the
-  // silent flag from roundScene + pairScene — the panda now speaks on
-  // every correct pick, on top of the rotated enc-* cue. This is the
-  // only remaining panda-hi-style cue; panda-hi itself is unused.
-  { id: "panda-celebrate", text: "好棒" },
 
   // ===== panda-park migrated games =====
   // Boat — 凑十过河. The first round opens with a friendly greeting that

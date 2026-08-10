@@ -9,11 +9,14 @@
 // 1+9+2, 4+6+5, etc.).
 //
 // This test:
-//   1. Boots the page and asserts that the make-a-ten pool-driven cue
+//   1. Boots the page and asserts the process-praise tier system is
+//      fully registered (every new cue id has an <audio> element) AND
+//      the deleted cues are gone (catches accidental re-registration).
+//   2. Boots the page and asserts that the make-a-ten pool-driven cue
 //      ids for 3+7+1 are loaded into PandaAudio.audio as <audio>
 //      elements. (This is the deterministic check that would have
 //      caught the original bug at CI time — no randomness involved.)
-//   2. Plays through one L1 round. If the sampled first round is a
+//   3. Plays through one L1 round. If the sampled first round is a
 //      make-a-ten round, asserts that l1-intro-mt-* + l1-sub-find-ten
 //      both fire before the step-1 buttons appear, and l1-step2-10-1
 //      fires after the correct pair is picked. (Probabilistic — see
@@ -22,8 +25,8 @@
 // Sampling caveat: L1 samples 10 random rounds from a 337-round pool
 // where ~217 are make-a-ten, so the chance of the first sampled round
 // being make-a-ten is roughly 64% per session. The deterministic
-// existence check (step 1) is the durable guard; the play-through
-// check (step 2) is a bonus smoke test when sampling cooperates.
+// existence checks (steps 1 + 2) are the durable guard; the play-through
+// check (step 3) is a bonus smoke test when sampling cooperates.
 
 import { chromium } from "playwright";
 import path from "node:path";
@@ -41,6 +44,30 @@ const REQUIRED_CUES = [
   `l1-intro-mt-${SAMPLE_ROUND.nums.join("-")}`,
   "l1-sub-find-ten",
   `l1-step2-${SAMPLE_ROUND.pairSum}-${SAMPLE_ROUND.third}`,
+];
+
+// 2026-08-10 process-praise tier system — every new cue id must be
+// registered. Also catch any drift that re-registers the deleted
+// "好棒" / "enc-try" / "enc-great" / "enc-awesome" / "enc-amazing" /
+// "enc-nice" cues — they would either shadow the new system (silent
+// warning at playCue) or fight it for the panda voice, depending on
+// call site.
+const REQUIRED_TIER_CUES = [
+  "enc-first-1", "enc-first-2", "enc-first-3", "enc-first-4",
+  "enc-streak3-1", "enc-streak3-2", "enc-streak3-3",
+  "enc-streak5-1", "enc-streak5-2", "enc-streak5-3",
+  "enc-streak10-1", "enc-streak10-2", "enc-streak10-3",
+  "enc-level-1", "enc-level-2", "enc-level-3", "enc-level-4",
+  "enc-wrong-1", "enc-wrong-2", "enc-wrong-3",
+  "enc-near-1", "enc-near-2", "enc-near-3",
+  "enc-specific-pair", "enc-specific-double", "enc-specific-decomp", "enc-specific-friend",
+  "panda-praise-1", "panda-praise-2", "panda-praise-3",
+  "panda-cheer-1",  "panda-cheer-2",
+];
+const DELETED_CUES = [
+  "panda-celebrate",
+  "enc-try",
+  "enc-great", "enc-awesome", "enc-amazing", "enc-nice",
 ];
 
 function startServer() {
@@ -76,6 +103,35 @@ async function main() {
   const page = await context.newPage();
   await page.goto(url);
   await page.waitForFunction(() => window.PandaAudio && window.kaplay);
+
+  // ---- Check 0: process-praise tier system wiring (2026-08-10 rewrite).
+  // Every cue id in the new 32-cue system must be registered (a missing
+  // id silently breaks roundScene.onPick's pickCheerCue → playSequence
+  // chain). And none of the deleted cues (panda-celebrate / enc-try /
+  // enc-great/awesome/amazing/nice) must be re-registered — if they
+  // are, either some old call site still fires them and would fight
+  // the new system for the panda voice, or some fork accidentally
+  // re-added them to CUE_IDS.
+  const tierStatus = await page.evaluate(
+    ({ required, deleted }) => {
+      const out = { missing: [], reRegistered: [] };
+      for (const id of required) if (!window.PandaAudio.audio[id]) out.missing.push(id);
+      for (const id of deleted) if (window.PandaAudio.audio[id]) out.reRegistered.push(id);
+      return out;
+    },
+    { required: REQUIRED_TIER_CUES, deleted: DELETED_CUES },
+  );
+
+  if (tierStatus.missing.length > 0 || tierStatus.reRegistered.length > 0) {
+    console.error("[l1-mt] FAIL — tier system drift:");
+    for (const id of tierStatus.missing)        console.error(`  missing    ${id}`);
+    for (const id of tierStatus.reRegistered)   console.error(`  re-registered (was deleted)  ${id}`);
+    console.error("Update main.js CUE_IDS to match tools/cues.cjs + audio/praise.js.");
+    await browser.close();
+    server.close();
+    process.exit(1);
+  }
+  console.log(`[l1-mt] ok — tier system wired (${REQUIRED_TIER_CUES.length} new cues, ${DELETED_CUES.length} deleted gone)\n`);
 
   // ---- Check 1: all required cue ids are registered in the audio pool.
   // This is the deterministic guard. Even if sampling is unlucky and

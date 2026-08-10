@@ -2,17 +2,30 @@
 //
 // Moods:
 //   idle  — default, breathing bob
-//   cheer — correct answer, plays panda-celebrate. Callers that chain
-//           their own audio off the enc-* cue should pass
-//           `{ silent: true }` and fire panda-celebrate manually so the
-//           two don't overlap. roundScene and pairScene do exactly this.
-//   think — wrong answer, plays enc-try. Deliberately warm and curious, never
-//           sad or scolding: a 3-6 year old sees it right after a mistake.
+//   cheer — correct answer pose. Default behaviour plays nothing —
+//           the new tier-based cheer system in audio/praise.js owns
+//           every correct-pick audio (roundScene/pairScene pick
+//           from enc-first-N / enc-streak*-N / panda-praise-N /
+//           enc-level-N / panda-cheer-N based on streak). All
+//           callers pass { silent: true } so this component only
+//           changes the panda's pose, never its audio. The old
+//           "panda-celebrate" / "好棒" person-praise cue that used
+//           to fire here is GONE.
+//   think — wrong answer pose. Default behaviour plays an enc-wrong-N
+//           from audio/praise.js::pickStaticWrongCue() so any caller
+//           that hasn't migrated yet still gets a wrong-answer cue
+//           automatically. Scenes that explicitly fire enc-wrong
+//           themselves (roundScene, pairScene, gameCloud) pass
+//           { silent: true } to avoid double-playing.
 //
 // Usage:
 //   const buddy = panda(parent, { x, y, size: 240 });
-//   buddy.setMood("cheer");            // plays panda-celebrate immediately
-//   buddy.setMood("cheer", { silent: true });  // caller will fire its own cue
+//   buddy.setMood("cheer");            // pose-only (new default)
+//   buddy.setMood("cheer", { silent: true });  // same — silent is now default for cheer
+//   buddy.setMood("think");            // plays enc-wrong-N
+//   buddy.setMood("think", { silent: true });  // pose-only
+
+import { pickStaticWrongCue } from "../audio/praise.js";
 
 const MOODS = {
   idle: "panda-idle",
@@ -20,9 +33,12 @@ const MOODS = {
   think: "panda-think",
 };
 
+// Mood → audio-cue picker. cheer is null (caller owns the audio via
+// the tier chain); think rotates through enc-wrong-N so each wrong
+// pick sounds fresh (no fixed "再试一次" loop).
 const MOOD_CUE = {
-  cheer: "panda-celebrate",
-  think: "enc-try",
+  cheer: null,
+  think: () => pickStaticWrongCue(),
 };
 
 export default function panda(parent, opts = {}) {
@@ -52,6 +68,10 @@ export default function panda(parent, opts = {}) {
   ]);
   body.width = size;
   body.height = size;
+  // Expose the sprite body so callers (e.g. components/celebration.js
+  // for the level-complete hop) can tween width/height without reaching
+  // into the implementation. root itself is just a pos+z container.
+  root.body = body;
 
   // Gentle vertical bob so the character feels alive without pulling attention
   // away from the equation.
@@ -73,7 +93,7 @@ export default function panda(parent, opts = {}) {
     body.height = size;
 
     const cue = MOOD_CUE[next];
-    if (cue && opts2.silent !== true) window.PandaAudio?.playCue(cue);
+    if (cue && opts2.silent !== true) window.PandaAudio?.playCue(cue());
 
     if (resetTimer) resetTimer.cancel();
     resetTimer = null;
