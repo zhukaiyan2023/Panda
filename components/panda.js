@@ -68,6 +68,10 @@ export default function panda(parent, opts = {}) {
   ]);
   body.width = size;
   body.height = size;
+  // Expose the sprite body so callers (e.g. components/celebration.js
+  // for the level-complete hop) can tween width/height without reaching
+  // into the implementation. root itself is just a pos+z container.
+  root.body = body;
 
   // Gentle vertical bob so the character feels alive without pulling attention
   // away from the equation.

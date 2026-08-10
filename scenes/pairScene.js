@@ -30,6 +30,7 @@ import panda from "../components/panda.js";
 import { iconButton } from "../components/choice.js";
 import { INK, PAPER, FONT } from "../components/theme.js";
 import { pickCheerCue, pickWrongCue } from "../audio/praise.js";
+import { celebrate } from "../components/celebration.js";
 
 // Picks that happen during one round share the same step bar. Each correct
 // pick moves the bar forward; the round is complete when step === roundSteps.
@@ -153,7 +154,7 @@ export default function createPairScene(config) {
         // panda-cheer-N) so the round-end navigation chains off an
         // appropriately celebratory last cue.
         const isRoundComplete = state.foundPairs >= totalSteps;
-        const { chain, lastEncourageId } = pickCheerCue({
+        const { chain, lastEncourageId, tier } = pickCheerCue({
           streak,
           isRoundComplete,
           levelId: config.levelId,
@@ -166,6 +167,19 @@ export default function createPairScene(config) {
         ctx.lastEncourageId = lastEncourageId;
         window.PandaAudio.playSequence(chain, 200, 0);
         buddy.setMood("cheer", { silent: true });
+        // Visual celebration at the midpoint of the two picked items
+        // so the burst lands between the boat/cloud/bubble the kid
+        // just matched, not at a random spot.
+        const aNode = ctx.items[aIdx].node;
+        const bNode = ctx.items[bIdx].node;
+        const mx = (aNode.pos.x + bNode.pos.x) / 2;
+        const my = (aNode.pos.y + bNode.pos.y) / 2;
+        celebrate(k, {
+          tier,
+          anchor: { x: mx, y: my },
+          pandaBody: buddy?.body,
+          pandaBaseSize: 180,
+        });
 
         if (isRoundComplete) {
           state.done = true;

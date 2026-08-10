@@ -25,6 +25,7 @@ import panda from "../components/panda.js";
 import expression from "../components/expression.js";
 import { iconButton } from "../components/choice.js";
 import { pickCheerCue, pickWrongCue } from "../audio/praise.js";
+import { celebrate } from "../components/celebration.js";
 import {
   INK, PAPER, FONT, ORANGE, ORANGE_DEEP, PINK, BLUE, SUCCESS, YELLOW,
 } from "../components/theme.js";
@@ -390,7 +391,7 @@ export default function scene(k) {
       // already includes the panda voice on streak-3+ or level-complete,
       // so no extra playAfter → panda-cue is needed.
       streak += 1;
-      const { chain, lastEncourageId } = pickCheerCue({
+      const { chain, lastEncourageId, tier } = pickCheerCue({
         streak,
         isRoundComplete: true,  // cloud: 1 pick per round = always round-end
         levelId: 3,
@@ -400,6 +401,15 @@ export default function scene(k) {
       window.PandaAudio.playAfter("cloud-pair", chain, {
         gapMs: 200,
         seqGapMs: 200,
+      });
+      // Visual celebration anchored at the picked cloud. cloud has its
+      // own panda, so the level-complete hop animates THIS scene's
+      // panda, not the roundScene one.
+      celebrate(k, {
+        tier,
+        anchor: { x: it.node.pos.x, y: it.node.pos.y },
+        pandaBody: buddy?.body,
+        pandaBaseSize: 160,
       });
 
       window.PandaAudio.playAfter(

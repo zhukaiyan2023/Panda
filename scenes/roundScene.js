@@ -28,6 +28,7 @@ import panda from "../components/panda.js";
 import choice, { iconButton } from "../components/choice.js";
 import { INK, PAPER, FONT } from "../components/theme.js";
 import { pickCheerCue, pickWrongCue } from "../audio/praise.js";
+import { celebrate } from "../components/celebration.js";
 
 // Long enough for a slow voice to land a one-word prompt and the child to
 // look at the buttons before the timer expires. The verifier flips a global
@@ -236,14 +237,15 @@ export default function createRoundScene(config) {
       const startX = LAYOUT.barX - totalW / 2 + buttonW / 2;
 
       ordered.forEach((v, i) => {
+        const bx = startX + i * (buttonW + gap);
         const btn = choice(k, {
           label: String(v),
-          x: startX + i * (buttonW + gap),
+          x: bx,
           y: LAYOUT.buttonY,
           w: buttonW, h: buttonH,
           onClick: () => onPick(v, i),
         });
-        state.buttons.push({ btn, value: v });
+        state.buttons.push({ btn, value: v, x: bx, y: LAYOUT.buttonY });
       });
       return state.buttons;
     }
@@ -333,6 +335,19 @@ export default function createRoundScene(config) {
         // chain uses playCueRaw internally (per the function's
         // contract), so it won't cancel itself mid-flight.
         window.PandaAudio.playSequence(chain, 200, 0);
+        // Visual celebration — tier-matched fireworks / sparkles that
+        // run in parallel with the audio chain. See
+        // components/celebration.js. The anchor is the tapped button so
+        // the first-correct sparkle bursts out of where the kid tapped,
+        // not from a random spot. The panda body is passed only for the
+        // level-complete hop.
+        const tappedBtn = state.buttons[idx];
+        celebrate(k, {
+          tier,
+          anchor: tappedBtn ? { x: tappedBtn.x, y: tappedBtn.y } : null,
+          pandaBody: buddy?.body,
+          pandaBaseSize: LAYOUT.pandaSize,
+        });
         // stepCfg.onAdvance may return a thenable (Promise) — for
         // audio-gated advances like L1 step 2's equation read-back,
         // the promise resolves when the audio chain finishes, and

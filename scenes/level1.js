@@ -145,9 +145,16 @@ function mergedRow(ctx, nums, opts = {}) {
   const { k } = ctx;
   const { highlight = null, boundary = null, flushBoundary = false, y: rowY = 480 } = opts;
   const total = nums.reduce((a, b) => a + b, 0);
-  const cell = 72;
-  const gap = 8;
-  const extraGap = 40;
+  // Cells shrunk from 72 → 52, gap 8 → 6, extraGap 40 → 28 (2026-08-10).
+  // The previous 72-px squares made the largest make-a-ten row (e.g.
+  // 6+4+5 = 15 cells with boundary) span 1256 px — wider than the
+  // 1366-px canvas — so the body row ended up exactly under the panda
+  // at the left edge. 52-px cells give the 15-cell case an 894-px
+  // row, leaving ~35 px clearance from the (new) 180-px panda and
+  // ~30 px from the canvas edge.
+  const cell = 52;
+  const gap = 6;
+  const extraGap = 28;
 
   // Compute each cell's x offset from the first cell. `boundary` widens the
   // gap immediately before and after that group; `flushBoundary` zeroes
