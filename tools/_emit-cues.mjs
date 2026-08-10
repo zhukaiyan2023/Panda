@@ -25,13 +25,37 @@ const l1 = poolGens[1]();
 const l2 = poolGens[2]();
 const l3 = poolGens[3]();
 
+// isMakeTen must mirror scenes/level1.js choosePair so the emitted ids
+// line up with the cues the scene actually requests at runtime. Previously
+// this loop emitted only the non-make-ten ids (`l1-intro-*` + `l1-sub-*`),
+// which left `l1-intro-mt-*` and `l1-sub-find-ten` out of CUE_IDS — every
+// make-a-ten L1 round then played step 1 in silence because no <audio>
+// element was ever created for those ids.
+function isMakeTenRound(nums) {
+  for (let i = 0; i < nums.length; i++) {
+    for (let j = i + 1; j < nums.length; j++) {
+      if (nums[i] + nums[j] === 10) return true;
+    }
+  }
+  return false;
+}
+
 for (const r of l1) {
   const [a, b, c] = r.nums;
   const { pair, third } = choosePair(r.nums);
   const pairSum = pair[0] + pair[1];
   const push = (id) => { if (!seen.has(id)) { seen.add(id); ids.push(id); } };
-  push(`l1-intro-${a}-${b}-${c}`);
-  push(`l1-sub-${pair[0]}-${pair[1]}`);
+  // Both cue sets are emitted for every round: the runtime only requests
+  // one set per round (mt path or normal path), but emitting both keeps
+  // the manifest complete so a pool-shape change can't silently leave
+  // a cue unregistered.
+  if (isMakeTenRound(r.nums)) {
+    push(`l1-intro-mt-${a}-${b}-${c}`);
+    push(`l1-sub-find-ten`);
+  } else {
+    push(`l1-intro-${a}-${b}-${c}`);
+    push(`l1-sub-${pair[0]}-${pair[1]}`);
+  }
   push(`l1-step2-${pairSum}-${third}`);
   push(`l1-rwd-${a}-${b}-${c}-${r.answer}`);
 }

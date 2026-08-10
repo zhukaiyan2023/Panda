@@ -9,6 +9,7 @@
     "verify:math": "node tools/verify-math.mjs",
     "verify:games": "node tools/verify-games.mjs",
     "verify:audio": "node tools/verify-audio-timing.mjs",
+    "verify:l1:mt": "node tools/verify-l1-mt-audio.mjs",
     "placeholders": "node tools/make-placeholders.js",
     "audio:build": "node tools/build-audio.js",
     "audio:build:edge": "node tools/build-audio-edge.mjs",
