@@ -61,6 +61,11 @@ export default function createPairScene(config) {
   // when the kid taps ←. Lives on the scene closure (above drawRound)
   // so it persists across the rounds of one play-through.
   let streak = 0;
+  // Sticky flag flipped on the first wrong pick this session. Used by
+  // pickCheerCue to gate enc-streak5-1 ("你试了好几次才对，这叫有耐心")
+  // — its text only makes sense if the kid actually missed at least once.
+  // Never resets (mirrors roundScene's behaviour).
+  let hadWrongs = false;
 
   function drawRound(k, round) {
     const state = {
@@ -163,6 +168,9 @@ export default function createPairScene(config) {
           // learning a math rule here, just playing a memory/matching
           // game with target=10. Gate hasDiscovery off.
           hasDiscovery: false,
+          // Gate enc-streak5-1 on the kid having actually missed before
+          // — see the `let hadWrongs` declaration above drawRound.
+          hadWrongs,
         });
         ctx.lastEncourageId = lastEncourageId;
         window.PandaAudio.playSequence(chain, 200, 0);
@@ -227,6 +235,9 @@ export default function createPairScene(config) {
         // across pair games. Pass {silent: true} to setMood so the
         // panda changes pose without double-playing its own audio.
         streak = 0;
+        // Sticky flag: any future streak-5 cue can now include
+        // enc-streak5-1's "你试了好几次才对，这叫有耐心" line.
+        hadWrongs = true;
         ctx.items[aIdx].shake();
         ctx.items[bIdx].shake();
         buddy.setMood("think", { silent: true });

@@ -107,6 +107,12 @@ export default function createRoundScene(config) {
   // session's run). Lives on the scene closure (above drawRound) so it
   // persists across the 10 sampled rounds within one play-through.
   let streak = 0;
+  // Total count of wrong picks this session — flipped to true on the
+  // first wrong answer and never reset. Used by pickCheerCue so the
+  // "你试了好几次才对，这叫有耐心" cue (enc-streak5-1) only fires when
+  // the kid has actually missed at least once — otherwise a clean run
+  // of 5 would hear "you tried several times", which is wrong.
+  let hadWrongs = false;
   // Sampled round sequence for this session — drawn once when the scene
   // starts (roundIdx === 0), then walked through in order. The next time
   // the kid enters this level, a fresh sample is drawn. Pool comes from
@@ -176,6 +182,13 @@ export default function createRoundScene(config) {
     let anchorEqNode = null;
     // The "active" equation sits in the body area at moderate size. Levels
     // swap it each teaching beat (L1's pair, L2's compare/to-ten/split/count).
+    // The eqNode is exposed on ctx as `ctx.equationNode` so step configs
+    // can reach its slot centers after rendering — used by L2 step 4's
+    // line markers, which need to draw visual links between the step-3
+    // split equation (rendered manually by the step) and the calc equation
+    // (rendered by buildStep via setEquation). The line marker pass runs
+    // from `built.postRender(ctx)` AFTER setEquation returns, so the
+    // calc's slot positions are available.
     function setEquation(eq, opts = {}) {
       if (eqNode) eqNode.destroy();
       // Accept either the legacy { left, right, sum } shape or the newer
@@ -195,6 +208,7 @@ export default function createRoundScene(config) {
         props.sum = eq.sum;
       }
       eqNode = expression(k, props);
+      ctx.equationNode = eqNode;
     }
     // The persistent "anchor" equation — the original problem ("a + b = ?")
     // that the child is working toward. Renders at the top, large and bold,
@@ -215,6 +229,11 @@ export default function createRoundScene(config) {
         props.sum = eq.sum;
       }
       anchorEqNode = expression(k, props);
+      // Expose the anchor node on ctx so step configs (e.g. L2 step 2's
+      // arrow line markers) can reach the anchor's slot positions from
+      // `postRender` — same access pattern as `ctx.equationNode` for
+      // the sub-equation.
+      ctx.anchorEqNode = anchorEqNode;
     }
 
     function clearBody() {
@@ -228,10 +247,15 @@ export default function createRoundScene(config) {
       state.locked.clear();
     }
 
-    function renderButtons(values, correct, onPick) {
-      const buttonW = 180;
-      const buttonH = 132;
-      const gap = 24;
+    function renderButtons(values, correct, onPick, opts = {}) {
+      // Per-step button style. Most steps use the wide numeric buttons
+      // (180×132, sized for ≥44pt touch targets on a row of 4). A few
+      // steps (L2 step 1's >/< compare, anything with 2 large emojis
+      // instead of digits) want small SQUARE buttons — pass
+      // buttonW=buttonH to swap. The gap auto-fits any value count.
+      const buttonW = opts.buttonW ?? 180;
+      const buttonH = opts.buttonH ?? 132;
+      const gap = opts.gap ?? 24;
       const ordered = shuffle(values);
       const totalW = ordered.length * buttonW + (ordered.length - 1) * gap;
       const startX = LAYOUT.barX - totalW / 2 + buttonW / 2;
@@ -254,6 +278,24 @@ export default function createRoundScene(config) {
     const ctx = {
       k, round, ri, totalRounds, bar, buddy, reveal, context,
       setEquation, setAnchorEquation, clearBody, clearButtons, renderButtons,
+      // Current sub-question equation node (set by setEquation above).
+      // Steps that need to reach the slot layout after rendering — e.g.
+      // L2 step 4's line markers — read it from here in postRender.
+      equationNode: null,
+      // Persistent anchor equation node (set by setAnchorEquation above).
+      // Exposed for steps that draw visual links between the anchor and
+      // the sub-equation — L2 step 2's arrows go from anchor addends to
+      // the split equation's two-piece slots below.
+      anchorEqNode: null,
+      // Persistent container for L2's decomposition arrows. Created once
+      // per round, lives across step 2 → 3 → 4 so the kid always sees
+      // the visual link between the anchor and the split equation. Per
+      // user feedback 2026-08-11: "拆一拆这一步时，拆分的线不要消失。
+      // 算一算的时候也要保留。" Arrows are recreated in each step's
+      // postRender to point at the current sub1 layout — the indices
+      // change as boxes become numbers.
+      arrowsRoot: k.add([k.pos(0, 0)]),
+      arrowNodes: [],
       get step() { return state.step; },
     };
 
@@ -280,8 +322,22 @@ export default function createRoundScene(config) {
           built.question.values,
           built.question.correct,
           (v, i) => onPick(v, i, built, prev),
+          {
+            // Optional per-step button style — see renderButtons().
+            // L2 step 1 passes small squares for the >/< compare.
+            buttonW: built.question.buttonW,
+            buttonH: built.question.buttonH,
+            gap: built.question.gap,
+          },
         );
       }
+      // postRender runs AFTER the sub-question has been rendered and
+      // the buttons are in place — used by L2 step 4 to draw visual
+      // line markers between its persistent step-3 split equation
+      // (rendered manually via the `body:` field above) and the calc
+      // equation (rendered via setEquation above). Anything the step
+      // wants to add on top of the standard render goes here.
+      if (built.postRender) built.postRender(ctx);
     }
 
     function onPick(value, idx, stepCfg, prev) {
@@ -322,6 +378,10 @@ export default function createRoundScene(config) {
           isRoundComplete,
           levelId: config.levelId,
           hasDiscovery: !!stepCfg.hasDiscovery,
+          // Gate enc-streak5-1 ("你试了好几次才对，这叫有耐心") on the
+          // kid having actually missed before. See the `let hadWrongs`
+          // declaration above for the rationale.
+          hadWrongs,
         });
         // Stash on ctx so a step's onAdvance can chain its post-celebration
         // audio (e.g. L1 step 2's equation read-back) off the actual
@@ -361,10 +421,19 @@ export default function createRoundScene(config) {
         // ms guess, which the user flagged as too slow and prone to
         // overlapping with panda-celebrate's tail.
         //
-        // advancePauseMs is kept as a safety ceiling for both paths
-        // so a stuck audio chain (e.g. an audio element with no
-        // `ended` event ever firing on iPad Safari) can't lock the
-        // game. The `advanced` flag dedupes whichever wins.
+        // Safety ceiling: iPad Safari sometimes misses the
+        // reference cue's `ended` event (documented iOS bug — the
+        // play() resolves but the metadata-driven `ended` event is
+        // missed, leaving the kid in silence forever). The previous
+        // safety path required every level to set `advancePauseMs`
+        // explicitly, which nothing did — so any step whose
+        // onAdvance returns no Promise (L2 steps 2 & 3, L3 steps 2 & 3,
+        // L1's single-step variants) could hang on a missed `ended`.
+        // The user reported this as "after the friend is selected,
+        // it gets stuck" for the a<b make-a-ten path. Now we ALWAYS
+        // schedule a safety ceiling alongside the `ended` listener;
+        // whichever fires first wins, the other is a no-op (the
+        // `advanced` flag dedupes).
         const advanceResult = stepCfg.onAdvance ? stepCfg.onAdvance(ctx) : null;
         let advanced = false;
         const adv = () => {
@@ -374,6 +443,19 @@ export default function createRoundScene(config) {
         };
         if (advanceResult && typeof advanceResult.then === 'function') {
           advanceResult.then(adv);
+          // Mirror safety ceiling on the Promise path too — a step's
+          // onAdvance Promise resolves when its audio chain's last cue
+          // fires `ended`. If Safari misses that event (same iOS bug),
+          // the Promise never resolves and the kid is stuck between
+          // steps. Belt-and-suspenders: schedule a hard ceiling that
+          // unblocks the advance regardless.
+          const promiseEl = window.PandaAudio.audio[lastEncourageId];
+          const promiseSafetyMs = (promiseEl
+            && Number.isFinite(promiseEl.duration)
+            && promiseEl.duration > 0)
+            ? Math.ceil(promiseEl.duration * 1000) + 2500
+            : 7000;
+          k.wait(window.__skipTimers ? TEST_DELAY : promiseSafetyMs / 1000, adv);
         } else {
           // Default: advance when the celebration audio's last cue
           // ends. The cheer chain (enc + maybe panda-cue) is playing
@@ -389,7 +471,23 @@ export default function createRoundScene(config) {
             // immediate advance so the kid isn't stuck.
             adv();
           }
+          // Safety ceiling — fires after the longest expected cheer
+          // duration even if iPad Safari misses the `ended` event.
+          // enc-first-N run ~1-2s, enc-streak-N + panda-praise-N
+          // run ~4-5s, enc-level-N + panda-cheer-N run ~4-5s; 7s
+          // covers all tiers with margin. The kid hears at most one
+          // beat of silence instead of a permanent freeze.
+          const safetyMs = (lastEl
+            && Number.isFinite(lastEl.duration)
+            && lastEl.duration > 0)
+            ? Math.ceil(lastEl.duration * 1000) + 2500
+            : 7000;
+          k.wait(window.__skipTimers ? TEST_DELAY : safetyMs / 1000, adv);
         }
+        // Optional per-step override of the safety ceiling. Use only
+        // when a level genuinely needs a different (usually shorter)
+        // cap — most steps should leave this unset and let the default
+        // ceil-by-duration path above handle it.
         if (stepCfg.advancePauseMs != null) {
           const d = window.__skipTimers
             ? TEST_DELAY
@@ -408,7 +506,12 @@ export default function createRoundScene(config) {
         // {silent: true} so the panda sprite changes to its "thinking"
         // pose without double-playing its own audio — we explicitly
         // fire the wrong cue below.
+        //
+        // `hadWrongs` is sticky: it never resets, so any future streak-5
+        // cue picks from the full pool (including enc-streak5-1's
+        // "你试了好几次才对，这叫有耐心"). See the closure-level comment.
         streak = 0;
+        hadWrongs = true;
         state.buttons[idx].btn.setDisabled(true);
         buddy.setMood("think", { silent: true });
         const wrongCue = pickWrongCue({ isNearMiss: !!stepCfg.isNearMiss });

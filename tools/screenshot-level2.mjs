@@ -18,7 +18,7 @@ const ctx = await browser.newContext({
 const page = await ctx.newPage();
 page.on("pageerror", (err) => console.error("[pageerror]", err.message));
 page.on("console", (msg) => {
-  if (m => m.type() === "error") console.error("[console.error]", msg.text());
+  if (msg.type() === "error") console.error("[console.error]", msg.text());
 });
 
 await page.goto(URL, { waitUntil: "networkidle" });
@@ -59,11 +59,14 @@ async function readRow(y, tol = 12) {
 
 async function findButton(value) {
   for (let attempt = 0; attempt < 80; attempt++) {
-    const row = await readRow(838, 12);
+    const row = await readRow(838, 16);
     const hit = row.find((b) => b.text === String(value));
     if (hit) return hit;
     await page.waitForTimeout(50);
   }
+  // Last resort: dump what's at y=838±20 so we can see what's actually there
+  const dbg = await readRow(838, 30);
+  console.error(`  [findButton] wanted "${value}" but row was: ${JSON.stringify(dbg.map((b) => b.text))}`);
   return null;
 }
 
@@ -85,17 +88,73 @@ async function readHighlightedStep() {
   });
 }
 
-// Round 1: 8+5, need=2, rest=3, answer=13. Correct split = "2+3".
-// Round 2: 7+6, need=3, rest=3, answer=13. Correct split = "3+3".
-const expectedByRound = {
-  1: [">", 2, "2+3", 13],
-  2: [">", 3, "3+3", 13],
-};
+// Read the actual round values from the persistent anchor at y=420.
+// (Frame labels at y=205 were removed per user feedback 2026-08-11
+// — "方格子上数字不要展示了，多余" — so we can't derive big/small
+// from frame labels anymore.) The anchor preserves round.a on the
+// LEFT and round.b on the RIGHT, so the compare sign we want
+// ("a ? b") is determined by the anchor's order, NOT by which
+// addend happens to be bigger. big/small themselves are derived
+// from max/min of round.a and round.b.
+async function readRound() {
+  const dump = await page.evaluate(() => {
+    const k = window.kaplay;
+    return k.get("*", { recursive: true })
+      .filter((o) => typeof o.text === "string" && /^\d+$/.test(o.text))
+      .map((o) => {
+        const p = typeof o.worldPos === "function" ? o.worldPos() : o.pos;
+        return { text: parseInt(o.text, 10), x: Math.round(p.x), y: Math.round(p.y) };
+      });
+  });
+  // Anchor digits at y=420 (the persistent "a + b = □" at the top).
+  // Sort by x to recover round.a (left) and round.b (right).
+  const anchorDigits = dump
+    .filter((o) => o.y >= 400 && o.y <= 440)
+    .sort((a, b) => a.x - b.x);
+  if (anchorDigits.length < 2) return null;
+  const roundA = anchorDigits[0].text;
+  const roundB = anchorDigits[1].text;
+  const big = Math.max(roundA, roundB);
+  const small = Math.min(roundA, roundB);
+  if (big === small) return { equal: true, big, small, roundA, roundB };
+  const need = 10 - big;
+  const rest = small - need;
+  const answer = big + small;
+  // Compare sign uses round.a vs round.b (the anchor's order, which
+  // matches the sub-question's order). Big > small would be wrong for
+  // a round where round.a is small (e.g. round.a=5 round.b=8 — the
+  // sub-question reads "5 □ 8", correct sign "<", even though the
+  // bigger addend is on the right).
+  const compareCorrect = roundA > roundB ? ">" : "<";
+  // The correct split is always need+rest (canonical image-1 order,
+  // need first). buildSplitOptions also uses need+rest as correctStr
+  // and excludes the swap — both orderings never co-exist in the
+  // button row. So we hardcode need+rest here too, regardless of
+  // which is the smaller number.
+  const correctSplit = `${need}+${rest}`;
+  return { big, small, roundA, roundB, need, rest, answer, compareCorrect, correctSplit };
+}
 
-for (let r = 1; r <= 2; r++) {
-  const expectedSteps = expectedByRound[r];
+let capturedBig = false;
+let capturedSmall = false;
+for (let r = 1; r <= 10; r++) {
+  const round = await readRound();
+  if (!round) { console.error(`  r${r}: no frame labels found`); continue; }
+  if (round.equal) {
+    console.log(`[round ${r}] big=small=${round.big} — equal case, skipping`);
+    // Step 1 has no question for equal — just wait for auto-advance.
+    await page.waitForTimeout(1500);
+    continue;
+  }
+  // Track which cases we already captured so we don't redo work.
+  // aIsBig  → round.a is the bigger addend (round.a > round.b)
+  // aIsSmall → round.a is the smaller addend (round.a < round.b)
+  const isBigCase = round.roundA > round.roundB;
+  if (isBigCase && capturedBig) { await advanceOneRound(); continue; }
+  if (!isBigCase && capturedSmall) { await advanceOneRound(); continue; }
+  console.log(`[round ${r}] big=${round.big} small=${round.small} need=${round.need} rest=${round.rest} answer=${round.answer} aIsBig=${isBigCase}`);
+  const expectedSteps = [round.compareCorrect, String(round.need), round.correctSplit, String(round.answer)];
   for (let s = 0; s < expectedSteps.length; s++) {
-    // Wait for the highlighted step pill to actually match this step index.
     if (s > 0) {
       const yellow = "255,209,102";
       for (let attempt = 0; attempt < 80; attempt++) {
@@ -105,7 +164,8 @@ for (let r = 1; r <= 2; r++) {
       }
       await page.waitForTimeout(200);
     }
-    await page.screenshot({ path: `${OUT}/l2-r${r}-step${s + 1}.png` });
+    const tag = isBigCase ? "big" : "small";
+    await page.screenshot({ path: `${OUT}/l2-r${r}-${tag}-step${s + 1}.png` });
     const expected = expectedSteps[s];
     const btn = await findButton(expected);
     if (!btn) {
@@ -113,9 +173,18 @@ for (let r = 1; r <= 2; r++) {
       continue;
     }
     await page.mouse.click(box.x + btn.x, box.y + btn.y);
-    await page.waitForTimeout(400);
+    await page.waitForTimeout(1500);
   }
-  await page.screenshot({ path: `${OUT}/l2-r${r}-step${expectedSteps.length + 1}-reveal.png` });
+  await page.screenshot({ path: `${OUT}/l2-r${r}-${isBigCase ? "big" : "small"}-step${expectedSteps.length + 1}-reveal.png` });
+  if (isBigCase) capturedBig = true;
+  else capturedSmall = true;
+  if (capturedBig && capturedSmall) break;
+}
+
+async function advanceOneRound() {
+  // Quick skip: just wait long enough for the round to finish its
+  // remaining steps (no clicks) and the next round to start rendering.
+  await page.waitForTimeout(2500);
 }
 
 await browser.close();

@@ -46,6 +46,11 @@ let roundIdx = 0;
 // drives the process-praise tier in tryAnswer. Resets on wrong pick
 // or when the kid taps ←.
 let streak = 0;
+// Sticky flag flipped on the first wrong pick this session. Used by
+// pickCheerCue to gate enc-streak5-1 ("你试了好几次才对，这叫有耐心")
+// — its text only makes sense if the kid actually missed at least once.
+// Never resets.
+let hadWrongs = false;
 
 function shuffle(arr) {
   const c = arr.slice();
@@ -396,6 +401,9 @@ export default function scene(k) {
         isRoundComplete: true,  // cloud: 1 pick per round = always round-end
         levelId: 3,
         hasDiscovery: false,
+        // Gate enc-streak5-1 on the kid having actually missed before
+        // — see the `let hadWrongs` declaration above.
+        hadWrongs,
       });
       ctx.lastEncourageId = lastEncourageId;
       window.PandaAudio.playAfter("cloud-pair", chain, {
@@ -433,6 +441,9 @@ export default function scene(k) {
       // Wrong — shake + grey out + hint + wrong-answer voice. Kid can
       // keep trying on the remaining clouds.
       streak = 0;
+      // Sticky flag: any future streak-5 cue can now include
+      // enc-streak5-1's "你试了好几次才对，这叫有耐心" line.
+      hadWrongs = true;
       it._hugged = true;
       it.shake();
       it.setDisabled(true);

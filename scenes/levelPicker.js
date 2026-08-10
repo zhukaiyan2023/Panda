@@ -149,22 +149,11 @@ export default function levelPickerScene(k) {
     k.anchor("center"),
   ]);
 
-  // "Games" tab below the title (was at y=92 where it overlapped the title).
-  // Mirrors the tab row in gamesPicker so the two screens feel symmetric.
-  const gamesTab = k.add([
-    k.rect(200, 70, { radius: 22 }),
-    k.color(...CARD),
-    k.outline(4, k.rgb(...INK)),
-    k.pos(k.width() - 200, 200),
-    k.anchor("center"),
-    k.area(),
-  ]);
-  k.add([
-    k.text("小游戏", { size: 32, font: FONT }),
-    k.color(...INK),
-    k.pos(k.width() - 200, 200),
-    k.anchor("center"),
-  ]);
+  // 小游戏入口已关闭 (2026-08-10). 之前这里有一个 "小游戏" tab 把
+  // 玩家送到 gamesPicker; 用户要求先把游戏入口关掉, 所以整段 (rect +
+  // text + onClick → k.go("gamesPicker")) 都注释掉了. 要重新打开
+  // 游戏入口时, 把这段代码还原即可 — gamesPicker scene 本身还在,
+  // 没有动过.
 
   k.add([
     k.text("选一关开始吧", { size: 32, font: FONT }),
@@ -172,9 +161,6 @@ export default function levelPickerScene(k) {
     k.pos(k.width() / 2, 290),
     k.anchor("center"),
   ]);
-  gamesTab.onClick(() => {
-    k.go("gamesPicker");
-  });
 
   const stride = 380;
   const totalSpan = (levels.length - 1) * stride;

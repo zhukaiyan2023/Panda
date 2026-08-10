@@ -236,26 +236,33 @@ const CUE_IDS = [
   "l1-intro-mt-9-5-1", "l1-rwd-9-5-1-15", "l1-intro-mt-9-5-5", "l1-rwd-9-5-5-19", "l1-intro-mt-9-6-1", "l1-rwd-9-6-1-16",
   "l1-intro-mt-9-6-4", "l1-rwd-9-6-4-19", "l1-intro-mt-9-7-1", "l1-rwd-9-7-1-17", "l1-intro-mt-9-7-3", "l1-rwd-9-7-3-19",
   "l1-intro-mt-9-8-1", "l1-rwd-9-8-1-18", "l1-intro-mt-9-8-2", "l1-rwd-9-8-2-19", "l1-intro-mt-9-9-1", "l1-rwd-9-9-1-19",
-  "l2-rwd-2-9-11", "l2-s1-2-9", "l2-s2-9", "l2-s3-2-1", "l2-s4-2-1-1-9", "l2-rwd-3-8-11",
-  "l2-s1-3-8", "l2-s2-8", "l2-s3-3-2", "l2-s4-3-2-1-8", "l2-rwd-3-9-12", "l2-s1-3-9",
-  "l2-s3-3-1", "l2-s4-3-1-2-9", "l2-rwd-4-7-11", "l2-s1-4-7", "l2-s2-7", "l2-s3-4-3",
-  "l2-s4-4-3-1-7", "l2-rwd-4-8-12", "l2-s1-4-8", "l2-s3-4-2", "l2-s4-4-2-2-8", "l2-rwd-4-9-13",
-  "l2-s1-4-9", "l2-s3-4-1", "l2-s4-4-1-3-9", "l2-rwd-5-6-11", "l2-s1-5-6", "l2-s2-6",
-  "l2-s3-5-4", "l2-s4-5-4-1-6", "l2-rwd-5-7-12", "l2-s1-5-7", "l2-s3-5-3", "l2-s4-5-3-2-7",
-  "l2-rwd-5-8-13", "l2-s1-5-8", "l2-s3-5-2", "l2-s4-5-2-3-8", "l2-rwd-5-9-14", "l2-s1-5-9",
-  "l2-s3-5-1", "l2-s4-5-1-4-9", "l2-rwd-6-5-11", "l2-s1-6-5", "l2-rwd-6-6-12", "l2-s1-6-6",
-  "l2-s3-6-4", "l2-s4-6-4-2-6", "l2-rwd-6-7-13", "l2-s1-6-7", "l2-s3-6-3", "l2-s4-6-3-3-7",
-  "l2-rwd-6-8-14", "l2-s1-6-8", "l2-s3-6-2", "l2-s4-6-2-4-8", "l2-rwd-6-9-15", "l2-s1-6-9",
-  "l2-s3-6-1", "l2-s4-6-1-5-9", "l2-rwd-7-4-11", "l2-s1-7-4", "l2-rwd-7-5-12", "l2-s1-7-5",
-  "l2-rwd-7-6-13", "l2-s1-7-6", "l2-rwd-7-7-14", "l2-s1-7-7", "l2-s3-7-3", "l2-s4-7-3-4-7",
-  "l2-rwd-7-8-15", "l2-s1-7-8", "l2-s3-7-2", "l2-s4-7-2-5-8", "l2-rwd-7-9-16", "l2-s1-7-9",
-  "l2-s3-7-1", "l2-s4-7-1-6-9", "l2-rwd-8-3-11", "l2-s1-8-3", "l2-rwd-8-4-12", "l2-s1-8-4",
-  "l2-rwd-8-5-13", "l2-s1-8-5", "l2-rwd-8-6-14", "l2-s1-8-6", "l2-rwd-8-7-15", "l2-s1-8-7",
+  "l2-rwd-2-9-11", "l2-s1-2-9", "l2-s2-9", "l2-s3-2-1", "l2-s4-2-1-1-9", "l2-cmp-2-9",
+  "l2-rwd-3-8-11", "l2-s1-3-8", "l2-s2-8", "l2-s3-3-2", "l2-s4-3-2-1-8", "l2-cmp-3-8",
+  "l2-s4s-3-8-2-1-8", "l2-rwd-3-9-12", "l2-s1-3-9", "l2-s3-3-1", "l2-s4-3-1-2-9", "l2-cmp-3-9",
+  "l2-s4s-3-9-1-2-9", "l2-rwd-4-7-11", "l2-s1-4-7", "l2-s2-7", "l2-s3-4-3", "l2-s4-4-3-1-7",
+  "l2-cmp-4-7", "l2-s4s-4-7-3-1-7", "l2-rwd-4-8-12", "l2-s1-4-8", "l2-s3-4-2", "l2-s4-4-2-2-8",
+  "l2-cmp-4-8", "l2-rwd-4-9-13", "l2-s1-4-9", "l2-s3-4-1", "l2-s4-4-1-3-9", "l2-cmp-4-9",
+  "l2-s4s-4-9-1-3-9", "l2-rwd-5-6-11", "l2-s1-5-6", "l2-s2-6", "l2-s3-5-4", "l2-s4-5-4-1-6",
+  "l2-cmp-5-6", "l2-s4s-5-6-4-1-6", "l2-rwd-5-7-12", "l2-s1-5-7", "l2-s3-5-3", "l2-s4-5-3-2-7",
+  "l2-cmp-5-7", "l2-s4s-5-7-3-2-7", "l2-rwd-5-8-13", "l2-s1-5-8", "l2-s3-5-2", "l2-s4-5-2-3-8",
+  "l2-cmp-5-8", "l2-s4s-5-8-2-3-8", "l2-rwd-5-9-14", "l2-s1-5-9", "l2-s3-5-1", "l2-s4-5-1-4-9",
+  "l2-cmp-5-9", "l2-s4s-5-9-1-4-9", "l2-rwd-6-5-11", "l2-s1-6-5", "l2-cmp-6-5", "l2-rwd-6-6-12",
+  "l2-s1-6-6", "l2-s3-6-4", "l2-s4-6-4-2-6", "l2-rwd-6-7-13", "l2-s1-6-7", "l2-s3-6-3",
+  "l2-s4-6-3-3-7", "l2-cmp-6-7", "l2-rwd-6-8-14", "l2-s1-6-8", "l2-s3-6-2", "l2-s4-6-2-4-8",
+  "l2-cmp-6-8", "l2-s4s-6-8-2-4-8", "l2-rwd-6-9-15", "l2-s1-6-9", "l2-s3-6-1", "l2-s4-6-1-5-9",
+  "l2-cmp-6-9", "l2-s4s-6-9-1-5-9", "l2-rwd-7-4-11", "l2-s1-7-4", "l2-cmp-7-4", "l2-rwd-7-5-12",
+  "l2-s1-7-5", "l2-cmp-7-5", "l2-rwd-7-6-13", "l2-s1-7-6", "l2-cmp-7-6", "l2-rwd-7-7-14",
+  "l2-s1-7-7", "l2-s3-7-3", "l2-s4-7-3-4-7", "l2-rwd-7-8-15", "l2-s1-7-8", "l2-s3-7-2",
+  "l2-s4-7-2-5-8", "l2-cmp-7-8", "l2-s4s-7-8-2-5-8", "l2-rwd-7-9-16", "l2-s1-7-9", "l2-s3-7-1",
+  "l2-s4-7-1-6-9", "l2-cmp-7-9", "l2-s4s-7-9-1-6-9", "l2-rwd-8-3-11", "l2-s1-8-3", "l2-cmp-8-3",
+  "l2-rwd-8-4-12", "l2-s1-8-4", "l2-cmp-8-4", "l2-rwd-8-5-13", "l2-s1-8-5", "l2-cmp-8-5",
+  "l2-rwd-8-6-14", "l2-s1-8-6", "l2-cmp-8-6", "l2-rwd-8-7-15", "l2-s1-8-7", "l2-cmp-8-7",
   "l2-rwd-8-8-16", "l2-s1-8-8", "l2-s3-8-2", "l2-s4-8-2-6-8", "l2-rwd-8-9-17", "l2-s1-8-9",
-  "l2-s3-8-1", "l2-s4-8-1-7-9", "l2-rwd-9-2-11", "l2-s1-9-2", "l2-rwd-9-3-12", "l2-s1-9-3",
-  "l2-rwd-9-4-13", "l2-s1-9-4", "l2-rwd-9-5-14", "l2-s1-9-5", "l2-rwd-9-6-15", "l2-s1-9-6",
-  "l2-rwd-9-7-16", "l2-s1-9-7", "l2-rwd-9-8-17", "l2-s1-9-8", "l2-rwd-9-9-18", "l2-s1-9-9",
-  "l2-s3-9-1", "l2-s4-9-1-8-9", "l3-s1-11-1", "l3-s2-1-1", "l3-s3-2", "l3-rwd-11-1-12",
+  "l2-s3-8-1", "l2-s4-8-1-7-9", "l2-cmp-8-9", "l2-s4s-8-9-1-7-9", "l2-rwd-9-2-11", "l2-s1-9-2",
+  "l2-cmp-9-2", "l2-rwd-9-3-12", "l2-s1-9-3", "l2-cmp-9-3", "l2-rwd-9-4-13", "l2-s1-9-4",
+  "l2-cmp-9-4", "l2-rwd-9-5-14", "l2-s1-9-5", "l2-cmp-9-5", "l2-rwd-9-6-15", "l2-s1-9-6",
+  "l2-cmp-9-6", "l2-rwd-9-7-16", "l2-s1-9-7", "l2-cmp-9-7", "l2-rwd-9-8-17", "l2-s1-9-8",
+  "l2-cmp-9-8", "l2-rwd-9-9-18", "l2-s1-9-9", "l2-s3-9-1", "l2-s4-9-1-8-9", "l3-s1-11-1", "l3-s2-1-1", "l3-s3-2", "l3-rwd-11-1-12",
   "l3-s1-11-2", "l3-s2-1-2", "l3-s3-3", "l3-rwd-11-2-13", "l3-s1-11-3", "l3-s2-1-3",
   "l3-s3-4", "l3-rwd-11-3-14", "l3-s1-11-4", "l3-s2-1-4", "l3-s3-5", "l3-rwd-11-4-15",
   "l3-s1-11-5", "l3-s2-1-5", "l3-s3-6", "l3-rwd-11-5-16", "l3-s1-11-6", "l3-s2-1-6",
@@ -296,7 +303,9 @@ function unlockAudio() {
     const p = el.play();
     const restore = () => {
       el.pause();
-      el.currentTime = 0;
+      // iPad Safari throws InvalidStateError on currentTime = 0 when the
+      // element hasn't fully decoded yet (same race as playCueRaw).
+      try { el.currentTime = 0; } catch (_) { /* Safari pre-metadata */ }
       el.muted = wasMuted;
     };
     if (p && typeof p.then === "function") {
@@ -325,7 +334,12 @@ function playCueRaw(id) {
   try {
     el.muted = false;
     el.volume = 1;
-    el.currentTime = 0;
+    // iPad Safari throws InvalidStateError on el.currentTime = 0 when
+    // the element hasn't fully decoded metadata yet (e.g. right after
+    // a cold load). Wrap so a stuck reset doesn't abort the whole
+    // play() — the play() below still works, just starting from where
+    // the element already is.
+    try { el.currentTime = 0; } catch (_) { /* Safari pre-metadata */ }
     const p = el.play();
     if (p && typeof p.catch === "function") {
       p.catch((err) => {
@@ -564,8 +578,8 @@ function playAfter(referenceId, ids, { gapMs = 1000, seqGapMs = 90 } = {}, onCom
   // buffer as a wall-clock fallback. Whichever fires first wins.
   const durMs = (Number.isFinite(ref.duration) && ref.duration > 0)
     ? ref.duration * 1000
-    : 4000; // generous default for the 3-5s spoken sentences
-  const fallback = setTimeout(kickoff, durMs + 1500);
+    : 6000; // generous default — L2/L3 spoken sentences can run 5-7s
+  const fallback = setTimeout(kickoff, durMs + 2500);
   afterFallbackTimers.add(fallback);
   if (ref.ended) {
     kickoff();
