@@ -212,12 +212,16 @@ function buildL2Step4Ids(big, small, need, rest) {
 // since the per-step audio already names the strategy on the first
 // round.
 function fireL2StepAudio(ctx, ids, _stepNumber) {
-  // After a correct pick, the celebration chain ends with
-  // "panda-celebrate" — chain the step audio off its `ended` event
-  // so the next step starts immediately when the cheer finishes,
-  // with no setTimeout and no overlap with the cheer tail.
+  // After a correct pick, the celebration chain ends with the cue
+  // roundScene set on ctx.lastEncourageId (the actual LAST cue of the
+  // new tier-based cheer chain — enc-first-N on the first pick,
+  // panda-praise-N on streak-3+, panda-cheer-N on round-complete).
+  // Chain the step audio off that cue's `ended` event so the next step
+  // starts immediately when the cheer finishes, with no setTimeout and
+  // no overlap with the cheer tail. The old reference was hardcoded
+  // to "panda-celebrate", which is gone from CUE_IDS.
   if (ctx.lastEncourageId) {
-    window.PandaAudio.playAfter("panda-celebrate", ids, {
+    window.PandaAudio.playAfter(ctx.lastEncourageId, ids, {
       gapMs: 400,
       seqGapMs: 40,
     });
@@ -382,10 +386,12 @@ export default createRoundScene({
         // After the child picks the total, reveal the anchor and the
         // sub-question with the answer filled in, then play the reward
         // audio "[a] 加 [b] 等于 [answer]" — the full equation as a
-        // sentence, not a question. Chained off panda-celebrate (the
-        // cheer chain's last cue) so it doesn't overlap with the
-        // celebration. roundScene awaits the returned Promise so the
-        // kid hears "8+5=13" before the next round's greeting fires.
+        // sentence, not a question. Chained off ctx.lastEncourageId
+        // (the actual last cue of the tier-based cheer chain) so the
+        // reward starts AFTER the celebration tail and never overlaps
+        // it. roundScene awaits the returned Promise so the kid hears
+        // "8+5=13" before the next round's greeting fires. The old
+        // hardcoded "panda-celebrate" cue is gone from CUE_IDS.
         onAdvance: () => {
           ctx.setAnchorEquation(anchorSlots(round, round.answer), { y: 260 });
           ctx.setEquation({
@@ -394,7 +400,7 @@ export default createRoundScene({
           }, { y: 660, size: 80 });
           return new Promise((resolve) => {
             window.PandaAudio.playAfter(
-              "panda-celebrate",
+              ctx.lastEncourageId,
               [`l2-rwd-${round.a}-${round.b}-${round.answer}`],
               { gapMs: 200, seqGapMs: 40 },
               resolve,

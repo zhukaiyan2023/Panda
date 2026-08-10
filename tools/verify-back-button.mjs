@@ -121,10 +121,14 @@ async function main() {
   }
   const step1PickedAt = Date.now();
 
-  // Give the cheer chain (enc + panda-celebrate) a moment to start,
-  // but stay within the cheer chain window so the back tap fires
-  // DURING the cheer (the scenario where the bug originally
-  // manifested — enc played but panda-celebrate was about to start).
+  // Give the cheer chain (enc-first-N + maybe panda-praise-N /
+  // panda-cheer-N depending on tier) a moment to start, but stay
+  // within the cheer chain window so the back tap fires DURING the
+  // cheer (the scenario where the bug originally manifested — enc
+  // played but the panda-cue was about to start). The old
+  // "panda-celebrate" string is gone; the new tier chain ends on
+  // whichever cue audio/praise.js::pickCheerCue() picked for the
+  // current streak level.
   await page.waitForTimeout(SETTLE_MS);
 
   // Snapshot the audio events that have fired so far — anything

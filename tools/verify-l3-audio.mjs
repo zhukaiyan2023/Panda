@@ -10,7 +10,9 @@
 // started, plus the post-correct reward audio "11+8=19".
 //
 // Chain shapes for round [11, 8] (ones=1, sum=9):
-//   entry:  lvl-3-intro
+//   entry:  (no entry greeting — per user feedback 2026-08-10 the
+//            old lvl-3-intro "big numbers" voice was removed. The
+//            step 1 audio IS the entry guidance.)
 //   step 1: n-11 q-plus n-8 q-equals lvl-3-step-1-pre n-11
 //           lvl-3-step-1-split lvl-3-step-1-q
 //   step 2: lvl-3-step-2-pre n-1 q-plus n-8 q-equals
@@ -140,9 +142,11 @@ async function main() {
     console.error("FAIL: could not find step 3 button '19' (final answer)");
     process.exit(1);
   }
-  // Wait for the cheer chain (enc + panda-celebrate) AND the reward
-  // audio "11+8=19" to fire. Cheer ~1.5s, reward ~1.5s, plus the
-  // gapMs. 4.5s gives a safe margin.
+  // Wait for the cheer chain (enc-first-N + maybe panda-praise-N or
+  // panda-cheer-N depending on streak tier) AND the reward audio
+  // "11+8=19" to fire. Cheer ~1.5s, reward ~1.5s, plus the gapMs.
+  // 4.5s gives a safe margin. The old "panda-celebrate" cue is
+  // gone; the cheer chain now lives in audio/praise.js.
   await page.waitForTimeout(REWARD_DELAY_MS);
 
   const events = await page.evaluate(() => window.__audioEvents);
@@ -159,7 +163,9 @@ async function main() {
   // the contextual + number cues are sufficient to confirm each step's
   // chain actually fired.
   const checks = [
-    { name: "entry",            must: ["lvl-3-intro"] },
+    // No entry check — the old "entry" gating on lvl-3-intro was removed
+    // 2026-08-10 along with the cue itself (it was a vague topic intro,
+    // not a prompt). Step 1's must list covers the actual entry audio now.
     {
       name: "step 1 (split)",
       must: ["lvl-3-step-1-pre", "n-11", "lvl-3-step-1-split", "lvl-3-step-1-q"],

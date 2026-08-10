@@ -24,6 +24,7 @@ import item from "../components/pickerItem.js";
 import panda from "../components/panda.js";
 import expression from "../components/expression.js";
 import { iconButton } from "../components/choice.js";
+import { pickCheerCue, pickWrongCue } from "../audio/praise.js";
 import {
   INK, PAPER, FONT, ORANGE, ORANGE_DEEP, PINK, BLUE, SUCCESS, YELLOW,
 } from "../components/theme.js";
@@ -40,6 +41,10 @@ const PAIRS_GT10 = [
 ];
 
 let roundIdx = 0;
+// Streak of consecutive correct picks across this game's session —
+// drives the process-praise tier in tryAnswer. Resets on wrong pick
+// or when the kid taps ←.
+let streak = 0;
 
 function shuffle(arr) {
   const c = arr.slice();
@@ -234,6 +239,7 @@ export default function scene(k) {
     label: "←", x: 84, y: 110, w: 96, h: 72, fontSize: 44,
     onClick: () => {
       roundIdx = 0;
+      streak = 0;
       k.go("gamesPicker");
     },
   });
@@ -373,11 +379,31 @@ export default function scene(k) {
       });
 
       buddy.setMood("cheer", { silent: true });
+      // game-specific "抱到啦" fires immediately on the picked cloud.
       window.PandaAudio.playCue("cloud-pair");
-      window.PandaAudio.playAfter("cloud-pair", ["panda-celebrate"], { gapMs: 200 });
+      // Tier-based cheer chain (audio/praise.js) follows after the
+      // game-specific cue lands. The chain is the new "好棒" replacement:
+      //   first    → [enc-first-N]
+      //   streak3+ → [enc-streak3-N, panda-praise-N]  (etc.)
+      //   level    → [enc-level-N, panda-cheer-N]
+      // The old pattern chained only ["panda-celebrate"] — the new chain
+      // already includes the panda voice on streak-3+ or level-complete,
+      // so no extra playAfter → panda-cue is needed.
+      streak += 1;
+      const { chain, lastEncourageId } = pickCheerCue({
+        streak,
+        isRoundComplete: true,  // cloud: 1 pick per round = always round-end
+        levelId: 3,
+        hasDiscovery: false,
+      });
+      ctx.lastEncourageId = lastEncourageId;
+      window.PandaAudio.playAfter("cloud-pair", chain, {
+        gapMs: 200,
+        seqGapMs: 200,
+      });
 
       window.PandaAudio.playAfter(
-        "panda-celebrate",
+        ctx.lastEncourageId,
         ["cloud-done"],
         { gapMs: 0, seqGapMs: 0 },
         () => {
@@ -394,12 +420,19 @@ export default function scene(k) {
         },
       );
     } else {
-      // Wrong — shake + grey out + hint. Kid can keep trying on the
-      // remaining clouds.
+      // Wrong — shake + grey out + hint + wrong-answer voice. Kid can
+      // keep trying on the remaining clouds.
+      streak = 0;
       it._hugged = true;
       it.shake();
       it.setDisabled(true);
-      buddy.setMood("think");
+      // Play an enc-wrong-N from the new tier system. setMood("think")
+      // runs silent so the panda pose changes without doubling the
+      // audio (the old "enc-try" cue that used to fire from
+      // setMood("think") is gone).
+      buddy.setMood("think", { silent: true });
+      window.PandaAudio.stopAllAudio();
+      window.PandaAudio.playCue(pickWrongCue());
       setHint("再想想！");
     }
   }

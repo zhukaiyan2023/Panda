@@ -149,8 +149,23 @@ async function main() {
   server.close();
 
   // Find the most recent encouragement cue — that's the one fired
-  // AFTER step 2's pick.
-  const encourages = ["enc-great", "enc-awesome", "enc-amazing", "enc-nice"];
+  // AFTER step 2's pick. The new tier system picks from
+  // enc-first-N / enc-streak3-N / enc-streak5-N / enc-streak10-N /
+  // enc-level-N (plus panda-praise-N / panda-cheer-N for streak-3+
+  // and round-complete). For an L1 first correct pick, the chain
+  // ends on enc-first-N (and may also include panda-praise-N if the
+  // kid was on a streak). Accept any cue that lives in the praise
+  // system rather than the old fixed 4-cue rotation.
+  const encourages = [
+    "enc-first-1", "enc-first-2", "enc-first-3", "enc-first-4",
+    "enc-streak3-1", "enc-streak3-2", "enc-streak3-3",
+    "enc-streak5-1", "enc-streak5-2", "enc-streak5-3",
+    "enc-streak10-1", "enc-streak10-2", "enc-streak10-3",
+    "enc-level-1", "enc-level-2", "enc-level-3", "enc-level-4",
+    "enc-specific-pair", "enc-specific-double", "enc-specific-decomp", "enc-specific-friend",
+    "panda-praise-1", "panda-praise-2", "panda-praise-3",
+    "panda-cheer-1", "panda-cheer-2",
+  ];
   let recentEncourageIdx = -1;
   for (let i = events.length - 1; i >= 0; i--) {
     if (encourages.includes(events[i].id)) { recentEncourageIdx = i; break; }

@@ -19,8 +19,6 @@ const HOLE_COUNT = 6;
 const SPAWN_INTERVAL = 1.4; // seconds between mole spawns
 const HOLE_DWELL = 1.4;     // seconds a mole stays up before retreating
 
-const ENCOURAGE = ["enc-great", "enc-awesome", "enc-amazing", "enc-nice"];
-
 function shuffle(arr) {
   const c = arr.slice();
   for (let i = c.length - 1; i > 0; i--) {

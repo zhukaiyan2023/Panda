@@ -110,36 +110,31 @@ function buildL3RewardIds(a, b, answer) {
   return [`l3-rwd-${a}-${b}-${answer}`];
 }
 
-// Fires a per-step L3 audio chain. Three cases (same pattern as L2 —
+// Fires a per-step L3 audio chain. Two cases (same pattern as L2 —
 // see scenes/level2.js for the full rationale):
 //
-//   1. Step 1 on round 0: chain off the one-time entry greeting
-//      (lvl-3-intro). The greeting plays on scene start, this step
-//      waits for its `ended` event + 800ms so the greeting lands
-//      first.
+//   1. Any step after a correct pick (round 0 step 2/3, round 1+ all
+//      steps): chain off ctx.lastEncourageId — the last cue of the
+//      tier-based cheer chain (enc-first-N on the first pick,
+//      panda-praise-N on streak-3+, panda-cheer-N on round-complete).
+//      The new prompt starts AFTER the cheer lands, with 400ms breath
+//      between. Without this, the cheer and the new prompt overlap and
+//      feel crammed together.
 //
-//   2. Any step after a correct pick (round 0 step 2/3, round 1+ all
-//      steps): chain off panda-celebrate — the last cue of the cheer
-//      chain ("好棒"). The new prompt starts AFTER the cheer lands,
-//      with 400ms breath between. Without this, the cheer and the
-//      new prompt overlap and feel crammed together.
+//   2. Fallback (no prior audio to chain off — entry / round 0 step 1):
+//      play immediately with a small render-settle delay.
 //
-//   3. Fallback (no prior audio to chain off): play immediately with
-//      a small render-settle delay.
-function fireL3StepAudio(ctx, ids, stepNumber, onComplete) {
-  if (ctx.ri === 0 && stepNumber === 1) {
-    window.PandaAudio.playAfter("lvl-3-intro", ids, {
-      gapMs: 800,
-      seqGapMs: 40,
-    }, onComplete);
-    return;
-  }
-  // After a correct pick, the celebration chain ends with
-  // "panda-celebrate" — chain the step audio off its `ended` event
-  // so the next step starts immediately when the cheer finishes,
-  // with no setTimeout and no overlap with the cheer tail.
+// Per user feedback 2026-08-10: the old round-0 entry greeting
+// (lvl-3-intro, "现在我们一起学习二十以内的计算") was just a topic
+// statement ("big numbers" voice) — it gave no instruction for what
+// the kid should DO. Now the per-round step 1 audio IS the entry
+// guidance:
+//   "11+8等于几，我们先把 11 进行拆分，拆成十加几"
+// — it names the equation and the strategy in one fluent sentence.
+// No separate intro needed.
+function fireL3StepAudio(ctx, ids, _stepNumber, onComplete) {
   if (ctx.lastEncourageId) {
-    window.PandaAudio.playAfter("panda-celebrate", ids, {
+    window.PandaAudio.playAfter(ctx.lastEncourageId, ids, {
       gapMs: 400,
       seqGapMs: 40,
     }, onComplete);
@@ -155,7 +150,14 @@ export default createRoundScene({
   // each session so the kid sees a different subset on every replay.
   poolGen: () => poolGens[3](),
   sampleSize: 10,
-  introCue: "lvl-3-intro",
+  // No topic-intro cue on entry — per user feedback 2026-08-10. The old
+  // "现在我们一起学习二十以内的计算" intro (the "big numbers" voice) was
+  // just a topic statement; it ate ~3s before any prompt appeared and
+  // gave no instruction for what to DO. Now the step 1 audio IS the
+  // entry prompt:
+  //   "11+8等于几，我们先把 11 进行拆分，拆成十加几"
+  // — names the equation and the strategy in one fluent sentence.
+  // introCue intentionally omitted.
   // Three teaching beats. Labels are the visible step-bar text — short,
   // verb-shaped Chinese that names the strategy of each beat.
   stepLabels: ["拆十位", "加个位", "加起来"],
@@ -277,14 +279,16 @@ export default createRoundScene({
           // the strategy land: 11 = 10 + 1, 1 + 8 = 9, 10 + 9 = 19.
           l3Step2ParensForm(ctx, ones, round.b, round.answer);
           // Reward audio: "11+8=19" — the full equation as a
-          // celebration sentence. Chained off panda-celebrate (the
-          // cheer chain's last cue) so it doesn't overlap with the
-          // celebration. roundScene awaits the returned Promise so
-          // the kid hears "11+8=19" before the next round's
-          // greeting fires.
+          // celebration sentence. Chained off ctx.lastEncourageId
+          // (the actual last cue of the tier-based cheer chain) so
+          // the reward starts AFTER the celebration tail and never
+          // overlaps it. roundScene awaits the returned Promise so
+          // the kid hears "11+8=19" before the next round's greeting
+          // fires. The old hardcoded "panda-celebrate" cue is gone
+          // from CUE_IDS.
           return new Promise((resolve) => {
             window.PandaAudio.playAfter(
-              "panda-celebrate",
+              ctx.lastEncourageId,
               buildL3RewardIds(round.a, round.b, round.answer),
               { gapMs: 200, seqGapMs: 40 },
               resolve,

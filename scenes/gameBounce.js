@@ -23,7 +23,6 @@ const ROUND_COUNT = 5;
 // general "a + ? = N" decomposition, not just the make-ten case. 5 rounds
 // hit 5 different N values; the last slot is left as-is (no 11th).
 const TARGETS = [7, 5, 9, 6, 8];
-const ENCOURAGE = ["enc-great", "enc-awesome", "enc-amazing", "enc-nice"];
 
 let roundIdx = 0;
 
@@ -213,8 +212,12 @@ function drawRound(k, ctx) {
       } else {
         it.shake();
         it.setDisabled(true);
-        // Wrong — just the panda mood (which plays enc-try) and a shake.
-        buddy.setMood("think");
+        // Wrong — silent panda mood. The wrong-pick audio is fired by
+        // pairScene-equivalent flow (pickWrongCue → enc-wrong-N); game
+        // scenes inherit the silent-mode mood so the panda pose changes
+        // without doubling the audio. The old "enc-try" cue that used
+        // to fire from setMood("think") is GONE.
+        buddy.setMood("think", { silent: true });
         locked = false;     // allow another try on the remaining balloons
       }
     });

@@ -18,28 +18,57 @@ const levelsData = {
   "levels": [
     { "id": 1, "title": "三数相加" },
     { "id": 2, "title": "凑十法" },
-    { "id": 3, "title": "二十以内", "intro": "lvl-3-intro" },
+    { "id": 3, "title": "二十以内" },
   ],
 };
 
 const CUE_IDS = [
-  "enc-great", "enc-awesome", "enc-amazing", "enc-nice", "enc-try",
+  // ===== process-praise tier system (2026-08-10 rewrite) =====
+  // See audio/praise.js for dispatch logic and tools/cues.cjs for the
+  // full text. The old `enc-great/enc-awesome/enc-amazing/enc-nice`
+  // and `enc-try` cues are GONE; the old `panda-celebrate` ("好棒",
+  // person-praise, double-fired on every correct) is GONE. Replaced
+  // by the 32-cue tier system below (4 first + 3+3+3 streak + 4 level
+  // + 3 wrong + 3 near + 4 specific + 5 panda).
+  // Tier: first-correct (every correct pick, no panda)
+  "enc-first-1", "enc-first-2", "enc-first-3", "enc-first-4",
+  // Tier: streak-3+ (panda joins via panda-praise)
+  "enc-streak3-1", "enc-streak3-2", "enc-streak3-3",
+  "enc-streak5-1", "enc-streak5-2", "enc-streak5-3",
+  "enc-streak10-1", "enc-streak10-2", "enc-streak10-3",
+  // Tier: level-complete (enc-level + panda-cheer)
+  "enc-level-1", "enc-level-2", "enc-level-3", "enc-level-4",
+  // Wrong-answer (universal — fires on every wrong pick)
+  "enc-wrong-1", "enc-wrong-2", "enc-wrong-3",
+  // Near-miss wrong (凑十法 coaching; L2/L3 only)
+  "enc-near-1", "enc-near-2", "enc-near-3",
+  // Math-discovery feedback (L2/L3 only — process-praise on specific findings)
+  "enc-specific-pair", "enc-specific-double", "enc-specific-decomp", "enc-specific-friend",
+  // Panda character voice (replaces panda-celebrate "好棒"; only fires on streak-3+ or level-complete)
+  "panda-praise-1", "panda-praise-2", "panda-praise-3",
+  "panda-cheer-1",  "panda-cheer-2",
   "n-0", "n-1", "n-2", "n-3", "n-4", "n-5", "n-6", "n-7", "n-8", "n-9", "n-10",
   "n-11", "n-12", "n-13", "n-14", "n-15", "n-16", "n-17", "n-18", "n-19",
   // spoken equation intro — chained by PandaAudio.playSequence so the child
   // hears "几加三加五" instead of just "算一算". The Mandarin chain reads
   // naturally: "what is three plus five?" in three concatenated words.
   "q-what-is", "q-plus", "q-equals", "equals",
-  // L1 entry — greeting plays once on entering the level, then the
-  // per-round "decompose" sentence is built at runtime by chaining
-  // these number-agnostic chunks with the universal n-* / q-* cues.
-  // L1 step audio is the decompose sentence, not standalone one-word
-  // cues — the old lvl1-step-1 ("找一对") and lvl1-step-2 ("加剩下的")
-  // were removed. The step bar uses the renamed "两数相加" / "计算结果"
-  // labels (see scenes/level1.js stepLabels).
-  "lvl-1-greeting",
+  // L1 entry — the old "lvl-1-greeting" cue ("小朋友好，我们来学习三数相加")
+  // was a vague topic statement that ate ~4s before any guidance appeared;
+  // it gave no instruction for what to DO. Removed 2026-08-10. The
+  // per-round "decompose" sentence now IS the entry guidance — built at
+  // runtime by chaining these number-agnostic chunks with the universal
+  // n-* / q-* cues. L1 step audio is the decompose sentence, not standalone
+  // one-word cues — the old lvl1-step-1 ("找一对") and lvl1-step-2
+  // ("加剩下的") were removed. The step bar uses the renamed "两数相加" /
+  // "计算结果" labels (see scenes/level1.js stepLabels).
   "lvl-1-decomp-pre", "lvl-1-decomp-eq",
-  "lvl-3-intro", "lvl-done",
+  // L3 entry — the old "lvl-3-intro" cue ("现在我们一起学习二十以内的计算")
+  // was the "big numbers" voice: a topic statement with no instruction for
+  // what to DO. Removed 2026-08-10. The per-round step 1 audio ("11+8等于几，
+  // 我们先把 11 进行拆分，拆成十加几") now IS the entry guidance — names the
+  // equation AND the strategy in one fluent sentence.
+  "lvl-done",
   // L2 (凑十法) per-step contextual sentence chunks — see tools/cues.cjs.
   // The 4 teaching beats (compare / find friend / split / calculate) are
   // built at runtime in scenes/level2.js by chaining these number-agnostic
@@ -55,9 +84,12 @@ const CUE_IDS = [
   // n-* / q-plus / equals cues.
   "lvl-3-step-1-pre", "lvl-3-step-1-split", "lvl-3-step-1-q",
   "lvl-3-step-2-pre",
-  // The panda speaks on every correct pick — see components/panda.js.
-  // The old `panda-hi` was unused and is dropped.
-  "panda-celebrate",
+  // The panda no longer speaks on every correct pick — that was the
+  // "好棒 / panda-celebrate" double-praise that fired on top of every
+  // enc-* rotation, exhausting the panda voice and training kids to
+  // ignore it. The panda now joins only on streak-3+ (panda-praise-*)
+  // and on level-complete (panda-cheer-*). See audio/praise.js for the
+  // dispatch logic. The old `panda-hi` was unused and is dropped.
   "boat-intro", "boat-pair", "boat-done",
   "cloud-intro", "cloud-pair", "cloud-done",
   "bounce-intro", "bounce-pop", "bounce-done",
