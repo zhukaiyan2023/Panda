@@ -303,7 +303,9 @@ function unlockAudio() {
     const p = el.play();
     const restore = () => {
       el.pause();
-      el.currentTime = 0;
+      // iPad Safari throws InvalidStateError on currentTime = 0 when the
+      // element hasn't fully decoded yet (same race as playCueRaw).
+      try { el.currentTime = 0; } catch (_) { /* Safari pre-metadata */ }
       el.muted = wasMuted;
     };
     if (p && typeof p.then === "function") {
@@ -332,7 +334,12 @@ function playCueRaw(id) {
   try {
     el.muted = false;
     el.volume = 1;
-    el.currentTime = 0;
+    // iPad Safari throws InvalidStateError on el.currentTime = 0 when
+    // the element hasn't fully decoded metadata yet (e.g. right after
+    // a cold load). Wrap so a stuck reset doesn't abort the whole
+    // play() — the play() below still works, just starting from where
+    // the element already is.
+    try { el.currentTime = 0; } catch (_) { /* Safari pre-metadata */ }
     const p = el.play();
     if (p && typeof p.catch === "function") {
       p.catch((err) => {
@@ -571,8 +578,8 @@ function playAfter(referenceId, ids, { gapMs = 1000, seqGapMs = 90 } = {}, onCom
   // buffer as a wall-clock fallback. Whichever fires first wins.
   const durMs = (Number.isFinite(ref.duration) && ref.duration > 0)
     ? ref.duration * 1000
-    : 4000; // generous default for the 3-5s spoken sentences
-  const fallback = setTimeout(kickoff, durMs + 1500);
+    : 6000; // generous default — L2/L3 spoken sentences can run 5-7s
+  const fallback = setTimeout(kickoff, durMs + 2500);
   afterFallbackTimers.add(fallback);
   if (ref.ended) {
     kickoff();
