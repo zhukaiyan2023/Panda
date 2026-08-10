@@ -107,6 +107,12 @@ export default function createRoundScene(config) {
   // session's run). Lives on the scene closure (above drawRound) so it
   // persists across the 10 sampled rounds within one play-through.
   let streak = 0;
+  // Total count of wrong picks this session — flipped to true on the
+  // first wrong answer and never reset. Used by pickCheerCue so the
+  // "你试了好几次才对，这叫有耐心" cue (enc-streak5-1) only fires when
+  // the kid has actually missed at least once — otherwise a clean run
+  // of 5 would hear "you tried several times", which is wrong.
+  let hadWrongs = false;
   // Sampled round sequence for this session — drawn once when the scene
   // starts (roundIdx === 0), then walked through in order. The next time
   // the kid enters this level, a fresh sample is drawn. Pool comes from
@@ -322,6 +328,10 @@ export default function createRoundScene(config) {
           isRoundComplete,
           levelId: config.levelId,
           hasDiscovery: !!stepCfg.hasDiscovery,
+          // Gate enc-streak5-1 ("你试了好几次才对，这叫有耐心") on the
+          // kid having actually missed before. See the `let hadWrongs`
+          // declaration above for the rationale.
+          hadWrongs,
         });
         // Stash on ctx so a step's onAdvance can chain its post-celebration
         // audio (e.g. L1 step 2's equation read-back) off the actual
@@ -408,7 +418,12 @@ export default function createRoundScene(config) {
         // {silent: true} so the panda sprite changes to its "thinking"
         // pose without double-playing its own audio — we explicitly
         // fire the wrong cue below.
+        //
+        // `hadWrongs` is sticky: it never resets, so any future streak-5
+        // cue picks from the full pool (including enc-streak5-1's
+        // "你试了好几次才对，这叫有耐心"). See the closure-level comment.
         streak = 0;
+        hadWrongs = true;
         state.buttons[idx].btn.setDisabled(true);
         buddy.setMood("think", { silent: true });
         const wrongCue = pickWrongCue({ isNearMiss: !!stepCfg.isNearMiss });

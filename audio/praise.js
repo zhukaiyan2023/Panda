@@ -28,7 +28,14 @@ const TIERS = ["first", "streak3", "streak5", "streak10", "level"];
 // First-correct (rotated pseudo-randomly per pick; 4 variants).
 const ENC_FIRST = ["enc-first-1", "enc-first-2", "enc-first-3", "enc-first-4"];
 const ENC_STREAK3 = ["enc-streak3-1", "enc-streak3-2", "enc-streak3-3"];
-const ENC_STREAK5 = ["enc-streak5-1", "enc-streak5-2", "enc-streak5-3"];
+// Streak-5 is split into two lists because enc-streak5-1's text ("你试了
+// 好几次才对，这叫有耐心！") only makes sense when the kid has actually
+// missed before. If we played it on a clean run of 5 correct picks, the
+// kid who never missed anything would hear "you tried several times" —
+// which is the opposite of what happened. Callers pass `hadWrongs`; if
+// false, enc-streak5-1 is excluded from the rotation.
+const ENC_STREAK5 = ["enc-streak5-2", "enc-streak5-3"];
+const ENC_STREAK5_WITH_MISSES = ["enc-streak5-1", "enc-streak5-2", "enc-streak5-3"];
 const ENC_STREAK10 = ["enc-streak10-1", "enc-streak10-2", "enc-streak10-3"];
 const ENC_LEVEL = ["enc-level-1", "enc-level-2", "enc-level-3", "enc-level-4"];
 
@@ -105,12 +112,16 @@ function pickTier(streak, isRoundComplete) {
 // L2/L3 rounds, AND only when the level passes a "discovery" flag
 // (e.g. L2 make-ten rounds, L3 split rounds). L1 never gets
 // enc-specific-*.
-function buildCheerChain({ tier, levelId, hasDiscovery = false }) {
+function buildCheerChain({ tier, levelId, hasDiscovery = false, hadWrongs = false }) {
   let encList;
   switch (tier) {
     case "level":    encList = ENC_LEVEL;    break;
     case "streak10": encList = ENC_STREAK10; break;
-    case "streak5":  encList = ENC_STREAK5;  break;
+    case "streak5":
+      // Without a prior miss, exclude enc-streak5-1 — see ENC_STREAK5
+      // comment. With a prior miss, all three are valid.
+      encList = hadWrongs ? ENC_STREAK5_WITH_MISSES : ENC_STREAK5;
+      break;
     case "streak3":  encList = ENC_STREAK3;  break;
     case "first":
     default:         encList = ENC_FIRST;    break;
@@ -150,9 +161,9 @@ function pickWrongCue({ isNearMiss = false } = {}) {
 // and use `lastEncourageId` to chain their post-celebration audio.
 // `streak` is updated by the caller BEFORE calling this (it should
 // already include the current pick).
-function pickCheerCue({ streak, isRoundComplete, levelId, hasDiscovery = false }) {
+function pickCheerCue({ streak, isRoundComplete, levelId, hasDiscovery = false, hadWrongs = false }) {
   const tier = pickTier(streak, isRoundComplete);
-  const chain = buildCheerChain({ tier, levelId, hasDiscovery });
+  const chain = buildCheerChain({ tier, levelId, hasDiscovery, hadWrongs });
   return {
     chain,
     lastEncourageId: chain[chain.length - 1],
