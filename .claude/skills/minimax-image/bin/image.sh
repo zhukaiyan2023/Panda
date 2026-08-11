@@ -122,22 +122,26 @@ write_image() {
 # Use a while-read loop instead of `mapfile` (not on macOS bash 3.2).
 data_type="$(printf '%s' "$response" | jq -r '.data | type')"
 b64s=()
-while IFS= read -r line; do b64s+=("$line"); done < <(
-  printf '%s' "$response" | jq -r '.data.image_base64 // [] | .[]'
-)
-if [[ "$data_type" == "array" && ${#b64s[@]} -eq 0 ]]; then
+urls=()
+if [[ "$data_type" == "array" ]]; then
+  # OpenAI-style: data is [{b64_json,url}, ...]
   while IFS= read -r line; do b64s+=("$line"); done < <(
     printf '%s' "$response" | jq -r '.data[]? | .b64_json // empty'
   )
-fi
-urls=()
-while IFS= read -r line; do urls+=("$line"); done < <(
-  printf '%s' "$response" | jq -r '.data.image_url // [] | .[]'
-)
-if [[ "$data_type" == "array" && ${#urls[@]} -eq 0 ]]; then
   while IFS= read -r line; do urls+=("$line"); done < <(
     printf '%s' "$response" | jq -r '.data[]? | .url // empty'
   )
+elif [[ "$data_type" == "object" ]]; then
+  # MiniMax-style: data is {image_base64:[...], image_url:[...]}
+  while IFS= read -r line; do b64s+=("$line"); done < <(
+    printf '%s' "$response" | jq -r '.data.image_base64 // [] | .[]'
+  )
+  while IFS= read -r line; do urls+=("$line"); done < <(
+    printf '%s' "$response" | jq -r '.data.image_url // [] | .[]'
+  )
+else
+  printf 'ERROR: unexpected data type %s: %s\n' "$data_type" "$(sanitize_body "$response")" >&2
+  exit 2
 fi
 total=${#b64s[@]}
 if [[ ${#urls[@]} -gt $total ]]; then total=${#urls[@]}; fi
