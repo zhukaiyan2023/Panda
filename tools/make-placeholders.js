@@ -31,6 +31,7 @@ const CUE_IDS = [
   "lvl-2-step-4-split", "lvl-2-step-4-calc",
   "lvl-3-step-1-pre", "lvl-3-step-1-q",
   "lvl-done",
+  "daily-done",
   "boat-intro", "boat-pair", "boat-done",
   "cloud-intro", "cloud-pair", "cloud-done",
   "bounce-intro", "bounce-pop", "bounce-done",

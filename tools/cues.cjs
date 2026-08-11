@@ -267,6 +267,10 @@ module.exports = [
 
   // ===== round / level flow =====
   { id: "lvl-done",    text: "全部完成啦" },
+  // Friendly cue played when a kid taps a daily-locked card OR
+  // enters the dailyDone scene after hitting the per-level daily
+  // round cap. Mandarin: "今天已经练够啦，明天再来哦".
+  { id: "daily-done",  text: "今天已经练够啦，明天再来哦" },
 
   // ===== panda-park migrated games =====
   // Boat — 凑十过河. The first round opens with a friendly greeting that
