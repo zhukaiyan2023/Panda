@@ -24,6 +24,9 @@
 //     l3-s1-{a}-{b}, l3-s2-{ones}-{b}, l3-s3-{sum},
 //     l3-rwd-{a}-{b}-{answer}
 //
+// The L3 cue prefix is retained for the L4 二十以内 scene because the
+// pre-baked MP3 assets kept their original names during the level split.
+//
 // Exit 0 = full coverage. Non-zero = list every missing cue.
 
 import { poolGens } from "../data/pools.js";
@@ -111,6 +114,7 @@ function expectedL1() {
 function expectedL2() {
   const out = new Set();
   for (const r of poolGens[2]()) {
+    if (r.kind !== "make-ten") continue;
     const big = Math.max(r.a, r.b);
     const small = Math.min(r.a, r.b);
     out.add(`l2-s1-${r.a}-${r.b}`);
@@ -124,7 +128,7 @@ function expectedL2() {
 
 function expectedL3() {
   const out = new Set();
-  for (const r of poolGens[3]()) {
+  for (const r of poolGens[4]()) {
     const ones = r.a % 10;
     const sum = ones + r.b;
     out.add(`l3-s1-${r.a}-${r.b}`);
@@ -160,6 +164,7 @@ function poolStats(label, pool) {
 poolStats("L1", poolGens[1]());
 poolStats("L2", poolGens[2]());
 poolStats("L3", poolGens[3]());
+poolStats("L4", poolGens[4]());
 function check(cue) {
   const issues = [];
   if (!CUE_IDS.has(cue)) issues.push("not in CUE_IDS");
