@@ -25,8 +25,8 @@ import "./save.js";
 //   L4 二十以内     teen + digit, no-carry, use 10+ones strategy
 const levelsData = {
   "levels": [
-    { "id": 1, "title": "三数相加<10" },
-    { "id": 2, "title": "两个数凑十" },
+    { "id": 1, "title": "三数相加" },
+    { "id": 2, "title": "两数凑十" },
     { "id": 3, "title": "凑十法" },
     { "id": 4, "title": "二十以内" },
   ],
