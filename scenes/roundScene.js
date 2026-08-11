@@ -567,15 +567,24 @@ export default function createRoundScene(config) {
         k.go(config.sceneName);
         return;
       }
-      // Last round over — navigate to the level picker. The previous
-      // "lvl-done" cue ("all done") was removed per user feedback;
-      // the kid just gets back to the level map after the celebration
-      // audio. panda-celebrate has already ended by the time we get
-      // here (advance was gated on it), so navigating immediately is
-      // a clean exit.
+      // Last round over. Bump the per-level daily counter FIRST so
+      // we know whether this round hit the cap. The saveProgress()
+      // call below is unchanged (still bumps stars + unlocks next
+      // level); daily-cap state is independent of progression.
+      const daily = window.PandaSave?.markRoundFinished(config.levelId)
+        || { count: 0, cap: 0, locked: false };
       saveProgress(config.levelId);
       roundIdx = 0;
-      k.go("levelPicker");
+      // If this finished round hit the daily cap, the kid gets a
+      // clear "今天练够啦" message instead of silently bouncing to
+      // a now-locked card. The celebration audio from onAdvance has
+      // already resolved (the audio-gated advance waited for it),
+      // so transitioning immediately is a clean exit.
+      if (daily.locked) {
+        k.go("dailyDone");
+      } else {
+        k.go("levelPicker");
+      }
     }
 
     let autoAdvanceTimer = null;
