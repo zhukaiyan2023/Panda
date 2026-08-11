@@ -1,27 +1,40 @@
 // scenes/level1.js — 三数相加 (three-addend addition, sum ≤ 10).
-// Taught in 2 explicit steps with a persistent top anchor and merge-line
+// Taught in 2 explicit steps with a persistent anchor and merge-line
 // visual aid. Per user feedback 2026-08-11, the screen now shows:
 //
-//   anchor:        "a + b + c = □"   — the persistent goal, large, top of screen
-//   preview:       "□ + c = □"        — what step 2 will look like, above cells
-//   cells:         [a][b][c]          — visual representation of the three
-//                                       addends; merge lines go UP from cells
-//                                       (a) and (b) to the preview's first □
+//   cells:         [a][b][c]          — boxes-with-circles visual aid at the
+//                                       TOP of the screen; per-group number
+//                                       labels removed (the colored group
+//                                       already reads as "how many")
+//   anchor:        "a + b + c = □"   — the question, below cells
+//   preview:       "□ + c = □"        — what step 2 will look like, below anchor
 //   pair-sum eq:   "a + b = □"        — the actual question kid picks
 //   buttons:       4 options for the answer
 //
-// `□` (Unicode WHITE SQUARE) is the unknown marker, matching 凑十法's
-// visual convention (per user feedback 2026-08-11: "用这个方格子表示未知，
-// 不要用问号了"). Same convention as the anchor and sub-equations.
+// Merge lines connect the anchor's first two addends (a and b) DOWN to
+// the preview's merge box (the first □), converging at the box. The
+// shape is an upward-opening V (╲╱) — the wide arms at the top point
+// at the anchor's numbers, and the V's point sits AT the merge box.
+// Per user feedback 2026-08-11: "6+1+2=□ �╱ □ +2=□ 应该是这个形式。"
+// Arrowhead color follows each addend's color (blue for "1", yellow
+// for "7") so the eye traces each number back to its arm.
+//
+// The V opens upward (the "向上的开口") and the arms originate at the
+// numbers in the anchor — establishing the relationship with the
+// numbers, not the box (per user feedback: "和数字建立关系，不是和
+// 方格子建立关系"). `□` (Unicode WHITE SQUARE) is the unknown marker,
+// matching 凑十法's visual convention (per user feedback 2026-08-11:
+// "用这个方格子表示未知，不要用问号了").
 //
 // Teaching flow (sum ≤ 10, no pair-to-ten trick):
 //   * Pair = the first two addends. Third is the leftover.
 //   * Step 1 — Pair:        kid picks the pair sum from "a + b = □". The
-//                            merge lines from cells (a) and (b) up to the
-//                            preview's first □ show where the result
-//                            goes; on the correct pick, the preview's
-//                            first □ reveals to the pair sum (orange) and
-//                            the pair-sum eq reveals to "a + b = pairSum".
+//                            merge lines point DOWN at each number with V
+//                            arrowheads, showing the relationship between
+//                            the merge result and its two components; on
+//                            the correct pick, the preview's first □
+//                            reveals to the pair sum (orange) and the
+//                            pair-sum eq reveals to "a + b = pairSum".
 //   * Step 2 — Add the rest: preview now reads "<pairSum> + c = □" (merge
 //                            already revealed), pair-sum eq is locked in
 //                            as "a + b = pairSum". Kid picks the total.
@@ -90,7 +103,7 @@ function anchorSlots(nums, sumSlot) {
 // unknowns (per user feedback 2026-08-11: "用这个方格子表示未知，
 // 不要用问号了"). The third addend keeps its own color so the visual
 // link "merge result + blue/yellow third = total" matches the anchor.
-function simplifiedPreview(ctx, third, thirdIdx, mergeSlot = null, totalSlot = null) {
+function simplifiedPreview(ctx, third, thirdIdx, mergeSlot = null, totalSlot = null, y = 520) {
   if (ctx.simplifiedPreview) ctx.simplifiedPreview.destroy();
   const firstSlot = mergeSlot != null ? String(mergeSlot) : "□";
   const lastSlot = totalSlot != null ? String(totalSlot) : "□";
@@ -106,7 +119,7 @@ function simplifiedPreview(ctx, third, thirdIdx, mergeSlot = null, totalSlot = n
     slots,
     colors,
     x: LAYOUT.barX,
-    y: 360,  // between the anchor (y=200) and the cells (y=520)
+    y,  // step 1: y=520 (below anchor). Caller may override.
     size: 82,
     boxMode: true,
   });
@@ -210,17 +223,19 @@ function mergedRow(ctx, nums, opts = {}) {
       cellIdx++;
     }
 
-    // Number label centered under this color's group.
+    // Per-group block info (center x, y, colorIdx) — exposed via
+    // root.groupBlocks below for any future visual that needs to target
+    // an addend's cell group. Not used by drawMergeLines anymore (the V
+    // originates at the anchor's addends, not the cells) but kept so
+    // the pulse animation can still find group anchors if needed.
     const groupLastIdx = cellIdx - 1;
     const groupCenterX = (offsets[groupFirstIdx] + offsets[groupLastIdx]) / 2 + startX;
     groupBlocks.push({ x: groupCenterX, y, colorIdx });
-    root.add([
-      k.text(String(n), { size: 56, font: FONT }),
-      k.color(...color),
-      k.outline(3, k.rgb(...INK)),
-      k.pos(groupCenterX, y + cell / 2 + 56),
-      k.anchor("center"),
-    ]);
+    // Per-group number label intentionally removed (per user feedback
+    // 2026-08-11: "方格下面的数字去掉"). The cells themselves show the
+    // count visually (each box-with-circle = one unit), and the
+    // colored circle's group already reads as "how many" — the
+    // redundant `n` text label below each color group is gone.
   });
 
   // Pulse all cells once. Called when the child answers correctly.
@@ -263,42 +278,125 @@ function drawLink(k, parent, from, to, color, thickness = 8) {
   ]);
 }
 
-// Draws L1's merge lines: two converging arrows from the pair cells
-// (colorIdx 0 and 1) UP to the simplified-preview merge box at slot 0.
-// The visual says "1 + 7 → □" — the kid sees that the pair cells merge
-// into the result they need to find. Arrows attach to ctx.arrowsRoot so
-// they persist across step 1 → step 2 (same UX rule 凑十法 uses for its
-// decomposition arrows per level3.js — the kid always sees the visual
-// link "1 + 7 → 8" through the entire round). The third addend (colorIdx
-// 2) does NOT get a line — it's added in step 2's equation, not merged
-// into the pair result.
+// Draws L1's merge lines: two arrows from the anchor's first two
+// addends (slot 0 = a, slot 2 = b) DOWN to the preview's merge box
+// (slot 0), with a V-shaped arrowhead AT the merge box. The visual
+// reads:
+//
+//      [a] + [b] + [c] = □     ← anchor (top)
+//        ╲      ╱
+//          ╲  ╱                  ← V converges at merge box
+//      [□] + [c] = □           ← preview
+//
+// Per user feedback 2026-08-11: "6+1+2=□ ╲╱ □ +2=□ 应该是这个形式。
+// 应该是向上的开口，和数字建立关系，不是和方格子建立关系。" The V
+// arms originate at the anchor's numbers (the relationship is with
+// the numbers, not the box) and open upward (the "向上的开口") so the
+// wide end of the V points back at the anchor — the V's point sits AT
+// the merge box, terminating the line where the two addends meet.
+//
+// Arrows attach to ctx.arrowsRoot so they persist across step 1 → step
+// 2 (same UX rule 凑十法 uses for its decomposition arrows per
+// level3.js — the kid always sees the merge-line visualization through
+// the entire round). The third addend (slot 4 in the anchor) does NOT
+// get a line — it's added in step 2's equation, not merged into the
+// pair result.
+//
+// Slot positions are stable across step 1 → step 2 transitions:
+//   - Anchor slots 0/2 hold the addends, which never change; the line
+//     source stays anchored at the same pixel.
+//   - Preview slot 0 renders as either `□` (step 1) or a single-digit
+//     pairSum (step 2). Both have the same per-char width (1.6 × size
+//     vs 0.62 × size per digit, but expression() uses slotSizes[0]=size
+//     for both since the box renders as `size` tall), so the merge
+//     box's top edge y stays put — existing arrows still terminate
+//     correctly without a redraw. The postRender hook re-runs anyway
+//     for safety.
 function drawMergeLines(ctx) {
   ctx.arrowNodes.forEach((n) => n.destroy());
   ctx.arrowNodes = [];
 
   const preview = ctx.simplifiedPreview;
-  const cells = ctx.cellRow;
+  const anchor = ctx.anchorEqNode;
   if (!preview || !preview.slotCenters || preview.slotCenters[0] == null) return;
-  if (!cells || !cells.groupBlocks || !cells.cellSize) return;
+  if (!anchor || !anchor.slotCenters) return;
 
-  // Target: bottom edge of the merge box (slot 0 of simplified preview).
+  // Target: top edge of the merge box (slot 0 of simplified preview).
+  // The V converges HERE — the point of the V sits on the box.
   const targetX = preview.slotCenters[0];
-  const targetY = preview.slotY + preview.slotSizes[0] / 2;
+  const targetY = preview.slotY - preview.slotSizes[0] / 2;
 
-  // Sources: top edge of each pair cell group. Color follows the
-  // addend's color so the line visually "owns" the cells it leaves.
-  const halfCell = cells.cellSize / 2;
-  for (let colorIdx = 0; colorIdx <= 1; colorIdx++) {
-    const block = cells.groupBlocks[colorIdx];
-    if (!block) continue;
+  // Sources: anchor's first two addends. The anchor slots are
+  // [a, "+", b, "+", c, "=", sum], so the pair addends live at slot 0
+  // (color COLORS[0]) and slot 2 (color COLORS[1]).
+  const sourceSlots = [0, 2];
+  const headHalfWidth = 16;   // V arms extend horizontally from center
+  const headHeight = 18;      // V arms extend vertically up from point
+  const headThickness = 5;
+
+  sourceSlots.forEach((slotIdx, i) => {
+    const sourceX = anchor.slotCenters[slotIdx];
+    const sourceY = anchor.slotY + anchor.slotSizes[slotIdx] / 2;
+
+    // Main line: from anchor addend (bottom edge) DOWN to merge box
+    // (top edge). The two lines converge at the merge box, forming
+    // the "╲ ╱" shape that opens upward.
     const line = drawLink(
       ctx.k, ctx.arrowsRoot,
-      { x: block.x, y: block.y - halfCell },
+      { x: sourceX, y: sourceY },
       { x: targetX, y: targetY },
-      COLORS[colorIdx],
+      COLORS[i],
     );
     ctx.arrowNodes.push(line);
-  }
+
+    // V-shaped arrowhead at the merge box. Point at the box (the V's
+    // narrow end), arms going UP and OUT — opening upward toward the
+    // anchor (the "向上的开口"). Color matches the line so the
+    // arrowhead reads as one visual unit with the line that precedes it.
+    const leftEnd = { x: targetX - headHalfWidth, y: targetY - headHeight };
+    const rightEnd = { x: targetX + headHalfWidth, y: targetY - headHeight };
+    ctx.arrowNodes.push(
+      drawLink(ctx.k, ctx.arrowsRoot,
+        leftEnd, { x: targetX, y: targetY },
+        COLORS[i], headThickness),
+    );
+    ctx.arrowNodes.push(
+      drawLink(ctx.k, ctx.arrowsRoot,
+        rightEnd, { x: targetX, y: targetY },
+        COLORS[i], headThickness),
+    );
+  });
+}
+
+// Subtle opacity blink — the "只做隐显，不要做移动" reminder per user
+// feedback 2026-08-11. The flash fades the equation's opacity between
+// full and a soft dim, no scale change. "隐显" = hide/reveal — the
+// equation dims slightly and returns, drawing attention without
+// anything moving on screen. Loop pattern: two quick blinks close
+// together at start ("look here" beat), then a longer quiet gap
+// before the next reminder — the equation isn't constantly flashing.
+//
+// Tweens the root node's opacity so all slots dim together. Fire-
+// and-forget — when the kid picks an answer the equation node gets
+// destroyed on the next round and any in-flight tween just gets
+// garbage-collected with it, no cancel handle needed.
+function gentlePulse(k, eqNode) {
+  if (!eqNode) return;
+  const dim = 0.45;        // opacity at the bottom of the fade
+  const upDur = 0.16;      // fade-out duration
+  const downDur = 0.22;    // fade-in duration
+  const breath = 0.50;     // gap between consecutive blinks
+  const longBreath = 1.4;  // gap after the third blink before the loop restarts
+  const blink = (i) => {
+    const cur = eqNode.opacity ?? 1;
+    k.tween(cur, dim, upDur, (v) => { eqNode.opacity = v; });
+    k.wait(upDur, () => {
+      k.tween(dim, 1, downDur, (v) => { eqNode.opacity = v; });
+      const gap = i < 2 ? breath : longBreath;
+      k.wait(downDur + gap, () => blink((i + 1) % 3));
+    });
+  };
+  blink(0);
 }
 
 // Spoken intro for a step. Step 2 reads the simplified form
@@ -381,18 +479,26 @@ export default createRoundScene({
     // Step 1 — Decompose the pair, find the pair sum.
     //
     // New visual flow (top to bottom), per user feedback 2026-08-11:
-    //   anchor:        "1 + 7 + 2 = □"   — persistent goal, size 90
-    //   preview:       "□ + 2 = □"        — what step 2 will look like, size 82
-    //   cells:         [1][7][2]          — visual aid with merge lines up
-    //   pair sum eq:   "1 + 7 = □"        — the actual question, size 60
+    //   cells:         [1][7][2]          — visual aid at the TOP, no
+    //                                       per-group number labels
+    //   anchor:        "1 + 7 + 2 = □"   — the question, below cells
+    //   preview:       "□ + 2 = □"        — what step 2 will look like
+    //   pair sum eq:   "1 + 7 = □"        — the actual pick, size 60
     //   buttons:       4 options for pair sum
     //
-    // The merge lines from the "1" and "7" cell groups converge on the
-    // preview's first □ — visually teaching "1 + 7 → □" (the merge result).
+    // The merge lines start at the anchor's first two addends (slot 0
+    // and slot 2 — "1" and "7") and run DOWN to the preview's merge
+    // box, where they converge into a V-shaped arrowhead (point at box,
+    // arms opening upward). Per user feedback: "6+1+2=□ ╲╱ □ +2=□
+    // 应该是这个形式。" and "应该是向上的开口，和数字建立关系，不是和
+    // 方格子建立关系。" — the arms originate at the numbers in the
+    // anchor, the V opens upward, and the point terminates at the box.
+    // Arrowhead color follows each addend's color (blue for "1",
+    // yellow for "7") so the eye traces each number back to its arm.
+    //
     // Lines persist across step 1 → 2 (same UX rule 凑十法 uses for its
     // decomposition arrows per level3.js: "拆分的线不要消失。算一算的
-    // 时候也要保留。"). The merge line color follows each addend's color
-    // (blue from "1", yellow from "7") so the eye traces the merge.
+    // 时候也要保留。").
     //
     // Audio: phase 1 ("先看下 a+b+c 等于几...") plays immediately on entry;
     // the pair-sum equation appears AFTER phase 1 ends so the kid sees the
@@ -409,23 +515,26 @@ export default createRoundScene({
       const bIdx = round.nums.indexOf(pair[1], aIdx + 1);
       const pairSum = pair[0] + pair[1];
 
-      // Cells at y=520 (between simplified preview at y=360 and the
-      // pair-sum equation at y=680). No highlight — the merge lines
-      // provide the visual cue that 1 + 7 are the pair to add first.
-      const body = mergedRow(ctx, round.nums, { y: 520 });
+      // Cells at the TOP (y=200) — per user feedback 2026-08-11:
+      // "把里面的方格放到最上面，方格下面的数字去掉。方格下面是题目。"
+      // The cells are the visual aid (boxes with circles for each unit);
+      // the per-group number labels are gone — the colored group already
+      // reads as "how many". The merge lines provide the visual cue
+      // that 1 + 7 are the pair to add first.
+      const body = mergedRow(ctx, round.nums, { y: 200 });
       ctx.cellRow = body;
 
-      // Persistent anchor at top — "1 + 7 + 2 = □". `□` text matches the
-      // 凑十法 pattern (per user feedback 2026-08-11: "用这个方格子表示
-      // 未知，不要用问号了"). The anchor stays as `□` until step 2 is
-      // answered correctly.
-      ctx.setAnchorEquation(anchorSlots(round.nums, "□"), { y: 200, size: 90 });
+      // Anchor (the question) directly below the cells — "1 + 7 + 2 = □".
+      // `□` text matches the 凑十法 pattern (per user feedback 2026-08-11:
+      // "用这个方格子表示未知，不要用问号了"). The anchor stays as `□`
+      // until step 2 is answered correctly.
+      ctx.setAnchorEquation(anchorSlots(round.nums, "□"), { y: 360, size: 90 });
 
-      // Simplified preview above the cells — "□ + 2 = □". Shows the kid
+      // Simplified preview below the anchor — "□ + 2 = □". Shows the kid
       // what step 2 will look like (merge result + third addend = total)
       // so the pick on step 1 ("what does 1+7 equal?") has a visible
       // destination.
-      simplifiedPreview(ctx, round.nums[2], 2, null);
+      simplifiedPreview(ctx, round.nums[2], 2, null, null, 520);
 
       // Phase 1 audio + deferred pair-sum equation. Phase 1 explains the
       // strategy ("先看下 a+b+c 等于几...") and chains into phase 2's
@@ -478,22 +587,34 @@ export default createRoundScene({
             colors: [COLORS[aIdx], undefined, COLORS[bIdx], undefined, ORANGE],
           }, { y: 680, size: 60 });
           // Reveal merge box in preview: "□+2=□" → "<pairSum>+2=□".
-          // Merge lines stay valid — slot 0 width is identical for `□`
-          // text and a single-digit number, so the existing arrows
-          // (drawn in postRender) still point at the right place. The
-          // arrows now visually terminate on the revealed pair sum.
+          // Merge lines (and their V arrowheads at the merge box)
+          // stay anchored — they don't move. The line's TARGET sits
+          // at the merge box's top edge; that edge's y is unchanged
+          // when `□` reveals to a single-digit number (same per-char
+          // width), so the existing arrows still terminate on the
+          // right pixel. The arms originate at the anchor's addends
+          // (also unchanged), so the V's source ends stay valid too.
           simplifiedPreview(ctx, round.nums[2], 2, pairSum);
         },
       };
     },
     // Step 2 — Add the rest.
     //
-    // Layout is identical to step 1, but the simplified preview's merge
-    // box is already revealed ("<pairSum>+2=□") and the pair-sum equation
-    // shows the answer ("1+7=<pairSum>"). The kid only needs to solve
-    // the remaining equation: "<pairSum>+2=□". Merge lines still point at
-    // the merge slot (now showing the pair sum in orange), reinforcing
-    // the visual link "1+7 → <pairSum> → <pairSum>+2=□".
+    // Layout is identical to step 1 for cells (y=200), anchor (y=360),
+    // and preview (y=520), but the pair-sum equation that was revealed
+    // at y=680 during step 1's onAdvance is now DESTROYED on entry to
+    // step 2 — per user feedback 2026-08-11, the kid has internalized
+    // the running total and doesn't need the reminder anymore. The
+    // only equation visible in step 2 is the simplified preview
+    // "<pairSum>+<third>=□" at y=520, which gets a very subtle flash
+    // to draw attention to "this is your new question".
+    //
+    // Merge lines still start at the anchor's "1" and "7" (slot 0 and
+    // slot 2) and converge at the merge box (now showing the pair sum
+    // in orange) — the visual link "[1] [7] → <pairSum>" reinforces
+    // "the answer is composed of these numbers". Slot positions don't
+    // shift when the merge box reveals (same per-char width for `□`
+    // and a single digit), so the existing arrow positions stay valid.
     (ctx, round) => {
       const { pair, third, pairSum } = choosePair(round.nums);
       const aIdx = round.nums.indexOf(pair[0]);
@@ -501,19 +622,22 @@ export default createRoundScene({
       const thirdIdx = round.nums.findIndex((n) => n === third);
       const [a, b, c] = round.nums;
 
-      // Cells at y=520 (same position as step 1 — the visual link
-      // between the cells and the merge box stays put across steps).
-      const body = mergedRow(ctx, round.nums, { y: 520 });
+      // Cells at y=200 (top of screen, same position as step 1 — the
+      // visual link between the cells and the merge box stays put across
+      // steps). The per-group number labels are gone (per user feedback
+      // 2026-08-11).
+      const body = mergedRow(ctx, round.nums, { y: 200 });
       ctx.cellRow = body;
 
-      // Anchor stays put (still "□" until step 2 is answered correctly).
-      ctx.setAnchorEquation(anchorSlots(round.nums, "□"), { y: 200, size: 90 });
+      // Anchor stays put at y=360 (still "□" until step 2 is answered
+      // correctly).
+      ctx.setAnchorEquation(anchorSlots(round.nums, "□"), { y: 360, size: 90 });
 
-      // Simplified preview with merge revealed as pairSum (orange). The
-      // merge slot's text changes from `□` to the actual pair sum; since
-      // both render at the same per-char width (0.62 × size), the slot's
-      // x position is unchanged and the merge lines drawn in postRender
-      // still terminate on the correct pixel.
+      // Simplified preview at y=520 with merge revealed as pairSum
+      // (orange). The merge slot's text changes from `□` to the actual
+      // pair sum; since both render at the same per-char width (0.62 ×
+      // size), the slot's x position is unchanged and the merge lines
+      // drawn in postRender still terminate on the correct pixel.
       simplifiedPreview(ctx, third, thirdIdx, pairSum);
 
       // Step 2 audio prompt: "<pairSum> 加 <third> 等于几". Single
@@ -523,16 +647,23 @@ export default createRoundScene({
       // setTimeout estimate).
       speakSequence(ctx.k, [`l1-step2-${pairSum}-${third}`], ctx);
 
+      // Per user feedback 2026-08-11 (refined): the pair-sum equation
+      // should NOT persist into step 2 — once the kid has internalized
+      // "<a>+<b>=<pairSum>", the only thing left is "<pairSum>+<third>
+      // =?". Destroy the pair-sum equation node now and pulse the
+      // simplified preview instead, very subtly, so the eye lands on
+      // the equation the kid has to actually answer.
+      ctx.equationNode?.destroy?.();
+      ctx.equationNode = null;
+      gentlePulse(ctx.k, ctx.simplifiedPreview);
+
       return {
         body,
-        equation: {
-          slots: [pairSum, "+", third, "=", "□"],
-          colors: [ORANGE, undefined, COLORS[thirdIdx], undefined, undefined],
-        },
-        // Step 2 sub-question at y=680 (same row as step 1's pair-sum
-        // equation — they sit in the same screen slot, so the kid's eye
-        // returns to the same vertical position to answer).
-        equationOpts: { y: 680, size: 60 },
+        // No `equation` / `equationOpts` — the pair-sum equation was
+        // destroyed at the top of this factory; buildStep won't replace
+        // it (no equation config). The simplified preview at y=520
+        // ("<pairSum>+<third>=□") is the sole equation visible in step
+        // 2, and the gentle pulse draws attention to it.
         postRender: (ctx) => {
           // Redraw merge lines — destroys the step-1 arrow set and
           // draws a fresh set against the new simplifiedPreview's slot
@@ -565,18 +696,19 @@ export default createRoundScene({
           // equation's final total, not a pair-sum piece).
           ctx.setAnchorEquation(
             anchorSlots(round.nums, round.answer),
-            { y: 200, size: 90 },
+            { y: 360, size: 90 },
           );
           // Reveal simplified preview total box: "<pairSum>+2=□" →
           // "<pairSum>+2=<answer>". Merge slot already revealed
-          // (from step 1's onAdvance / step 2's render).
+          // (from step 1's onAdvance / step 2's render). The merge
+          // box's slot width stays put across reveals (same per-char
+          // width for `□` and a single digit), so the V arrowhead at
+          // the merge box stays anchored on the right pixel — the
+          // anchor's addends (line sources) are unchanged too.
           simplifiedPreview(ctx, third, thirdIdx, pairSum, round.answer);
-          // Reveal step 2 sub-question: "<pairSum>+<third>=□" →
-          // "<pairSum>+<third>=<answer>".
-          ctx.setEquation({
-            slots: [pairSum, "+", third, "=", round.answer],
-            colors: [ORANGE, undefined, COLORS[thirdIdx], undefined, INK],
-          }, { y: 680, size: 60 });
+          // No sub-question to reveal at y=680 — it was removed per
+          // user feedback 2026-08-11. The pair-sum equation "<a>+<b>=
+          // <pairSum>" stays as revealed (it was the step-1 answer).
           ctx.cellRow?.pulse?.();
           // Read the full equation back as the reward: "X 加 Y 加 Z
           // 等于 答". Return a Promise that resolves when the audio

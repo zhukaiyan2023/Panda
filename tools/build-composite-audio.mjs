@@ -149,12 +149,15 @@ for (let a = 1; a <= 9; a++) {
   }
 }
 
-// L2 两个数凑十 — triples where at least one pair sums to 10.
+// L2 两个数凑十 — triples where a+b=10 OR b+c=10. The a+c=10 case is
+// intentionally DROPPED (matches data/pools.js): the user wants the
+// second addend to be the shared friend of either neighbour, so the
+// pair always includes b and the third can live at either end.
 const l2Pool = [];
 for (let a = 1; a <= 9; a++) {
   for (let b = 1; b <= 9; b++) {
     for (let c = 1; c <= 9; c++) {
-      const ten = a + b === 10 || a + c === 10 || b + c === 10;
+      const ten = a + b === 10 || b + c === 10;
       if (!ten) continue;
       l2Pool.push({ kind: "three-ten", nums: [a, b, c], answer: a + b + c });
     }
@@ -236,11 +239,20 @@ for (const r of l2Pool) {
     text: `${numZh(a)}加${numZh(b)}加${numZh(c)}等于${numZh(answer)}`,
   });
   // pairSum is always 10 for L2 (the pool guarantees it), so the
-  // step-2 cue is "十 加 third 等于几" — the literal 10, not pairSum.
+  // step-2 cue is "十 加 third 等于几" or "{third} 加 十 等于几" —
+  // both variants carry the literal 10 but its position mirrors the
+  // pair's: a+b=10 → "10 on the left" (tenOnLeft in level2.js); b+c=10
+  // → "10 on the right" (tenOnRight). The scene picks the variant at
+  // runtime via pairIndices. Emit BOTH per-third — `seen` dedupes
+  // across rounds so 9 + 9 = 18 cues total, not 18 × 153.
   const third = safeInt(thirdVal, 1, 9, "l2 third addend");
   composites.push({
     id: `l1-step2-10-${third}`,
     text: `十加${numZh(third)}等于几`,
+  });
+  composites.push({
+    id: `l1-step2-${third}-10`,
+    text: `${numZh(third)}加十等于几`,
   });
 }
 
