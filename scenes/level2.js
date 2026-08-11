@@ -305,8 +305,9 @@ function buildL2AnswerIds(a, b, c, answer) {
 export default createRoundScene({
   levelId: 2,
   sceneName: "level2",
-  // Pull the 217-round pool from data/pools.js. roundScene samples 10
-  // of them on first entry and walks through in random order.
+  // Pull the 153-round pool from data/pools.js — triples (a,b,c) ∈ {1..9}³
+  // where a+b=10 OR b+c=10 (the a+c=10 case is dropped). roundScene
+  // samples 10 of them on first entry and walks through in random order.
   poolGen: () => poolGens[2](),
   sampleSize: 10,
   // No topic-intro greeting on entry — per user feedback 2026-08-10.

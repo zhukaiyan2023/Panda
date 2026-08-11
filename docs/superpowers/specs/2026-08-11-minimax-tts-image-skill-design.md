@@ -96,8 +96,11 @@ description: Use when the user asks to generate speech, narration, voice-over, o
 2. `require_minimax_key` — exit 1 if `MINIMAX_API_KEY` unset.
 3. Parse args (long flags), build JSON body with `jq -n --arg ...`.
 4. `minimax_post /v1/t2a_v2 "$body"` → returns body to stdout.
-5. `jq -r '.data.audio // .data.audio_url'`. If URL, `curl` it; if hex, `xxd -r -p` to bytes.
-6. Write to `--out` (refuse to follow symlinks; refuse if `--out` is a directory).
+5. Extract audio bytes: try `data.audio` (hex) first with `xxd -r -p`;
+   if empty, fall back to `data.audio_url` and `curl` it.
+6. Write to `--out`. Reject (exit 4) if `--out` is a directory or a
+   symlink, or if the parent directory does not exist (caller must
+   `mkdir -p` themselves).
 7. Print `OK <bytes> bytes → <out>`.
 
 ## Skill 2 — `minimax-image`
@@ -115,7 +118,10 @@ description: Use when the user asks to generate an image, illustration, icon, he
   - `--aspect_ratio 1:1`
   - `--n 1`
   - `--response_format base64`
-- `--n 1` uses `--out`; `--n > 1` requires `--out-dir` and the script writes `out-dir/out-001.png`, `out-dir/out-002.png`, …
+  - `--mkdir` (off by default; when set, `mkdir -p` the parent of `--out` or each per-image dir under `--out-dir`)
+- `--n 1` uses `--out`; `--n > 1` requires `--out-dir` and the script
+  writes `out-dir/out-001.png`, `out-dir/out-002.png`, … using the
+  extension from `--ext` (default `png`).
 - Invocation: `bash Panda/.claude/skills/minimax-image/bin/image.sh --prompt "..." --out /abs/path/out.png [...]`
 - Success: `OK <bytes> bytes → <out>` (or one line per file for `n>1`)
 - Failure: `ERROR <http_code>: <body>`
@@ -126,9 +132,9 @@ description: Use when the user asks to generate an image, illustration, icon, he
 3. Parse args; build JSON body with `jq`.
 4. POST → parse `data[].b64_json` (default) or `data[].url` (then GET).
 5. Decode base64 / save fetched bytes to each per-image path.
-6. Refuse to write outside the caller-specified directory; create parent
-   dir only if `--mkdir` flag is passed (default off — force caller to
-   be explicit about disk layout).
+6. If `--mkdir` is set, create the parent dir (or `--out-dir`) before
+   writing. Otherwise, exit 4 if the parent does not exist. Always exit
+   4 if the target path is a directory or symlink.
 
 ## Shared `lib/minimax-api.sh`
 

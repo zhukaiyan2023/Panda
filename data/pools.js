@@ -12,9 +12,11 @@
 //
 //   L1 三数相加小于10  — triples (a,b,c) ∈ {1..9}³ with a+b+c ≤ 10.
 //                       120 ordered triples. Sample 10 per session.
-//   L2 两个数凑十      — triples (a,b,c) ∈ {1..9}³ with two of the
-//                       three summing to 10. 217 ordered triples.
-//                       Sample 10 per session.
+//   L2 两个数凑十      — triples (a,b,c) ∈ {1..9}³ where the first
+//                       addend pairs with the second (a+b=10) OR the
+//                       second pairs with the third (b+c=10). Drops
+//                       triples where only a+c=10. 153 ordered
+//                       triples. Sample 10 per session.
 //   L3 凑十法          — ordered (a, b) pairs, both single digits,
 //                       sum > 10. 36 pairs. Sample 10 per session.
 //   L4 二十以内        — a ∈ [11, 19], b ∈ [1, 9], ones(a)+b < 10.
@@ -51,28 +53,32 @@ function generateL1Pool() {
   return pool;
 }
 
-// L2 — 两个数凑十 (two-of-three sum to 10).
-// Enumerate ordered triples (a, b, c) ∈ {1..9}³ where AT LEAST ONE pair
-// of the three addends sums to 10. This is the "make-a-ten" practice
-// pool: the kid has to spot which two addends combine to ten, then add
-// the third. (Sum is necessarily > 10 since the third addend ≥ 1.)
+// L2 — 两个数凑十 (a+b=10 OR b+c=10).
+// Enumerate ordered triples (a, b, c) ∈ {1..9}³ where the first addend
+// pairs with the second (a+b=10) OR the second addend pairs with the
+// third (b+c=10). The "first ↔ third" case (a+c=10) is intentionally
+// DROPPED — the user wants the second addend to be the shared friend of
+// either neighbour, so the pair always includes b and the third can
+// live at either end. This is the "make-a-ten" practice pool: the kid
+// spots which two addends combine to ten, then adds the leftover.
+// (Sum is necessarily > 10 since the third addend ≥ 1.)
 //
-// Count: by inclusion-exclusion on the three pair conditions (a+b=10,
-// a+c=10, b+c=10) inside {1..9}³. The single-pair sets are not disjoint
-// (a+b=10 and a+c=10 can both hold when b=c, e.g. {5, 5, 5}; a+b=10
-// and b+c=10 share nothing else; a+b=10 and a+c=10 share a-b=c which
-// for fixed a+b=10 means c=b so a=10-b). Direct enumeration gives 217
-// ordered triples — verified by the loop below.
+// Count: by inclusion-exclusion on the two pair conditions
+// (a+b=10, b+c=10) inside {1..9}³.
+//   |a+b=10|            = 9 × 9 = 81   (a ∈ {1..9}, b = 10-a, c ∈ {1..9})
+//   |b+c=10|            = 9 × 9 = 81   (a ∈ {1..9}, b ∈ {1..9}, c = 10-b)
+//   |a+b=10 ∧ b+c=10|   = 9           (b = 10-a, c = a → (a, 10-a, a))
+//   Union               = 81 + 81 − 9 = 153 ordered triples.
 //
-// This pool is intentionally disjoint from generateL1Pool: the L1
-// pool only emits triples with a+b+c ≤ 10, so no triple can both sum
-// ≤ 10 AND have a pair summing to 10 (the third would have to be 0).
+// Verified by the loop below. Disjoint from generateL1Pool: the L1 pool
+// only emits triples with a+b+c ≤ 10, so no triple can both sum ≤ 10
+// AND have a+b or b+c summing to 10 (the third would have to be 0).
 function generateL2Pool() {
   const pool = [];
   for (let a = 1; a <= 9; a++) {
     for (let b = 1; b <= 9; b++) {
       for (let c = 1; c <= 9; c++) {
-        const ten = a + b === 10 || a + c === 10 || b + c === 10;
+        const ten = a + b === 10 || b + c === 10;
         if (!ten) continue;
         pool.push({ kind: "three-ten", nums: [a, b, c], answer: a + b + c });
       }
