@@ -38,7 +38,7 @@ const CUE_IDS = [
   "enc-near-1", "enc-near-2", "enc-near-3", "enc-specific-pair", "enc-specific-double", "enc-specific-decomp", "enc-specific-friend",
   "panda-praise-1", "panda-praise-2", "panda-praise-3", "panda-cheer-1", "panda-cheer-2",
   "n-0", "n-1", "n-2", "n-3", "n-4", "n-5", "n-6", "n-7", "n-8", "n-9", "n-10", "n-11", "n-12", "n-13", "n-14", "n-15", "n-16", "n-17", "n-18", "n-19",
-  "q-what-is", "q-plus", "q-equals", "equals", "lvl-done", "boat-intro", "boat-pair", "boat-done", "cloud-intro", "cloud-pair", "cloud-done",
+  "q-what-is", "q-plus", "q-equals", "equals", "lvl-done", "daily-done", "boat-intro", "boat-pair", "boat-done", "cloud-intro", "cloud-pair", "cloud-done",
   "bounce-intro", "bounce-pop", "bounce-done", "whack-intro", "whack-start", "whack-tick", "whack-timeup", "whack-done", "feed-intro", "feed-nom", "feed-next", "feed-done",
   "lvl-1-decomp-pre", "lvl-1-decomp-eq", "lvl-2-step-1-pre", "lvl-2-step-1-eq", "lvl-2-step-1-or", "lvl-2-step-1-q",
   "lvl-2-step-2-big-pre", "lvl-2-step-2-find", "lvl-2-step-2-friend-pre", "lvl-2-step-2-q", "lvl-2-step-3-split-pre", "lvl-2-step-3-can-split", "lvl-2-step-3-q", "lvl-2-step-4-split", "lvl-2-step-4-calc",
@@ -606,6 +606,7 @@ watchOrientation();
     { default: level2 },
     { default: level3 },
     { default: level4 },
+    { default: dailyDone },
     { default: gameBoat },
     { default: gameBounce },
     { default: gameCloud },
@@ -618,6 +619,7 @@ watchOrientation();
     import("./scenes/level2.js"),
     import("./scenes/level3.js"),
     import("./scenes/level4.js"),
+    import("./scenes/dailyDone.js"),
     import("./scenes/gameBoat.js"),
     import("./scenes/gameBounce.js"),
     import("./scenes/gameCloud.js"),
@@ -636,6 +638,7 @@ watchOrientation();
   k.scene("level2", () => level2(k));
   k.scene("level3", () => level3(k));
   k.scene("level4", () => level4(k));
+  k.scene("dailyDone", () => dailyDone(k));
   k.scene("gameBoat",   () => gameBoat(k));
   k.scene("gameBounce", () => gameBounce(k));
   k.scene("gameCloud",  () => gameCloud(k));
