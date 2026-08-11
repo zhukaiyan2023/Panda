@@ -102,6 +102,15 @@ export default function expression(parent, opts = {}) {
   const size = opts.size ?? 96;
   const colors = opts.colors || [];
   const boxMode = opts.boxMode ?? false;
+  // Optional per-slot width reservation. Pass the WIDEST content each slot
+  // will ever hold during a round (e.g. the revealed 2-digit answer for a
+  // slot that starts as "?"), and every render of that row lays out at the
+  // same width — so slot centers never move between teaching steps and the
+  // link lines drawn against slotCenters stay put. Without it the row is
+  // re-centered on its current content, so revealing "?" → "19" shifts the
+  // whole row left. Only rows that pass `reserve` are affected; every other
+  // caller keeps the original content-fit behavior.
+  const reserve = opts.reserve || [];
 
   const root = parent.add([k.pos(0, 0), k.z(opts.z ?? 0)]);
 
@@ -115,11 +124,15 @@ export default function expression(parent, opts = {}) {
   // before it. Industry standard: measure-or-estimate per-slot width and
   // position based on cumulative edge-to-edge layout. MIN_EDGE_GAP keeps
   // the breathing room consistent across row widths.
-  const widths = slots.map((slot) => {
+  const slotWidth = (slot) => {
     if (isBoxSlot(slot, boxMode)) return estimateWidth(slot, size, true);
     const op = isOperator(String(slot));
     const nodeSize = op ? Math.round(size * OP_SCALE) : size;
     return estimateWidth(slot, nodeSize);
+  };
+  const widths = slots.map((slot, i) => {
+    const own = slotWidth(slot);
+    return reserve[i] == null ? own : Math.max(own, slotWidth(reserve[i]));
   });
   const MIN_EDGE_GAP = size * 0.22;
   const totalWidth = widths.reduce((a, b) => a + b, 0)

@@ -33,6 +33,7 @@ const ids = [];
 const l1 = poolGens[1]();
 const l2 = poolGens[2]();
 const l3 = poolGens[3]();
+const l4 = poolGens[4]();
 
 // isMakeTen must mirror scenes/level1.js choosePair so the emitted ids
 // line up with the cues the scene actually requests at runtime. Previously
@@ -71,44 +72,23 @@ for (const r of l1) {
 
 for (const r of l2) {
   const push = (id) => { if (!seen.has(id)) { seen.add(id); ids.push(id); } };
-  push(`l2-rwd-${r.a}-${r.b}-${r.answer}`);
-  // The 4-step make-a-ten teaching only applies to make-ten rounds.
-  // Other kinds (simple / no-carry-2d / carry-2d / trivial) get a
-  // single-step "a + b = ?" scene with no compare / friend / split,
-  // so the only step audio is the prompt + the shared reward.
-  if (r.kind === "make-ten") {
-    const big = Math.max(r.a, r.b);
-    const small = Math.min(r.a, r.b);
-    push(`l2-s1-${r.a}-${r.b}`);
-    push(`l2-s2-${big}`);
-    push(`l2-s3-${small}-${r.need}`);
-    push(`l2-s4-${small}-${r.need}-${r.rest}-${big}`);
-    // Comparison reveal audio — reads "a 大于 b" or "a 小于 b"
-    // after the kid picks the right sign in step 1. Same
-    // (> / <) prompt for both orderings of the same unordered
-    // pair, since the spoken comparison naturally follows the
-    // kid's actual answer direction. Skipped when a == b
-    // (the equal case auto-advances with no comparison pick).
-    if (r.a !== r.b) {
-      push(`l2-cmp-${r.a}-${r.b}`);
-    }
-    // Step 4 swap audio — fires ONLY when the smaller addend
-    // comes first (round.a < round.b) AND the split has two
-    // non-zero pieces in different order (rest ≠ need). For
-    // those rounds the visual shows "(rest+need)+b = ?"
-    // (preserving question order) but the canonical
-    // l2-s4 audio still says "big+need+rest", which would
-    // re-introduce the swap jump we just removed. The "s"
-    // suffix marks the swapped text variant.
-    if (r.a < r.b && r.rest !== r.need) {
-      push(`l2-s4s-${r.a}-${r.b}-${r.need}-${r.rest}-${big}`);
-    }
-  } else {
-    push(`l2-simple-${r.a}-${r.b}`);
-  }
+  const [a, b, c] = r.nums;
+  push(`l2-simple-${a}-${b}`);
+  push(`l2-rwd-${a}-${b}-${r.answer}`);
 }
 
+
 for (const r of l3) {
+  const ones = r.a % 10;
+  const sum = ones + r.b;
+  const push = (id) => { if (!seen.has(id)) { seen.add(id); ids.push(id); } };
+  push(`l3-s1-${r.a}-${r.b}`);
+  push(`l3-s2-${ones}-${r.b}`);
+  push(`l3-s3-${sum}`);
+  push(`l3-rwd-${r.a}-${r.b}-${r.answer}`);
+}
+
+for (const r of l4) {
   const ones = r.a % 10;
   const sum = ones + r.b;
   const push = (id) => { if (!seen.has(id)) { seen.add(id); ids.push(id); } };

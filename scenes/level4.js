@@ -54,48 +54,187 @@ const COL_SMALL = PINK;    // the 1-digit addend (b)
 const COL_TEN   = YELLOW;  // the literal "10" in sub-questions
 const COL_NEED  = ORANGE;  // the unknown / just-computed slot
 
-// Persistent anchor ("a + b = ?") rendered at the top, large.
+// Persistent anchor ("a + b = ?") rendered at the top.
+//
+// `reserve` pins each slot's width to its widest lifetime content: the sum
+// slot starts as "?" (1 char) and is revealed as a 2-digit answer in step 3.
+// Without the reservation the row re-centers on reveal and every slot —
+// plus the anchor → split link lines anchored to slotCenters — jumps left.
+// Per user report 2026-08-12: "相同位置的元素，在每一步的位置好像不一样".
 function anchorSlots(round, sumSlot) {
   return {
     slots: [round.a, "+", round.b, "=", sumSlot],
     colors: [COL_BIG, undefined, COL_SMALL, undefined, undefined],
+    reserve: [round.a, "+", round.b, "=", round.answer],
   };
 }
 
-// Step 2 visual aid: parenthesized full equation "(10 + ones) + b = ?".
-// Lives on ctx.parensForm so the roundScene's `setEquation` (the "active
-// sub-question") doesn't overwrite it. Mirrors L1's parenthesizedForm
-// pattern — the equation that ties the split back to the original
-// problem sits above the simplified sub-question that the child picks.
-//
-// Colors stay consistent with step 1's reveal: 10 = YELLOW, ones = ORANGE
-// (just computed in step 1), b = PINK (the small addend). The "?" is a
-// muted/ink slot — it's the full answer, still unknown.
-function l3Step2ParensForm(ctx, ones, b, answer = null) {
-  if (ctx.parensForm) ctx.parensForm.destroy();
-  const lastSlot = answer != null ? String(answer) : "?";
-  const slots = ["(", TEN, "+", ones, ")", "+", b, "=", lastSlot];
-  const colors = [
-    undefined,            // "("
-    COL_TEN,              // "10"
-    undefined,            // "+"
-    COL_NEED,             // ones (just computed)
-    undefined,            // ")"
-    undefined,            // "+"
-    COL_SMALL,            // b
-    undefined,            // "="
-    answer != null ? INK : undefined, // "?" (muted) or revealed
-  ];
-  ctx.parensForm = expression(ctx.k, {
-    slots,
-    colors,
-    x: LAYOUT.barX,
-    y: 340,
-    size: 76,
-  });
+// Widest lifetime content of the split row (y=440). Slot 2 goes
+// "□" → ones digit (same width), slot 6 stays "?" — but reserving keeps
+// it explicit and immune to future content changes.
+function splitReserve(round) {
+  return [TEN, "+", round.a % TEN, "+", round.b, "=", round.answer];
 }
 
-// Per-step L3 audio. Each step is one pre-baked composite mp3
+// Widest lifetime content of the bottom row (y=600): slot 2 goes
+// "□" → the ones-sum (which can be 10, two digits) and slot 4 goes
+// "?" → the 2-digit answer. Both widen, so both must be reserved.
+function bottomReserve(round) {
+  return [TEN, "+", (round.a % TEN) + round.b, "=", round.answer];
+}
+
+function splitLinkPoints(anchor, split) {
+  if (!anchor?.slotCenters || !split?.slotCenters) return [];
+  if (anchor.slotCenters[0] == null || split.slotCenters[0] == null || split.slotCenters[2] == null) {
+    return [];
+  }
+  return [
+    {
+      from: { x: anchor.slotCenters[0], y: anchor.slotY + anchor.slotSizes[0] / 2 },
+      to: { x: split.slotCenters[0], y: split.slotY - split.slotSizes[0] / 2 },
+      color: COL_TEN,
+    },
+    {
+      from: { x: anchor.slotCenters[0], y: anchor.slotY + anchor.slotSizes[0] / 2 },
+      to: { x: split.slotCenters[2], y: split.slotY - split.slotSizes[2] / 2 },
+      color: COL_NEED,
+    },
+  ];
+}
+
+function renderL4Step1Split(ctx, round, ones, answerSlot = "?") {
+  ctx.arrowNodes?.forEach((node) => node.destroy());
+  ctx.arrowNodes = [];
+
+  if (ctx.step1SplitNode) ctx.step1SplitNode.destroy();
+  ctx.step1SplitNode = expression(ctx.k, {
+    slots: [TEN, "+", ones == null ? "□" : ones, "+", round.b, "=", answerSlot],
+    colors: [COL_TEN, undefined, COL_NEED, undefined, COL_SMALL, undefined, undefined],
+    reserve: splitReserve(round),
+    x: LAYOUT.barX,
+    y: 440,
+    size: 82,
+  });
+
+  for (const point of splitLinkPoints(ctx.anchorEqNode, ctx.step1SplitNode)) {
+    ctx.arrowNodes.push(drawLink(ctx.k, ctx.arrowsRoot, point.from, point.to, point.color, 7));
+  }
+  return ctx.step1SplitNode;
+}
+
+// Redraws the two anchor → split lines using the current anchorEqNode
+// and step1SplitNode. Use when either has been recreated (slot centers
+// have shifted) — e.g. step 3's onAdvance reveals the answer in the
+// anchor, which widens slot 4 and shifts the whole layout left.
+//
+// Doesn't touch the split → bottom lines (step1NextLinks); those are
+// managed by renderL4BottomRow.
+function renderL4Step1SplitLinks(ctx) {
+  ctx.step1Links?.forEach((node) => node.destroy());
+  ctx.step1Links = [];
+  for (const point of splitLinkPoints(ctx.anchorEqNode, ctx.step1SplitNode)) {
+    ctx.step1Links.push(drawLink(ctx.k, ctx.arrowsRoot, point.from, point.to, point.color, 7));
+  }
+}
+
+// Renders the bottom row `10 + slot2 = answer` at y=600 and redraws the
+// two split → bottom lines using the current step1SplitNode. Use when
+// slot 2 (the `□` placeholder, or the picked ones-sum) or the answer
+// slot has changed — or any time the split row above has been recreated.
+//
+// The split → bottom lines stay visible across steps 2 and 3 by design
+// (per user feedback 2026-08-12: "个位相加，替换方格，为什么把合并的
+// 关联线去掉了，不要去掉") — they're re-aimed at the new slot 2 here
+// instead of being torn down.
+function renderL4BottomRow(ctx, round, slot2, answer = "?") {
+  if (ctx.step1NextNode) ctx.step1NextNode.destroy();
+  ctx.step1NextNode = expression(ctx.k, {
+    slots: [TEN, "+", slot2, "=", answer],
+    colors: [COL_TEN, undefined, COL_NEED, undefined, answer === "?" ? COL_NEED : INK],
+    reserve: bottomReserve(round),
+    x: LAYOUT.barX,
+    y: 600,
+    size: 82,
+  });
+  ctx.step1NextLinks?.forEach((node) => node.destroy());
+  ctx.step1NextLinks = [];
+  const target = ctx.step1NextNode.slotCenters?.[2];
+  if (target != null && ctx.step1SplitNode?.slotCenters) {
+    for (const sourceIndex of [2, 4]) {
+      const source = ctx.step1SplitNode.slotCenters?.[sourceIndex];
+      if (source == null) continue;
+      ctx.step1NextLinks.push(drawLink(
+        ctx.k,
+        ctx.arrowsRoot,
+        {
+          x: source,
+          y: ctx.step1SplitNode.slotY + ctx.step1SplitNode.slotSizes[sourceIndex] / 2,
+        },
+        {
+          x: target,
+          y: ctx.step1NextNode.slotY - ctx.step1NextNode.slotSizes[2] / 2,
+        },
+        COL_NEED,
+        7,
+      ));
+    }
+  }
+  return ctx.step1NextNode;
+}
+
+// Renders (or rebuilds) the split row at y=440 with `ones` in slot 2
+// and `answer` in slot 6. Use for both the initial "□"→ones transition
+// (step 1 onAdvance) and the final "?"→answer transition (step 3
+// onAdvance). The reserve is wide enough that slot 0/2/4 centers stay
+// pinned across both transitions, so the lines drawn against them don't
+// drift. Slot 6 (the answer) is the only thing the caller can change
+// here — it's the "?" the kid is working toward in the split equation.
+//
+// Per user feedback 2026-08-12: the split row's `?` must also reveal
+// to the real answer in step 3, alongside the anchor and the bottom
+// row. Otherwise the screen reads as "anchor says 19, bottom says 19,
+// split still says ?" — the eye lands on the unrevealed `?` and the
+// layout looks broken. Re-rendering the row keeps all three consistent.
+function renderL4SplitRow(ctx, round, ones, answer = "?") {
+  if (ctx.step1SplitNode) ctx.step1SplitNode.destroy();
+  ctx.step1SplitNode = expression(ctx.k, {
+    slots: [TEN, "+", ones, "+", round.b, "=", answer],
+    colors: [COL_TEN, undefined, COL_NEED, undefined, COL_SMALL, undefined, undefined],
+    reserve: splitReserve(round),
+    x: LAYOUT.barX,
+    y: 440,
+    size: 82,
+  });
+  return ctx.step1SplitNode;
+}
+
+function renderL4Step1Completed(ctx, round, ones) {
+  renderL4SplitRow(ctx, round, ones, "?");
+  renderL4Step1SplitLinks(ctx);
+  return renderL4BottomRow(ctx, round, "□");
+}
+
+function drawLink(k, parent, from, to, color, thickness = 5) {
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
+  const len = Math.sqrt(dx * dx + dy * dy);
+  const angleDeg = Math.atan2(dy, dx) * 180 / Math.PI;
+  return parent.add([
+    k.pos(from.x, from.y),
+    k.rotate(angleDeg),
+    k.rect(len, thickness),
+    k.color(...color),
+    // 0.4 (was 0.6) — the L4 three-line diagram has 4 simultaneous
+    // lines after step 3 onAdvance (anchor→split × 2 + split→bottom
+    // × 2). At 0.6 the orange pair visually merged through the
+    // shared `2` slot, reading as one continuous line from `12` to
+    // `6` and creating the "overlap" complaint. 0.4 keeps every line
+    // visible but stops the eye from blurring adjacent ones.
+    k.opacity(0.4),
+    k.anchor("left"),
+  ]);
+}
+
 // generated by tools/build-composite-audio.mjs — one mp3 per
 // (a, b) / (ones, b) / (sum) combination from data/levels.json.
 // Returns a single-element array so the existing playSequence /
@@ -176,66 +315,46 @@ export default createRoundScene({
   stepLabels: ["拆十位", "加个位", "加起来"],
 
   steps: [
-    // Step 1 — Split: a = 10 + ones.
+    // Step 1 — Split: 10 + ones + b = ?. The top equation remains visible;
+    // the lower equation shows the two-digit addend decomposed into 10 and
+    // its ones digit, with links from the top addend to those two slots.
     (ctx, round) => {
       const ones = round.a % TEN;
-      // Persistent anchor at top, big.
       ctx.setAnchorEquation(anchorSlots(round, "?"), { y: 220 });
-      // Sub-question: a = 10 + ? (the "?" slot in ORANGE for the unknown).
-      // Deferred until the Step 1 audio has actually finished — mirroring
-      // the L1 step 1 pattern. The kid hears the question first, then
-      // sees what they're being asked.
-      const subQuestion = {
-        slots: [round.a, "=", "10", "+", "?"],
-        colors: [COL_BIG, undefined, COL_TEN, undefined, COL_NEED],
-      };
-      const subQuestionOpts = { y: 440, size: 82 };
-      // Per-step audio: "11+8等于几，我们先把 11 进行拆分，拆成十加几".
-      // Reveal the sub-question from its `ended` event (PandaAudio
-      // forwards onComplete to fire after the LAST cue's `ended` event).
+      const renderStep1 = () => renderL4Step1Split(ctx, round, null);
       fireL3StepAudio(
         ctx, buildL3Step1Ids(round.a, round.b), 1,
-        () => ctx.setEquation(subQuestion, subQuestionOpts),
+        renderStep1,
       );
       return {
         deferEquation: true,
-        equation: subQuestion,
-        equationOpts: subQuestionOpts,
+        equation: {
+          slots: [TEN, "+", "□", "+", round.b, "=", "?"],
+          colors: [COL_TEN, undefined, COL_NEED, undefined, COL_SMALL, undefined, undefined],
+          reserve: splitReserve(round),
+        },
+        equationOpts: { y: 440, size: 82 },
         question: {
           correct: ones,
           values: options(ones, { min: 0, max: 9 }),
         },
         onAdvance: () => {
-          // Reveal the ones digit in place; keep ORANGE so it reads as
-          // the slot the child just filled (consistent with L2's
-          // COL_NEED for just-computed values).
-          ctx.setEquation({
-            slots: [round.a, "=", "10", "+", ones],
-            colors: [COL_BIG, undefined, COL_TEN, undefined, COL_NEED],
-          }, { y: 440, size: 82 });
+          renderL4Step1Completed(ctx, round, ones);
         },
       };
     },
-    // Step 2 — Add the ones to b: ones + b = sum.
-    // Visual aid on top shows the parenthesized full equation
-    // "(10 + ones) + b = ?" so the eye links the split (10 + ones) back
-    // to the original a + b. The simplified sub-question "ones + b = ?"
-    // sits below — that's what the child actually picks. Mirrors L1's
-    // parenthesizedForm + sub-question layout.
+    // Step 2 — Add the ones: preserve the completed split and ask for
+    // `ones + b` in the lower `10 + □ = ?` row. We re-render the bottom
+    // row (rather than calling setEquation) so we explicitly own the
+    // `step1NextNode` reference and keep the split → bottom lines
+    // re-aimed at the new slot 2 every time the bottom row is rebuilt.
     (ctx, round) => {
       const ones = round.a % TEN;
       const sum = ones + round.b;
-      // Persistent anchor still "?" (waiting for the final reveal).
+      // Keep the three-line teaching diagram from step 1. Only the lower
+      // calculation row is active for this step.
       ctx.setAnchorEquation(anchorSlots(round, "?"), { y: 220 });
-      // Parenthesized full equation as a visual aid (mirrors L1 step 2).
-      l3Step2ParensForm(ctx, ones, round.b);
-      // Sub-question: ones + b = ? — ones stays ORANGE so it visually
-      // connects to the value just filled in step 1.
-      ctx.setEquation({
-        slots: [ones, "+", round.b, "=", "?"],
-        colors: [COL_NEED, undefined, COL_SMALL, undefined, COL_NEED],
-      }, { y: 440, size: 82 });
-      // Per-step audio: "个位相加 [ones] 加 [b] 等于几".
+      renderL4BottomRow(ctx, round, "□");
       fireL3StepAudio(ctx, buildL3Step2Ids(ones, round.b), 2);
       return {
         question: {
@@ -243,62 +362,45 @@ export default createRoundScene({
           values: options(sum, { min: 1, max: 10 }),
         },
         onAdvance: () => {
-          // Reveal the sub-question's "?" with sum — the kid just
-          // filled in this slot. The parenthesized form on top stays
-          // as "(10 + ones) + b = ?" — its "?" is the full answer,
-          // which is still unknown until step 3.
-          ctx.setEquation({
-            slots: [ones, "+", round.b, "=", sum],
-            colors: [COL_NEED, undefined, COL_SMALL, undefined, COL_NEED],
-          }, { y: 440, size: 82 });
+          // Replace the `□` with the picked ones-sum. The split → bottom
+          // lines stay visible — they're re-aimed at the new slot 2
+          // (sum) inside renderL4BottomRow.
+          renderL4BottomRow(ctx, round, sum);
         },
       };
     },
-    // Step 3 — Total: 10 + sum = answer.
+    // Step 3 — Add 10 to the ones-sum in the same lower row.
     (ctx, round) => {
       const ones = round.a % TEN;
       const sum = ones + round.b;
-      // Persistent anchor still "?" — only revealed at the very end.
       ctx.setAnchorEquation(anchorSlots(round, "?"), { y: 220 });
-      // Parenthesized form stays as a visual aid (no change from step 2).
-      l3Step2ParensForm(ctx, ones, round.b);
-      // Sub-question: 10 + sum = ? — sum carries the ORANGE color so
-      // the child can see it's the result of step 2.
-      ctx.setEquation({
-        slots: [TEN, "+", sum, "=", "?"],
-        colors: [COL_TEN, undefined, COL_NEED, undefined, COL_NEED],
-      }, { y: 440, size: 82 });
-      // Per-step audio: "十 加 [sum] 等于几".
+      renderL4BottomRow(ctx, round, sum);
       fireL3StepAudio(ctx, buildL3Step3Ids(sum), 3);
       return {
         question: {
           correct: round.answer,
-          // Answer range: a (11-19) + b (1-9), with ones+b ≤ 10, so
-          // answer is in [12, 20]. Show options in [11, 20] for
-          // breathing room either side.
           values: options(round.answer, { min: 11, max: 20 }),
         },
         onAdvance: () => {
-          // Reveal the persistent anchor with the final answer.
+          // Reveal the answer in all three rows. The persistent visuals —
+          // anchor → split lines, split → bottom lines — stay visible;
+          // only the answer slot of each row is rewritten. Per user
+          // feedback 2026-08-12: "最后结果选中时，你把所有都清了，
+          // 更不对了" (don't tear everything down on the final pick).
           ctx.setAnchorEquation(anchorSlots(round, round.answer), { y: 220 });
-          // Reveal the sub-question — sum in ORANGE, answer in INK
-          // (the final settled answer; orange has done its job).
-          ctx.setEquation({
-            slots: [TEN, "+", sum, "=", round.answer],
-            colors: [COL_TEN, undefined, COL_NEED, undefined, INK],
-          }, { y: 440, size: 82 });
-          // Reveal the parenthesized form's "?" with the full answer
-          // — every "?" on screen now has a number, and the kid sees
-          // the strategy land: 11 = 10 + 1, 1 + 8 = 9, 10 + 9 = 19.
-          l3Step2ParensForm(ctx, ones, round.b, round.answer);
-          // Reward audio: "11+8=19" — the full equation as a
-          // celebration sentence. Chained off ctx.lastEncourageId
-          // (the actual last cue of the tier-based cheer chain) so
-          // the reward starts AFTER the celebration tail and never
-          // overlaps it. roundScene awaits the returned Promise so
-          // the kid hears "11+8=19" before the next round's greeting
-          // fires. The old hardcoded "panda-celebrate" cue is gone
-          // from CUE_IDS.
+          // Split row reveals its `?` to the real answer. Without this
+          // the kid would see "anchor 12+7=19, bottom 10+9=19, split
+          // still 10+2+7=?" — the unrevealed `?` reads as a layout bug.
+          // Reserve is in place for slot 0/2/4 so the line endpoints
+          // don't drift; the answer slot (slot 6) has no line attached.
+          renderL4SplitRow(ctx, round, ones, round.answer);
+          // Anchor → split lines: re-aimed at the new (still-reserved)
+          // a/b centers.
+          renderL4Step1SplitLinks(ctx);
+          // Bottom row updates with the revealed answer. The split →
+          // bottom lines stay visible — re-aimed at the (unchanged)
+          // ones-sum slot 2 inside renderL4BottomRow.
+          renderL4BottomRow(ctx, round, sum, round.answer);
           return new Promise((resolve) => {
             window.PandaAudio.playAfter(
               ctx.lastEncourageId,

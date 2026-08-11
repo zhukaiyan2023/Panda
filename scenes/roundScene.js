@@ -202,6 +202,10 @@ export default function createRoundScene(config) {
       if (eq.slots) {
         props.slots = eq.slots;
         if (eq.colors) props.colors = eq.colors;
+        // Per-slot width reservation — see components/expression.js. Lets a
+        // level pin slot centers across steps even when a "?" is revealed
+        // into a wider 2-digit value, so link lines don't drift.
+        if (eq.reserve) props.reserve = eq.reserve;
       } else {
         props.left = eq.left;
         props.right = eq.right;
@@ -223,6 +227,10 @@ export default function createRoundScene(config) {
       if (eq.slots) {
         props.slots = eq.slots;
         if (eq.colors) props.colors = eq.colors;
+        // Per-slot width reservation — see components/expression.js. Lets a
+        // level pin slot centers across steps even when a "?" is revealed
+        // into a wider 2-digit value, so link lines don't drift.
+        if (eq.reserve) props.reserve = eq.reserve;
       } else {
         props.left = eq.left;
         props.right = eq.right;
@@ -567,15 +575,24 @@ export default function createRoundScene(config) {
         k.go(config.sceneName);
         return;
       }
-      // Last round over — navigate to the level picker. The previous
-      // "lvl-done" cue ("all done") was removed per user feedback;
-      // the kid just gets back to the level map after the celebration
-      // audio. panda-celebrate has already ended by the time we get
-      // here (advance was gated on it), so navigating immediately is
-      // a clean exit.
+      // Last round over. Bump the per-level daily counter FIRST so
+      // we know whether this round hit the cap. The saveProgress()
+      // call below is unchanged (still bumps stars + unlocks next
+      // level); daily-cap state is independent of progression.
+      const daily = window.PandaSave?.markRoundFinished(config.levelId)
+        || { count: 0, cap: 0, locked: false };
       saveProgress(config.levelId);
       roundIdx = 0;
-      k.go("levelPicker");
+      // If this finished round hit the daily cap, the kid gets a
+      // clear "今天练够啦" message instead of silently bouncing to
+      // a now-locked card. The celebration audio from onAdvance has
+      // already resolved (the audio-gated advance waited for it),
+      // so transitioning immediately is a clean exit.
+      if (daily.locked) {
+        k.go("dailyDone");
+      } else {
+        k.go("levelPicker");
+      }
     }
 
     let autoAdvanceTimer = null;
@@ -613,7 +630,16 @@ export default function createRoundScene(config) {
     }
 
     if (roundIdx === 0) {
-      window.PandaAudio.playCue(data.intro || config.introCue);
+      // L1 / L2 / L4 all intentionally omit introCue (per user feedback
+      // 2026-08-10: the old topic-intro ate ~3s before any prompt and
+      // gave no instruction for what to DO — now the per-round step 1
+      // audio IS the entry prompt). `data.intro` is also absent from the
+      // inline levelsData in main.js (only id + title are populated
+      // there for the menu UI). When both are undefined, calling
+      // playCue(undefined) hits audio[undefined] → undefined → warn
+      // `playCue("undefined"): no audio element`. Skip the call instead.
+      const introCue = data.intro || config.introCue;
+      if (introCue) window.PandaAudio.playCue(introCue);
     }
     const round = sampledRounds[roundIdx] || sampledRounds[0];
     drawRound(k, round, roundIdx, sampledRounds.length);
