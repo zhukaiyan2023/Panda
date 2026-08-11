@@ -73,6 +73,11 @@ await page.evaluate(() =>
   ),
 );
 
+// Defensive: the games track doesn't call markRoundFinished today,
+// but pin the daily-cap skip anyway in case a future games scene
+// shares code with roundScene. Harmless if no caller exists.
+await page.evaluate(() => { window.__skipDailyCap = true; });
+
 // Read the positions of all number-bearing picker items currently on screen.
 // items in pickerItem.js expose `text` only via the child text node; we read
 // every text node in the canvas and group by worldPos.
