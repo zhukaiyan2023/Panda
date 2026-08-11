@@ -110,6 +110,11 @@ function sanitize(value) {
       daily[i] = {
         count: clampInt(entry.count, 0, 999, 0),
         windowStartedAt: (() => {
+          // null stays null; non-finite or negative falls back to null;
+          // otherwise round to an integer ms timestamp. Number(null)
+          // is 0 (finite, non-negative), so the null check must come
+          // FIRST — otherwise the timestamp silently becomes 0.
+          if (entry.windowStartedAt == null) return null;
           const t = Number(entry.windowStartedAt);
           if (!Number.isFinite(t) || t < 0) return null;
           return Math.round(t);
@@ -145,7 +150,86 @@ function clampInt(v, lo, hi, fallback) {
   return i;
 }
 
-const api = { load, save, KEY, DEFAULT };
+// Lazy 24h rollover. If the level's windowStartedAt is older than
+// DAILY_WINDOW_MS, reset count to 0 and windowStartedAt to null,
+// persist, and return the now-fresh state for that level. No-op
+// when the entry doesn't exist or the window is still active.
+// Returns the (possibly-reset) entry so the caller can read it
+// without a second lookup.
+function rolloverLevel(save, levelId) {
+  const entry = save.daily[levelId];
+  if (!entry) return null;
+  if (entry.windowStartedAt == null) return entry;
+  if (Date.now() - entry.windowStartedAt < DAILY_WINDOW_MS) return entry;
+  // Window expired — reset.
+  save.daily[levelId] = { count: 0, windowStartedAt: null };
+  return save.daily[levelId];
+}
+
+// Pure read. True if the kid has hit today's cap for this level.
+// Verifier skip: when window.__skipDailyCap is true, always false.
+function isLevelDailyLocked(levelId) {
+  if (window.__skipDailyCap) return false;
+  const state = load();
+  const cap = DAILY_CAPS[levelId];
+  if (cap == null) return false;
+  rolloverLevel(state, levelId);
+  // Persist any reset that happened in rolloverLevel.
+  save(state);
+  const entry = state.daily[levelId];
+  if (!entry) return false;
+  return entry.count >= cap;
+}
+
+// Read-only snapshot. Used by the picker (now and in future features
+// that want to display "今日 6/6" on a card). Runs lazy rollover.
+function getDailyState(levelId) {
+  const state = load();
+  const cap = DAILY_CAPS[levelId] ?? 0;
+  rolloverLevel(state, levelId);
+  save(state);
+  const entry = state.daily[levelId] || { count: 0, windowStartedAt: null };
+  return {
+    count: entry.count,
+    cap,
+    locked: window.__skipDailyCap ? false : entry.count >= cap,
+    windowStartedAt: entry.windowStartedAt,
+  };
+}
+
+// Writer. Called by roundScene.finishRound AFTER the celebration
+// audio chain resolves and BEFORE the picker/dailyDone navigation.
+// Stamps windowStartedAt on the first finished round of the
+// window; increments count; returns the new state. The `locked`
+// flag is the SOURCE OF TRUTH — callers branch on it, not on
+// `count >= cap` themselves.
+function markRoundFinished(levelId) {
+  const cap = DAILY_CAPS[levelId] ?? 0;
+  if (cap === 0) return { count: 0, cap: 0, locked: false };
+  const state = load();
+  rolloverLevel(state, levelId);
+  let entry = state.daily[levelId];
+  if (!entry) {
+    entry = { count: 0, windowStartedAt: null };
+    state.daily[levelId] = entry;
+  }
+  if (entry.windowStartedAt == null) {
+    entry.windowStartedAt = Date.now();
+  }
+  entry.count = (entry.count || 0) + 1;
+  save(state);
+  return {
+    count: entry.count,
+    cap,
+    locked: window.__skipDailyCap ? false : entry.count >= cap,
+  };
+}
+
+const api = {
+  load, save, KEY, DEFAULT,
+  DAILY_CAPS, DAILY_WINDOW_MS,
+  isLevelDailyLocked, markRoundFinished, getDailyState,
+};
 
 if (typeof window !== "undefined") {
   window.PandaSave = api;
