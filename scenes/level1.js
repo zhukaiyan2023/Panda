@@ -458,10 +458,14 @@ function buildL1AnswerIds(a, b, c, answer) {
 export default createRoundScene({
   levelId: 1,
   sceneName: "level1",
-  // Pull the 120-round pool from data/pools.js. roundScene samples 10
-  // of them on first entry and walks through in random order.
+  // Pull the 120-round pool from data/pools.js. roundScene samples
+  // 6 of them on first entry and walks through in random order.
+  // sampleSize MUST equal DAILY_CAPS[1] (6) so a single play-through
+  // finishes today's quota in one go — see
+  // docs/superpowers/specs/2026-08-12-daily-practice-lock-design.md
+  // for the saveProgress ↔ cap-hit coupling.
   poolGen: () => poolGens[1](),
-  sampleSize: 10,
+  sampleSize: 6,
   // No topic-intro greeting on entry — per user feedback 2026-08-10.
   // The old "小朋友好，我们来学习三数相加" greeting was a vague topic
   // statement that ate ~4s before any guidance appeared; kids heard
