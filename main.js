@@ -9,6 +9,7 @@
 
 import kaplay from "./assets/vendor/kaplay.mjs";
 import "./save.js";
+import { poolGens } from "./data/pools.js";
 
 // Per-level round data is now generated on the fly by data/pools.js —
 // each level scene passes a `poolGen` to createRoundScene which samples
@@ -33,163 +34,427 @@ const levelsData = {
 };
 
 const CUE_IDS = [
-  "enc-first-1", "enc-first-2", "enc-first-3", "enc-first-4", "enc-streak3-1", "enc-streak3-2", "enc-streak3-3", "enc-streak5-1", "enc-streak5-2", "enc-streak5-3",
-  "enc-streak10-1", "enc-streak10-2", "enc-streak10-3", "enc-level-1", "enc-level-2", "enc-level-3", "enc-level-4", "enc-wrong-1", "enc-wrong-2", "enc-wrong-3",
-  "enc-near-1", "enc-near-2", "enc-near-3", "enc-specific-pair", "enc-specific-double", "enc-specific-decomp", "enc-specific-friend",
-  "panda-praise-1", "panda-praise-2", "panda-praise-3", "panda-cheer-1", "panda-cheer-2",
-  "n-0", "n-1", "n-2", "n-3", "n-4", "n-5", "n-6", "n-7", "n-8", "n-9", "n-10", "n-11", "n-12", "n-13", "n-14", "n-15", "n-16", "n-17", "n-18", "n-19",
-  "q-what-is", "q-plus", "q-equals", "equals", "lvl-done", "daily-done", "boat-intro", "boat-pair", "boat-done", "cloud-intro", "cloud-pair", "cloud-done",
-  "bounce-intro", "bounce-pop", "bounce-done", "whack-intro", "whack-start", "whack-tick", "whack-timeup", "whack-done", "feed-intro", "feed-nom", "feed-next", "feed-done",
-  "lvl-1-decomp-pre", "lvl-1-decomp-eq", "lvl-2-step-1-pre", "lvl-2-step-1-eq", "lvl-2-step-1-or", "lvl-2-step-1-q",
-  "lvl-2-step-2-big-pre", "lvl-2-step-2-find", "lvl-2-step-2-friend-pre", "lvl-2-step-2-q", "lvl-2-step-3-split-pre", "lvl-2-step-3-can-split", "lvl-2-step-3-q", "lvl-2-step-4-split", "lvl-2-step-4-calc",
-  "lvl-3-step-1-pre", "lvl-3-step-1-split", "lvl-3-step-1-q", "lvl-3-step-2-pre",
-  "l1-intro-1-1-1", "l1-sub-1-1", "l1-step2-2-1", "l1-rwd-1-1-1-3", "l1-intro-1-1-2", "l1-step2-2-2",
-  "l1-rwd-1-1-2-4", "l1-intro-1-1-3", "l1-step2-2-3", "l1-rwd-1-1-3-5", "l1-intro-1-1-4", "l1-step2-2-4",
-  "l1-rwd-1-1-4-6", "l1-intro-1-1-5", "l1-step2-2-5", "l1-rwd-1-1-5-7", "l1-intro-1-1-6", "l1-step2-2-6",
-  "l1-rwd-1-1-6-8", "l1-intro-1-1-7", "l1-step2-2-7", "l1-rwd-1-1-7-9", "l1-intro-1-1-8", "l1-step2-2-8",
-  "l1-rwd-1-1-8-10", "l1-intro-1-2-1", "l1-sub-1-2", "l1-step2-3-1", "l1-rwd-1-2-1-4", "l1-intro-1-2-2",
-  "l1-step2-3-2", "l1-rwd-1-2-2-5", "l1-intro-1-2-3", "l1-step2-3-3", "l1-rwd-1-2-3-6", "l1-intro-1-2-4",
-  "l1-step2-3-4", "l1-rwd-1-2-4-7", "l1-intro-1-2-5", "l1-step2-3-5", "l1-rwd-1-2-5-8", "l1-intro-1-2-6",
-  "l1-step2-3-6", "l1-rwd-1-2-6-9", "l1-intro-1-2-7", "l1-step2-3-7", "l1-rwd-1-2-7-10", "l1-intro-1-3-1",
-  "l1-sub-1-3", "l1-step2-4-1", "l1-rwd-1-3-1-5", "l1-intro-1-3-2", "l1-step2-4-2", "l1-rwd-1-3-2-6",
-  "l1-intro-1-3-3", "l1-step2-4-3", "l1-rwd-1-3-3-7", "l1-intro-1-3-4", "l1-step2-4-4", "l1-rwd-1-3-4-8",
-  "l1-intro-1-3-5", "l1-step2-4-5", "l1-rwd-1-3-5-9", "l1-intro-1-3-6", "l1-step2-4-6", "l1-rwd-1-3-6-10",
-  "l1-intro-1-4-1", "l1-sub-1-4", "l1-step2-5-1", "l1-rwd-1-4-1-6", "l1-intro-1-4-2", "l1-step2-5-2",
-  "l1-rwd-1-4-2-7", "l1-intro-1-4-3", "l1-step2-5-3", "l1-rwd-1-4-3-8", "l1-intro-1-4-4", "l1-step2-5-4",
-  "l1-rwd-1-4-4-9", "l1-intro-1-4-5", "l1-step2-5-5", "l1-rwd-1-4-5-10", "l1-intro-1-5-1", "l1-sub-1-5",
-  "l1-step2-6-1", "l1-rwd-1-5-1-7", "l1-intro-1-5-2", "l1-step2-6-2", "l1-rwd-1-5-2-8", "l1-intro-1-5-3",
-  "l1-step2-6-3", "l1-rwd-1-5-3-9", "l1-intro-1-5-4", "l1-step2-6-4", "l1-rwd-1-5-4-10", "l1-intro-1-6-1",
-  "l1-sub-1-6", "l1-step2-7-1", "l1-rwd-1-6-1-8", "l1-intro-1-6-2", "l1-step2-7-2", "l1-rwd-1-6-2-9",
-  "l1-intro-1-6-3", "l1-step2-7-3", "l1-rwd-1-6-3-10", "l1-intro-1-7-1", "l1-sub-1-7", "l1-step2-8-1",
-  "l1-rwd-1-7-1-9", "l1-intro-1-7-2", "l1-step2-8-2", "l1-rwd-1-7-2-10", "l1-intro-1-8-1", "l1-sub-1-8",
-  "l1-step2-9-1", "l1-rwd-1-8-1-10", "l1-intro-2-1-1", "l1-sub-2-1", "l1-rwd-2-1-1-4", "l1-intro-2-1-2",
-  "l1-rwd-2-1-2-5", "l1-intro-2-1-3", "l1-rwd-2-1-3-6", "l1-intro-2-1-4", "l1-rwd-2-1-4-7", "l1-intro-2-1-5",
-  "l1-rwd-2-1-5-8", "l1-intro-2-1-6", "l1-rwd-2-1-6-9", "l1-intro-2-1-7", "l1-rwd-2-1-7-10", "l1-intro-2-2-1",
-  "l1-sub-2-2", "l1-rwd-2-2-1-5", "l1-intro-2-2-2", "l1-rwd-2-2-2-6", "l1-intro-2-2-3", "l1-rwd-2-2-3-7",
-  "l1-intro-2-2-4", "l1-rwd-2-2-4-8", "l1-intro-2-2-5", "l1-rwd-2-2-5-9", "l1-intro-2-2-6", "l1-rwd-2-2-6-10",
-  "l1-intro-2-3-1", "l1-sub-2-3", "l1-rwd-2-3-1-6", "l1-intro-2-3-2", "l1-rwd-2-3-2-7", "l1-intro-2-3-3",
-  "l1-rwd-2-3-3-8", "l1-intro-2-3-4", "l1-rwd-2-3-4-9", "l1-intro-2-3-5", "l1-rwd-2-3-5-10", "l1-intro-2-4-1",
-  "l1-sub-2-4", "l1-rwd-2-4-1-7", "l1-intro-2-4-2", "l1-rwd-2-4-2-8", "l1-intro-2-4-3", "l1-rwd-2-4-3-9",
-  "l1-intro-2-4-4", "l1-rwd-2-4-4-10", "l1-intro-2-5-1", "l1-sub-2-5", "l1-rwd-2-5-1-8", "l1-intro-2-5-2",
-  "l1-rwd-2-5-2-9", "l1-intro-2-5-3", "l1-rwd-2-5-3-10", "l1-intro-2-6-1", "l1-sub-2-6", "l1-rwd-2-6-1-9",
-  "l1-intro-2-6-2", "l1-rwd-2-6-2-10", "l1-intro-2-7-1", "l1-sub-2-7", "l1-rwd-2-7-1-10", "l1-intro-3-1-1",
-  "l1-sub-3-1", "l1-rwd-3-1-1-5", "l1-intro-3-1-2", "l1-rwd-3-1-2-6", "l1-intro-3-1-3", "l1-rwd-3-1-3-7",
-  "l1-intro-3-1-4", "l1-rwd-3-1-4-8", "l1-intro-3-1-5", "l1-rwd-3-1-5-9", "l1-intro-3-1-6", "l1-rwd-3-1-6-10",
-  "l1-intro-3-2-1", "l1-sub-3-2", "l1-rwd-3-2-1-6", "l1-intro-3-2-2", "l1-rwd-3-2-2-7", "l1-intro-3-2-3",
-  "l1-rwd-3-2-3-8", "l1-intro-3-2-4", "l1-rwd-3-2-4-9", "l1-intro-3-2-5", "l1-rwd-3-2-5-10", "l1-intro-3-3-1",
-  "l1-sub-3-3", "l1-rwd-3-3-1-7", "l1-intro-3-3-2", "l1-rwd-3-3-2-8", "l1-intro-3-3-3", "l1-rwd-3-3-3-9",
-  "l1-intro-3-3-4", "l1-rwd-3-3-4-10", "l1-intro-3-4-1", "l1-sub-3-4", "l1-rwd-3-4-1-8", "l1-intro-3-4-2",
-  "l1-rwd-3-4-2-9", "l1-intro-3-4-3", "l1-rwd-3-4-3-10", "l1-intro-3-5-1", "l1-sub-3-5", "l1-rwd-3-5-1-9",
-  "l1-intro-3-5-2", "l1-rwd-3-5-2-10", "l1-intro-3-6-1", "l1-sub-3-6", "l1-rwd-3-6-1-10", "l1-intro-4-1-1",
-  "l1-sub-4-1", "l1-rwd-4-1-1-6", "l1-intro-4-1-2", "l1-rwd-4-1-2-7", "l1-intro-4-1-3", "l1-rwd-4-1-3-8",
-  "l1-intro-4-1-4", "l1-rwd-4-1-4-9", "l1-intro-4-1-5", "l1-rwd-4-1-5-10", "l1-intro-4-2-1", "l1-sub-4-2",
-  "l1-rwd-4-2-1-7", "l1-intro-4-2-2", "l1-rwd-4-2-2-8", "l1-intro-4-2-3", "l1-rwd-4-2-3-9", "l1-intro-4-2-4",
-  "l1-rwd-4-2-4-10", "l1-intro-4-3-1", "l1-sub-4-3", "l1-rwd-4-3-1-8", "l1-intro-4-3-2", "l1-rwd-4-3-2-9",
-  "l1-intro-4-3-3", "l1-rwd-4-3-3-10", "l1-intro-4-4-1", "l1-sub-4-4", "l1-rwd-4-4-1-9", "l1-intro-4-4-2",
-  "l1-rwd-4-4-2-10", "l1-intro-4-5-1", "l1-sub-4-5", "l1-rwd-4-5-1-10", "l1-intro-5-1-1", "l1-sub-5-1",
-  "l1-rwd-5-1-1-7", "l1-intro-5-1-2", "l1-rwd-5-1-2-8", "l1-intro-5-1-3", "l1-rwd-5-1-3-9", "l1-intro-5-1-4",
-  "l1-rwd-5-1-4-10", "l1-intro-5-2-1", "l1-sub-5-2", "l1-rwd-5-2-1-8", "l1-intro-5-2-2", "l1-rwd-5-2-2-9",
-  "l1-intro-5-2-3", "l1-rwd-5-2-3-10", "l1-intro-5-3-1", "l1-sub-5-3", "l1-rwd-5-3-1-9", "l1-intro-5-3-2",
-  "l1-rwd-5-3-2-10", "l1-intro-5-4-1", "l1-sub-5-4", "l1-rwd-5-4-1-10", "l1-intro-6-1-1", "l1-sub-6-1",
-  "l1-rwd-6-1-1-8", "l1-intro-6-1-2", "l1-rwd-6-1-2-9", "l1-intro-6-1-3", "l1-rwd-6-1-3-10", "l1-intro-6-2-1",
-  "l1-sub-6-2", "l1-rwd-6-2-1-9", "l1-intro-6-2-2", "l1-rwd-6-2-2-10", "l1-intro-6-3-1", "l1-sub-6-3",
-  "l1-rwd-6-3-1-10", "l1-intro-7-1-1", "l1-sub-7-1", "l1-rwd-7-1-1-9", "l1-intro-7-1-2", "l1-rwd-7-1-2-10",
-  "l1-intro-7-2-1", "l1-sub-7-2", "l1-rwd-7-2-1-10", "l1-intro-8-1-1", "l1-sub-8-1", "l1-rwd-8-1-1-10",
-  "l2-simple-1-1", "l2-rwd-1-1-11", "l2-simple-1-2", "l2-rwd-1-2-11", "l2-simple-1-3", "l2-rwd-1-3-11",
-  "l2-simple-1-4", "l2-rwd-1-4-11", "l2-simple-1-5", "l2-rwd-1-5-11", "l2-simple-1-6", "l2-rwd-1-6-11",
-  "l2-simple-1-7", "l2-rwd-1-7-11", "l2-simple-1-8", "l2-rwd-1-8-11", "l2-simple-1-9", "l2-rwd-1-9-11",
-  "l2-rwd-1-9-12", "l2-rwd-1-9-13", "l2-rwd-1-9-14", "l2-rwd-1-9-15", "l2-rwd-1-9-16", "l2-rwd-1-9-17",
-  "l2-rwd-1-9-18", "l2-rwd-1-9-19", "l2-simple-2-1", "l2-rwd-2-1-12", "l2-simple-2-2", "l2-rwd-2-2-12",
-  "l2-simple-2-3", "l2-rwd-2-3-12", "l2-simple-2-4", "l2-rwd-2-4-12", "l2-simple-2-5", "l2-rwd-2-5-12",
-  "l2-simple-2-6", "l2-rwd-2-6-12", "l2-simple-2-7", "l2-rwd-2-7-12", "l2-simple-2-8", "l2-rwd-2-8-11",
-  "l2-rwd-2-8-12", "l2-rwd-2-8-13", "l2-rwd-2-8-14", "l2-rwd-2-8-15", "l2-rwd-2-8-16", "l2-rwd-2-8-17",
-  "l2-rwd-2-8-18", "l2-rwd-2-8-19", "l2-simple-2-9", "l2-rwd-2-9-12", "l2-simple-3-1", "l2-rwd-3-1-13",
-  "l2-simple-3-2", "l2-rwd-3-2-13", "l2-simple-3-3", "l2-rwd-3-3-13", "l2-simple-3-4", "l2-rwd-3-4-13",
-  "l2-simple-3-5", "l2-rwd-3-5-13", "l2-simple-3-6", "l2-rwd-3-6-13", "l2-simple-3-7", "l2-rwd-3-7-11",
-  "l2-rwd-3-7-12", "l2-rwd-3-7-13", "l2-rwd-3-7-14", "l2-rwd-3-7-15", "l2-rwd-3-7-16", "l2-rwd-3-7-17",
-  "l2-rwd-3-7-18", "l2-rwd-3-7-19", "l2-simple-3-8", "l2-rwd-3-8-13", "l2-simple-3-9", "l2-rwd-3-9-13",
-  "l2-simple-4-1", "l2-rwd-4-1-14", "l2-simple-4-2", "l2-rwd-4-2-14", "l2-simple-4-3", "l2-rwd-4-3-14",
-  "l2-simple-4-4", "l2-rwd-4-4-14", "l2-simple-4-5", "l2-rwd-4-5-14", "l2-simple-4-6", "l2-rwd-4-6-11",
-  "l2-rwd-4-6-12", "l2-rwd-4-6-13", "l2-rwd-4-6-14", "l2-rwd-4-6-15", "l2-rwd-4-6-16", "l2-rwd-4-6-17",
-  "l2-rwd-4-6-18", "l2-rwd-4-6-19", "l2-simple-4-7", "l2-rwd-4-7-14", "l2-simple-4-8", "l2-rwd-4-8-14",
-  "l2-simple-4-9", "l2-rwd-4-9-14", "l2-simple-5-1", "l2-rwd-5-1-15", "l2-simple-5-2", "l2-rwd-5-2-15",
-  "l2-simple-5-3", "l2-rwd-5-3-15", "l2-simple-5-4", "l2-rwd-5-4-15", "l2-simple-5-5", "l2-rwd-5-5-11",
-  "l2-rwd-5-5-12", "l2-rwd-5-5-13", "l2-rwd-5-5-14", "l2-rwd-5-5-15", "l2-rwd-5-5-16", "l2-rwd-5-5-17",
-  "l2-rwd-5-5-18", "l2-rwd-5-5-19", "l2-simple-5-6", "l2-rwd-5-6-15", "l2-simple-5-7", "l2-rwd-5-7-15",
-  "l2-simple-5-8", "l2-rwd-5-8-15", "l2-simple-5-9", "l2-rwd-5-9-15", "l2-simple-6-1", "l2-rwd-6-1-16",
-  "l2-simple-6-2", "l2-rwd-6-2-16", "l2-simple-6-3", "l2-rwd-6-3-16", "l2-simple-6-4", "l2-rwd-6-4-11",
-  "l2-rwd-6-4-12", "l2-rwd-6-4-13", "l2-rwd-6-4-14", "l2-rwd-6-4-15", "l2-rwd-6-4-16", "l2-rwd-6-4-17",
-  "l2-rwd-6-4-18", "l2-rwd-6-4-19", "l2-simple-6-5", "l2-rwd-6-5-16", "l2-simple-6-6", "l2-rwd-6-6-16",
-  "l2-simple-6-7", "l2-rwd-6-7-16", "l2-simple-6-8", "l2-rwd-6-8-16", "l2-simple-6-9", "l2-rwd-6-9-16",
-  "l2-simple-7-1", "l2-rwd-7-1-17", "l2-simple-7-2", "l2-rwd-7-2-17", "l2-simple-7-3", "l2-rwd-7-3-11",
-  "l2-rwd-7-3-12", "l2-rwd-7-3-13", "l2-rwd-7-3-14", "l2-rwd-7-3-15", "l2-rwd-7-3-16", "l2-rwd-7-3-17",
-  "l2-rwd-7-3-18", "l2-rwd-7-3-19", "l2-simple-7-4", "l2-rwd-7-4-17", "l2-simple-7-5", "l2-rwd-7-5-17",
-  "l2-simple-7-6", "l2-rwd-7-6-17", "l2-simple-7-7", "l2-rwd-7-7-17", "l2-simple-7-8", "l2-rwd-7-8-17",
-  "l2-simple-7-9", "l2-rwd-7-9-17", "l2-simple-8-1", "l2-rwd-8-1-18", "l2-simple-8-2", "l2-rwd-8-2-11",
-  "l2-rwd-8-2-12", "l2-rwd-8-2-13", "l2-rwd-8-2-14", "l2-rwd-8-2-15", "l2-rwd-8-2-16", "l2-rwd-8-2-17",
-  "l2-rwd-8-2-18", "l2-rwd-8-2-19", "l2-simple-8-3", "l2-rwd-8-3-18", "l2-simple-8-4", "l2-rwd-8-4-18",
-  "l2-simple-8-5", "l2-rwd-8-5-18", "l2-simple-8-6", "l2-rwd-8-6-18", "l2-simple-8-7", "l2-rwd-8-7-18",
-  "l2-simple-8-8", "l2-rwd-8-8-18", "l2-simple-8-9", "l2-rwd-8-9-18", "l2-simple-9-1", "l2-rwd-9-1-11",
-  "l2-rwd-9-1-12", "l2-rwd-9-1-13", "l2-rwd-9-1-14", "l2-rwd-9-1-15", "l2-rwd-9-1-16", "l2-rwd-9-1-17",
-  "l2-rwd-9-1-18", "l2-rwd-9-1-19", "l2-simple-9-2", "l2-rwd-9-2-19", "l2-simple-9-3", "l2-rwd-9-3-19",
-  "l2-simple-9-4", "l2-rwd-9-4-19", "l2-simple-9-5", "l2-rwd-9-5-19", "l2-simple-9-6", "l2-rwd-9-6-19",
-  "l2-simple-9-7", "l2-rwd-9-7-19", "l2-simple-9-8", "l2-rwd-9-8-19", "l2-simple-9-9", "l2-rwd-9-9-19",
-  "l3-s1-2-9", "l3-s2-2-9", "l3-s3-11", "l3-rwd-2-9-11", "l3-s1-3-8", "l3-s2-3-8",
-  "l3-rwd-3-8-11", "l3-s1-3-9", "l3-s2-3-9", "l3-s3-12", "l3-rwd-3-9-12", "l3-s1-4-7",
-  "l3-s2-4-7", "l3-rwd-4-7-11", "l3-s1-4-8", "l3-s2-4-8", "l3-rwd-4-8-12", "l3-s1-4-9",
-  "l3-s2-4-9", "l3-s3-13", "l3-rwd-4-9-13", "l3-s1-5-6", "l3-s2-5-6", "l3-rwd-5-6-11",
-  "l3-s1-5-7", "l3-s2-5-7", "l3-rwd-5-7-12", "l3-s1-5-8", "l3-s2-5-8", "l3-rwd-5-8-13",
-  "l3-s1-5-9", "l3-s2-5-9", "l3-s3-14", "l3-rwd-5-9-14", "l3-s1-6-5", "l3-s2-6-5",
-  "l3-rwd-6-5-11", "l3-s1-6-6", "l3-s2-6-6", "l3-rwd-6-6-12", "l3-s1-6-7", "l3-s2-6-7",
-  "l3-rwd-6-7-13", "l3-s1-6-8", "l3-s2-6-8", "l3-rwd-6-8-14", "l3-s1-6-9", "l3-s2-6-9",
-  "l3-s3-15", "l3-rwd-6-9-15", "l3-s1-7-4", "l3-s2-7-4", "l3-rwd-7-4-11", "l3-s1-7-5",
-  "l3-s2-7-5", "l3-rwd-7-5-12", "l3-s1-7-6", "l3-s2-7-6", "l3-rwd-7-6-13", "l3-s1-7-7",
-  "l3-s2-7-7", "l3-rwd-7-7-14", "l3-s1-7-8", "l3-s2-7-8", "l3-rwd-7-8-15", "l3-s1-7-9",
-  "l3-s2-7-9", "l3-s3-16", "l3-rwd-7-9-16", "l3-s1-8-3", "l3-s2-8-3", "l3-rwd-8-3-11",
-  "l3-s1-8-4", "l3-s2-8-4", "l3-rwd-8-4-12", "l3-s1-8-5", "l3-s2-8-5", "l3-rwd-8-5-13",
-  "l3-s1-8-6", "l3-s2-8-6", "l3-rwd-8-6-14", "l3-s1-8-7", "l3-s2-8-7", "l3-rwd-8-7-15",
-  "l3-s1-8-8", "l3-s2-8-8", "l3-rwd-8-8-16", "l3-s1-8-9", "l3-s2-8-9", "l3-s3-17",
-  "l3-rwd-8-9-17", "l3-s1-9-2", "l3-s2-9-2", "l3-rwd-9-2-11", "l3-s1-9-3", "l3-s2-9-3",
-  "l3-rwd-9-3-12", "l3-s1-9-4", "l3-s2-9-4", "l3-rwd-9-4-13", "l3-s1-9-5", "l3-s2-9-5",
-  "l3-rwd-9-5-14", "l3-s1-9-6", "l3-s2-9-6", "l3-rwd-9-6-15", "l3-s1-9-7", "l3-s2-9-7",
-  "l3-rwd-9-7-16", "l3-s1-9-8", "l3-s2-9-8", "l3-rwd-9-8-17", "l3-s1-9-9", "l3-s2-9-9",
-  "l3-s3-18", "l3-rwd-9-9-18", "l3-s1-11-1", "l3-s2-1-1", "l3-s3-2", "l3-rwd-11-1-12",
-  "l3-s1-11-2", "l3-s2-1-2", "l3-s3-3", "l3-rwd-11-2-13", "l3-s1-11-3", "l3-s2-1-3",
-  "l3-s3-4", "l3-rwd-11-3-14", "l3-s1-11-4", "l3-s2-1-4", "l3-s3-5", "l3-rwd-11-4-15",
-  "l3-s1-11-5", "l3-s2-1-5", "l3-s3-6", "l3-rwd-11-5-16", "l3-s1-11-6", "l3-s2-1-6",
-  "l3-s3-7", "l3-rwd-11-6-17", "l3-s1-11-7", "l3-s2-1-7", "l3-s3-8", "l3-rwd-11-7-18",
-  "l3-s1-11-8", "l3-s2-1-8", "l3-s3-9", "l3-rwd-11-8-19", "l3-s1-12-1", "l3-s2-2-1",
-  "l3-rwd-12-1-13", "l3-s1-12-2", "l3-s2-2-2", "l3-rwd-12-2-14", "l3-s1-12-3", "l3-s2-2-3",
-  "l3-rwd-12-3-15", "l3-s1-12-4", "l3-s2-2-4", "l3-rwd-12-4-16", "l3-s1-12-5", "l3-s2-2-5",
-  "l3-rwd-12-5-17", "l3-s1-12-6", "l3-s2-2-6", "l3-rwd-12-6-18", "l3-s1-12-7", "l3-s2-2-7",
-  "l3-rwd-12-7-19", "l3-s1-13-1", "l3-s2-3-1", "l3-rwd-13-1-14", "l3-s1-13-2", "l3-s2-3-2",
-  "l3-rwd-13-2-15", "l3-s1-13-3", "l3-s2-3-3", "l3-rwd-13-3-16", "l3-s1-13-4", "l3-s2-3-4",
-  "l3-rwd-13-4-17", "l3-s1-13-5", "l3-s2-3-5", "l3-rwd-13-5-18", "l3-s1-13-6", "l3-s2-3-6",
-  "l3-rwd-13-6-19", "l3-s1-14-1", "l3-s2-4-1", "l3-rwd-14-1-15", "l3-s1-14-2", "l3-s2-4-2",
-  "l3-rwd-14-2-16", "l3-s1-14-3", "l3-s2-4-3", "l3-rwd-14-3-17", "l3-s1-14-4", "l3-s2-4-4",
-  "l3-rwd-14-4-18", "l3-s1-14-5", "l3-s2-4-5", "l3-rwd-14-5-19", "l3-s1-15-1", "l3-s2-5-1",
-  "l3-rwd-15-1-16", "l3-s1-15-2", "l3-s2-5-2", "l3-rwd-15-2-17", "l3-s1-15-3", "l3-s2-5-3",
-  "l3-rwd-15-3-18", "l3-s1-15-4", "l3-s2-5-4", "l3-rwd-15-4-19", "l3-s1-16-1", "l3-s2-6-1",
-  "l3-rwd-16-1-17", "l3-s1-16-2", "l3-s2-6-2", "l3-rwd-16-2-18", "l3-s1-16-3", "l3-s2-6-3",
-  "l3-rwd-16-3-19", "l3-s1-17-1", "l3-s2-7-1", "l3-rwd-17-1-18", "l3-s1-17-2", "l3-s2-7-2",
-  "l3-rwd-17-2-19", "l3-s1-18-1", "l3-s2-8-1", "l3-rwd-18-1-19"
-
+// Generated by tools/emit-cue-ids.mjs from assets/audio/*.mp3. Re-run
+// that script after `npm run audio:build` to pick up newly synthesized
+// cues. Previously hand-curated; this regeneration fixes the L2 / L3
+// silent-bug (CUE_IDS was missing every `l1-intro-mt-*`, every
+// `l2-s1-` / `l2-s2-` / `l2-s3-` / `l2-s4-` / `l2-cmp-` / `l2-s4s-`
+// cue, and every `l3-s4-` / `l3-cmp-` / `l3-s4s-` cue reachable from
+// the live pool — see commit log for the diagnosis).
+  "boat-done", "boat-intro", "boat-pair", "bounce-done", "bounce-intro", "bounce-pop",
+  "cloud-done", "cloud-intro", "cloud-pair", "daily-done", "enc-first-1", "enc-first-2",
+  "enc-first-3", "enc-first-4", "enc-level-1", "enc-level-2", "enc-level-3", "enc-level-4",
+  "enc-near-1", "enc-near-2", "enc-near-3", "enc-specific-decomp", "enc-specific-double", "enc-specific-friend",
+  "enc-specific-pair", "enc-streak3-1", "enc-streak3-2", "enc-streak3-3", "enc-streak5-1", "enc-streak5-2",
+  "enc-streak5-3", "enc-streak10-1", "enc-streak10-2", "enc-streak10-3", "enc-wrong-1", "enc-wrong-2",
+  "enc-wrong-3", "equals", "feed-done", "feed-intro", "feed-next", "feed-nom",
+  "l1-intro-0-0-3", "l1-intro-0-0-4", "l1-intro-0-0-5", "l1-intro-0-0-6", "l1-intro-0-0-7", "l1-intro-0-0-8",
+  "l1-intro-0-0-9", "l1-intro-0-0-10", "l1-intro-0-1-2", "l1-intro-0-1-3", "l1-intro-0-1-4", "l1-intro-0-1-5",
+  "l1-intro-0-1-6", "l1-intro-0-1-7", "l1-intro-0-1-8", "l1-intro-0-1-9", "l1-intro-0-1-10", "l1-intro-0-2-1",
+  "l1-intro-0-2-2", "l1-intro-0-2-3", "l1-intro-0-2-4", "l1-intro-0-2-5", "l1-intro-0-2-8", "l1-intro-0-2-10",
+  "l1-intro-0-3-7", "l1-intro-0-3-10", "l1-intro-0-4-6", "l1-intro-0-4-10", "l1-intro-0-5-5", "l1-intro-0-5-10",
+  "l1-intro-0-6-4", "l1-intro-0-7-3", "l1-intro-0-8-2", "l1-intro-0-9-1", "l1-intro-0-10-0", "l1-intro-0-10-1",
+  "l1-intro-0-10-2", "l1-intro-0-10-3", "l1-intro-0-10-4", "l1-intro-0-10-5", "l1-intro-1-0-9", "l1-intro-1-0-10",
+  "l1-intro-1-1-1", "l1-intro-1-1-2", "l1-intro-1-1-3", "l1-intro-1-1-4", "l1-intro-1-1-5", "l1-intro-1-1-6",
+  "l1-intro-1-1-7", "l1-intro-1-1-8", "l1-intro-1-1-9", "l1-intro-1-2-1", "l1-intro-1-2-2", "l1-intro-1-2-3",
+  "l1-intro-1-2-4", "l1-intro-1-2-5", "l1-intro-1-2-6", "l1-intro-1-2-7", "l1-intro-1-2-8", "l1-intro-1-2-9",
+  "l1-intro-1-3-1", "l1-intro-1-3-2", "l1-intro-1-3-3", "l1-intro-1-3-4", "l1-intro-1-3-5", "l1-intro-1-3-6",
+  "l1-intro-1-3-7", "l1-intro-1-3-9", "l1-intro-1-4-1", "l1-intro-1-4-2", "l1-intro-1-4-3", "l1-intro-1-4-4",
+  "l1-intro-1-4-5", "l1-intro-1-4-6", "l1-intro-1-4-9", "l1-intro-1-5-1", "l1-intro-1-5-2", "l1-intro-1-5-3",
+  "l1-intro-1-5-4", "l1-intro-1-5-5", "l1-intro-1-5-9", "l1-intro-1-6-1", "l1-intro-1-6-2", "l1-intro-1-6-3",
+  "l1-intro-1-6-4", "l1-intro-1-6-9", "l1-intro-1-7-1", "l1-intro-1-7-2", "l1-intro-1-7-3", "l1-intro-1-7-9",
+  "l1-intro-1-8-1", "l1-intro-1-8-2", "l1-intro-1-8-9", "l1-intro-1-9-0", "l1-intro-1-9-1", "l1-intro-1-9-2",
+  "l1-intro-1-9-3", "l1-intro-1-9-4", "l1-intro-1-9-5", "l1-intro-1-9-6", "l1-intro-1-9-7", "l1-intro-1-9-8",
+  "l1-intro-1-9-9", "l1-intro-1-10-0", "l1-intro-2-0-8", "l1-intro-2-0-10", "l1-intro-2-1-1", "l1-intro-2-1-2",
+  "l1-intro-2-1-3", "l1-intro-2-1-4", "l1-intro-2-1-5", "l1-intro-2-1-6", "l1-intro-2-1-7", "l1-intro-2-1-8",
+  "l1-intro-2-1-9", "l1-intro-2-2-1", "l1-intro-2-2-2", "l1-intro-2-2-3", "l1-intro-2-2-4", "l1-intro-2-2-5",
+  "l1-intro-2-2-6", "l1-intro-2-2-8", "l1-intro-2-3-1", "l1-intro-2-3-2", "l1-intro-2-3-3", "l1-intro-2-3-4",
+  "l1-intro-2-3-5", "l1-intro-2-3-7", "l1-intro-2-3-8", "l1-intro-2-4-1", "l1-intro-2-4-2", "l1-intro-2-4-3",
+  "l1-intro-2-4-4", "l1-intro-2-4-6", "l1-intro-2-4-8", "l1-intro-2-5-1", "l1-intro-2-5-2", "l1-intro-2-5-3",
+  "l1-intro-2-5-5", "l1-intro-2-5-8", "l1-intro-2-6-1", "l1-intro-2-6-2", "l1-intro-2-6-4", "l1-intro-2-6-8",
+  "l1-intro-2-7-1", "l1-intro-2-7-3", "l1-intro-2-7-8", "l1-intro-2-8-0", "l1-intro-2-8-1", "l1-intro-2-8-2",
+  "l1-intro-2-8-3", "l1-intro-2-8-4", "l1-intro-2-8-5", "l1-intro-2-8-6", "l1-intro-2-8-7", "l1-intro-2-8-8",
+  "l1-intro-2-8-9", "l1-intro-2-9-1", "l1-intro-2-9-8", "l1-intro-2-10-0", "l1-intro-3-0-7", "l1-intro-3-0-10",
+  "l1-intro-3-1-1", "l1-intro-3-1-2", "l1-intro-3-1-3", "l1-intro-3-1-4", "l1-intro-3-1-5", "l1-intro-3-1-6",
+  "l1-intro-3-1-7", "l1-intro-3-1-9", "l1-intro-3-2-1", "l1-intro-3-2-2", "l1-intro-3-2-3", "l1-intro-3-2-4",
+  "l1-intro-3-2-5", "l1-intro-3-2-7", "l1-intro-3-2-8", "l1-intro-3-3-1", "l1-intro-3-3-2", "l1-intro-3-3-3",
+  "l1-intro-3-3-4", "l1-intro-3-3-7", "l1-intro-3-4-1", "l1-intro-3-4-2", "l1-intro-3-4-3", "l1-intro-3-4-6",
+  "l1-intro-3-4-7", "l1-intro-3-5-1", "l1-intro-3-5-2", "l1-intro-3-5-5", "l1-intro-3-5-7", "l1-intro-3-6-1",
+  "l1-intro-3-6-4", "l1-intro-3-6-7", "l1-intro-3-7-0", "l1-intro-3-7-1", "l1-intro-3-7-2", "l1-intro-3-7-3",
+  "l1-intro-3-7-4", "l1-intro-3-7-5", "l1-intro-3-7-6", "l1-intro-3-7-7", "l1-intro-3-7-8", "l1-intro-3-7-9",
+  "l1-intro-3-8-2", "l1-intro-3-8-7", "l1-intro-3-9-1", "l1-intro-3-9-7", "l1-intro-3-10-0", "l1-intro-4-0-6",
+  "l1-intro-4-0-10", "l1-intro-4-1-1", "l1-intro-4-1-2", "l1-intro-4-1-3", "l1-intro-4-1-4", "l1-intro-4-1-5",
+  "l1-intro-4-1-6", "l1-intro-4-1-9", "l1-intro-4-2-1", "l1-intro-4-2-2", "l1-intro-4-2-3", "l1-intro-4-2-4",
+  "l1-intro-4-2-6", "l1-intro-4-2-8", "l1-intro-4-3-1", "l1-intro-4-3-2", "l1-intro-4-3-3", "l1-intro-4-3-6",
+  "l1-intro-4-3-7", "l1-intro-4-4-1", "l1-intro-4-4-2", "l1-intro-4-4-6", "l1-intro-4-5-1", "l1-intro-4-5-5",
+  "l1-intro-4-5-6", "l1-intro-4-6-0", "l1-intro-4-6-1", "l1-intro-4-6-2", "l1-intro-4-6-3", "l1-intro-4-6-4",
+  "l1-intro-4-6-5", "l1-intro-4-6-6", "l1-intro-4-6-7", "l1-intro-4-6-8", "l1-intro-4-6-9", "l1-intro-4-7-3",
+  "l1-intro-4-7-6", "l1-intro-4-8-2", "l1-intro-4-8-6", "l1-intro-4-9-1", "l1-intro-4-9-6", "l1-intro-4-10-0",
+  "l1-intro-5-0-5", "l1-intro-5-0-10", "l1-intro-5-1-1", "l1-intro-5-1-2", "l1-intro-5-1-3", "l1-intro-5-1-4",
+  "l1-intro-5-1-5", "l1-intro-5-1-9", "l1-intro-5-2-1", "l1-intro-5-2-2", "l1-intro-5-2-3", "l1-intro-5-2-5",
+  "l1-intro-5-2-8", "l1-intro-5-3-1", "l1-intro-5-3-2", "l1-intro-5-3-5", "l1-intro-5-3-7", "l1-intro-5-4-1",
+  "l1-intro-5-4-5", "l1-intro-5-4-6", "l1-intro-5-5-0", "l1-intro-5-5-1", "l1-intro-5-5-2", "l1-intro-5-5-3",
+  "l1-intro-5-5-4", "l1-intro-5-5-5", "l1-intro-5-5-6", "l1-intro-5-5-7", "l1-intro-5-5-8", "l1-intro-5-5-9",
+  "l1-intro-5-6-4", "l1-intro-5-6-5", "l1-intro-5-7-3", "l1-intro-5-7-5", "l1-intro-5-8-2", "l1-intro-5-8-5",
+  "l1-intro-5-9-1", "l1-intro-5-9-5", "l1-intro-5-10-0", "l1-intro-6-0-4", "l1-intro-6-1-1", "l1-intro-6-1-2",
+  "l1-intro-6-1-3", "l1-intro-6-1-4", "l1-intro-6-1-9", "l1-intro-6-2-1", "l1-intro-6-2-2", "l1-intro-6-2-4",
+  "l1-intro-6-2-8", "l1-intro-6-3-1", "l1-intro-6-3-4", "l1-intro-6-3-7", "l1-intro-6-4-0", "l1-intro-6-4-1",
+  "l1-intro-6-4-2", "l1-intro-6-4-3", "l1-intro-6-4-4", "l1-intro-6-4-5", "l1-intro-6-4-6", "l1-intro-6-4-7",
+  "l1-intro-6-4-8", "l1-intro-6-4-9", "l1-intro-6-5-4", "l1-intro-6-5-5", "l1-intro-6-6-4", "l1-intro-6-7-3",
+  "l1-intro-6-7-4", "l1-intro-6-8-2", "l1-intro-6-8-4", "l1-intro-6-9-1", "l1-intro-6-9-4", "l1-intro-7-0-3",
+  "l1-intro-7-1-1", "l1-intro-7-1-2", "l1-intro-7-1-3", "l1-intro-7-1-9", "l1-intro-7-2-1", "l1-intro-7-2-3",
+  "l1-intro-7-2-8", "l1-intro-7-3-0", "l1-intro-7-3-1", "l1-intro-7-3-2", "l1-intro-7-3-3", "l1-intro-7-3-4",
+  "l1-intro-7-3-5", "l1-intro-7-3-6", "l1-intro-7-3-7", "l1-intro-7-3-8", "l1-intro-7-3-9", "l1-intro-7-4-3",
+  "l1-intro-7-4-6", "l1-intro-7-5-3", "l1-intro-7-5-5", "l1-intro-7-6-3", "l1-intro-7-6-4", "l1-intro-7-7-3",
+  "l1-intro-7-8-2", "l1-intro-7-8-3", "l1-intro-7-9-1", "l1-intro-7-9-3", "l1-intro-8-0-2", "l1-intro-8-1-1",
+  "l1-intro-8-1-2", "l1-intro-8-1-9", "l1-intro-8-2-0", "l1-intro-8-2-1", "l1-intro-8-2-2", "l1-intro-8-2-3",
+  "l1-intro-8-2-4", "l1-intro-8-2-5", "l1-intro-8-2-6", "l1-intro-8-2-7", "l1-intro-8-2-8", "l1-intro-8-2-9",
+  "l1-intro-8-3-2", "l1-intro-8-3-7", "l1-intro-8-4-2", "l1-intro-8-4-6", "l1-intro-8-5-2", "l1-intro-8-5-5",
+  "l1-intro-8-6-2", "l1-intro-8-6-4", "l1-intro-8-7-2", "l1-intro-8-7-3", "l1-intro-8-8-2", "l1-intro-8-9-1",
+  "l1-intro-8-9-2", "l1-intro-9-0-1", "l1-intro-9-1-0", "l1-intro-9-1-1", "l1-intro-9-1-2", "l1-intro-9-1-3",
+  "l1-intro-9-1-4", "l1-intro-9-1-5", "l1-intro-9-1-6", "l1-intro-9-1-7", "l1-intro-9-1-8", "l1-intro-9-1-9",
+  "l1-intro-9-2-1", "l1-intro-9-2-8", "l1-intro-9-3-1", "l1-intro-9-3-7", "l1-intro-9-4-1", "l1-intro-9-4-6",
+  "l1-intro-9-5-1", "l1-intro-9-5-5", "l1-intro-9-6-1", "l1-intro-9-6-4", "l1-intro-9-7-1", "l1-intro-9-7-3",
+  "l1-intro-9-8-1", "l1-intro-9-8-2", "l1-intro-9-9-1", "l1-intro-10-0-0", "l1-intro-10-0-1", "l1-intro-10-0-2",
+  "l1-intro-10-0-3", "l1-intro-10-0-4", "l1-intro-10-0-5", "l1-intro-10-1-0", "l1-intro-10-2-0", "l1-intro-10-3-0",
+  "l1-intro-10-4-0", "l1-intro-10-5-0", "l1-intro-mt-1-1-9", "l1-intro-mt-1-2-8", "l1-intro-mt-1-2-9", "l1-intro-mt-1-3-7",
+  "l1-intro-mt-1-3-9", "l1-intro-mt-1-4-6", "l1-intro-mt-1-4-9", "l1-intro-mt-1-5-5", "l1-intro-mt-1-5-9", "l1-intro-mt-1-6-4",
+  "l1-intro-mt-1-6-9", "l1-intro-mt-1-7-3", "l1-intro-mt-1-7-9", "l1-intro-mt-1-8-2", "l1-intro-mt-1-8-9", "l1-intro-mt-1-9-1",
+  "l1-intro-mt-1-9-2", "l1-intro-mt-1-9-3", "l1-intro-mt-1-9-4", "l1-intro-mt-1-9-5", "l1-intro-mt-1-9-6", "l1-intro-mt-1-9-7",
+  "l1-intro-mt-1-9-8", "l1-intro-mt-1-9-9", "l1-intro-mt-2-1-8", "l1-intro-mt-2-1-9", "l1-intro-mt-2-2-8", "l1-intro-mt-2-3-7",
+  "l1-intro-mt-2-3-8", "l1-intro-mt-2-4-6", "l1-intro-mt-2-4-8", "l1-intro-mt-2-5-5", "l1-intro-mt-2-5-8", "l1-intro-mt-2-6-4",
+  "l1-intro-mt-2-6-8", "l1-intro-mt-2-7-3", "l1-intro-mt-2-7-8", "l1-intro-mt-2-8-1", "l1-intro-mt-2-8-2", "l1-intro-mt-2-8-3",
+  "l1-intro-mt-2-8-4", "l1-intro-mt-2-8-5", "l1-intro-mt-2-8-6", "l1-intro-mt-2-8-7", "l1-intro-mt-2-8-8", "l1-intro-mt-2-8-9",
+  "l1-intro-mt-2-9-1", "l1-intro-mt-2-9-8", "l1-intro-mt-3-1-7", "l1-intro-mt-3-1-9", "l1-intro-mt-3-2-7", "l1-intro-mt-3-2-8",
+  "l1-intro-mt-3-3-7", "l1-intro-mt-3-4-6", "l1-intro-mt-3-4-7", "l1-intro-mt-3-5-5", "l1-intro-mt-3-5-7", "l1-intro-mt-3-6-4",
+  "l1-intro-mt-3-6-7", "l1-intro-mt-3-7-1", "l1-intro-mt-3-7-2", "l1-intro-mt-3-7-3", "l1-intro-mt-3-7-4", "l1-intro-mt-3-7-5",
+  "l1-intro-mt-3-7-6", "l1-intro-mt-3-7-7", "l1-intro-mt-3-7-8", "l1-intro-mt-3-7-9", "l1-intro-mt-3-8-2", "l1-intro-mt-3-8-7",
+  "l1-intro-mt-3-9-1", "l1-intro-mt-3-9-7", "l1-intro-mt-4-1-6", "l1-intro-mt-4-1-9", "l1-intro-mt-4-2-6", "l1-intro-mt-4-2-8",
+  "l1-intro-mt-4-3-6", "l1-intro-mt-4-3-7", "l1-intro-mt-4-4-6", "l1-intro-mt-4-5-5", "l1-intro-mt-4-5-6", "l1-intro-mt-4-6-1",
+  "l1-intro-mt-4-6-2", "l1-intro-mt-4-6-3", "l1-intro-mt-4-6-4", "l1-intro-mt-4-6-5", "l1-intro-mt-4-6-6", "l1-intro-mt-4-6-7",
+  "l1-intro-mt-4-6-8", "l1-intro-mt-4-6-9", "l1-intro-mt-4-7-3", "l1-intro-mt-4-7-6", "l1-intro-mt-4-8-2", "l1-intro-mt-4-8-6",
+  "l1-intro-mt-4-9-1", "l1-intro-mt-4-9-6", "l1-intro-mt-5-1-5", "l1-intro-mt-5-1-9", "l1-intro-mt-5-2-5", "l1-intro-mt-5-2-8",
+  "l1-intro-mt-5-3-5", "l1-intro-mt-5-3-7", "l1-intro-mt-5-4-5", "l1-intro-mt-5-4-6", "l1-intro-mt-5-5-1", "l1-intro-mt-5-5-2",
+  "l1-intro-mt-5-5-3", "l1-intro-mt-5-5-4", "l1-intro-mt-5-5-5", "l1-intro-mt-5-5-6", "l1-intro-mt-5-5-7", "l1-intro-mt-5-5-8",
+  "l1-intro-mt-5-5-9", "l1-intro-mt-5-6-4", "l1-intro-mt-5-6-5", "l1-intro-mt-5-7-3", "l1-intro-mt-5-7-5", "l1-intro-mt-5-8-2",
+  "l1-intro-mt-5-8-5", "l1-intro-mt-5-9-1", "l1-intro-mt-5-9-5", "l1-intro-mt-6-1-4", "l1-intro-mt-6-1-9", "l1-intro-mt-6-2-4",
+  "l1-intro-mt-6-2-8", "l1-intro-mt-6-3-4", "l1-intro-mt-6-3-7", "l1-intro-mt-6-4-1", "l1-intro-mt-6-4-2", "l1-intro-mt-6-4-3",
+  "l1-intro-mt-6-4-4", "l1-intro-mt-6-4-5", "l1-intro-mt-6-4-6", "l1-intro-mt-6-4-7", "l1-intro-mt-6-4-8", "l1-intro-mt-6-4-9",
+  "l1-intro-mt-6-5-4", "l1-intro-mt-6-5-5", "l1-intro-mt-6-6-4", "l1-intro-mt-6-7-3", "l1-intro-mt-6-7-4", "l1-intro-mt-6-8-2",
+  "l1-intro-mt-6-8-4", "l1-intro-mt-6-9-1", "l1-intro-mt-6-9-4", "l1-intro-mt-7-1-3", "l1-intro-mt-7-1-9", "l1-intro-mt-7-2-3",
+  "l1-intro-mt-7-2-8", "l1-intro-mt-7-3-1", "l1-intro-mt-7-3-2", "l1-intro-mt-7-3-3", "l1-intro-mt-7-3-4", "l1-intro-mt-7-3-5",
+  "l1-intro-mt-7-3-6", "l1-intro-mt-7-3-7", "l1-intro-mt-7-3-8", "l1-intro-mt-7-3-9", "l1-intro-mt-7-4-3", "l1-intro-mt-7-4-6",
+  "l1-intro-mt-7-5-3", "l1-intro-mt-7-5-5", "l1-intro-mt-7-6-3", "l1-intro-mt-7-6-4", "l1-intro-mt-7-7-3", "l1-intro-mt-7-8-2",
+  "l1-intro-mt-7-8-3", "l1-intro-mt-7-9-1", "l1-intro-mt-7-9-3", "l1-intro-mt-8-1-2", "l1-intro-mt-8-1-9", "l1-intro-mt-8-2-1",
+  "l1-intro-mt-8-2-2", "l1-intro-mt-8-2-3", "l1-intro-mt-8-2-4", "l1-intro-mt-8-2-5", "l1-intro-mt-8-2-6", "l1-intro-mt-8-2-7",
+  "l1-intro-mt-8-2-8", "l1-intro-mt-8-2-9", "l1-intro-mt-8-3-2", "l1-intro-mt-8-3-7", "l1-intro-mt-8-4-2", "l1-intro-mt-8-4-6",
+  "l1-intro-mt-8-5-2", "l1-intro-mt-8-5-5", "l1-intro-mt-8-6-2", "l1-intro-mt-8-6-4", "l1-intro-mt-8-7-2", "l1-intro-mt-8-7-3",
+  "l1-intro-mt-8-8-2", "l1-intro-mt-8-9-1", "l1-intro-mt-8-9-2", "l1-intro-mt-9-1-1", "l1-intro-mt-9-1-2", "l1-intro-mt-9-1-3",
+  "l1-intro-mt-9-1-4", "l1-intro-mt-9-1-5", "l1-intro-mt-9-1-6", "l1-intro-mt-9-1-7", "l1-intro-mt-9-1-8", "l1-intro-mt-9-1-9",
+  "l1-intro-mt-9-2-1", "l1-intro-mt-9-2-8", "l1-intro-mt-9-3-1", "l1-intro-mt-9-3-7", "l1-intro-mt-9-4-1", "l1-intro-mt-9-4-6",
+  "l1-intro-mt-9-5-1", "l1-intro-mt-9-5-5", "l1-intro-mt-9-6-1", "l1-intro-mt-9-6-4", "l1-intro-mt-9-7-1", "l1-intro-mt-9-7-3",
+  "l1-intro-mt-9-8-1", "l1-intro-mt-9-8-2", "l1-intro-mt-9-9-1", "l1-rwd-0-0-3-3", "l1-rwd-0-0-4-4", "l1-rwd-0-0-5-5",
+  "l1-rwd-0-0-6-6", "l1-rwd-0-0-7-7", "l1-rwd-0-0-8-8", "l1-rwd-0-0-9-9", "l1-rwd-0-0-10-10", "l1-rwd-0-1-2-3",
+  "l1-rwd-0-1-3-4", "l1-rwd-0-1-4-5", "l1-rwd-0-1-5-6", "l1-rwd-0-1-6-7", "l1-rwd-0-1-7-8", "l1-rwd-0-1-8-9",
+  "l1-rwd-0-1-9-10", "l1-rwd-0-1-10-11", "l1-rwd-0-2-1-3", "l1-rwd-0-2-2-4", "l1-rwd-0-2-3-5", "l1-rwd-0-2-4-6",
+  "l1-rwd-0-2-5-7", "l1-rwd-0-2-8-10", "l1-rwd-0-2-10-12", "l1-rwd-0-3-7-10", "l1-rwd-0-3-10-13", "l1-rwd-0-4-6-10",
+  "l1-rwd-0-4-10-14", "l1-rwd-0-5-5-10", "l1-rwd-0-5-10-15", "l1-rwd-0-6-4-10", "l1-rwd-0-7-3-10", "l1-rwd-0-8-2-10",
+  "l1-rwd-0-9-1-10", "l1-rwd-0-10-0-10", "l1-rwd-0-10-1-11", "l1-rwd-0-10-2-12", "l1-rwd-0-10-3-13", "l1-rwd-0-10-4-14",
+  "l1-rwd-0-10-5-15", "l1-rwd-1-0-9-10", "l1-rwd-1-0-10-11", "l1-rwd-1-1-1-3", "l1-rwd-1-1-2-4", "l1-rwd-1-1-3-5",
+  "l1-rwd-1-1-4-6", "l1-rwd-1-1-5-7", "l1-rwd-1-1-6-8", "l1-rwd-1-1-7-9", "l1-rwd-1-1-8-10", "l1-rwd-1-1-9-11",
+  "l1-rwd-1-2-1-4", "l1-rwd-1-2-2-5", "l1-rwd-1-2-3-6", "l1-rwd-1-2-4-7", "l1-rwd-1-2-5-8", "l1-rwd-1-2-6-9",
+  "l1-rwd-1-2-7-10", "l1-rwd-1-2-8-11", "l1-rwd-1-2-9-12", "l1-rwd-1-3-1-5", "l1-rwd-1-3-2-6", "l1-rwd-1-3-3-7",
+  "l1-rwd-1-3-4-8", "l1-rwd-1-3-5-9", "l1-rwd-1-3-6-10", "l1-rwd-1-3-7-11", "l1-rwd-1-3-9-13", "l1-rwd-1-4-1-6",
+  "l1-rwd-1-4-2-7", "l1-rwd-1-4-3-8", "l1-rwd-1-4-4-9", "l1-rwd-1-4-5-10", "l1-rwd-1-4-6-11", "l1-rwd-1-4-9-14",
+  "l1-rwd-1-5-1-7", "l1-rwd-1-5-2-8", "l1-rwd-1-5-3-9", "l1-rwd-1-5-4-10", "l1-rwd-1-5-5-11", "l1-rwd-1-5-9-15",
+  "l1-rwd-1-6-1-8", "l1-rwd-1-6-2-9", "l1-rwd-1-6-3-10", "l1-rwd-1-6-4-11", "l1-rwd-1-6-9-16", "l1-rwd-1-7-1-9",
+  "l1-rwd-1-7-2-10", "l1-rwd-1-7-3-11", "l1-rwd-1-7-9-17", "l1-rwd-1-8-1-10", "l1-rwd-1-8-2-11", "l1-rwd-1-8-9-18",
+  "l1-rwd-1-9-0-10", "l1-rwd-1-9-1-11", "l1-rwd-1-9-2-12", "l1-rwd-1-9-3-13", "l1-rwd-1-9-4-14", "l1-rwd-1-9-5-15",
+  "l1-rwd-1-9-6-16", "l1-rwd-1-9-7-17", "l1-rwd-1-9-8-18", "l1-rwd-1-9-9-19", "l1-rwd-1-10-0-11", "l1-rwd-2-0-8-10",
+  "l1-rwd-2-0-10-12", "l1-rwd-2-1-1-4", "l1-rwd-2-1-2-5", "l1-rwd-2-1-3-6", "l1-rwd-2-1-4-7", "l1-rwd-2-1-5-8",
+  "l1-rwd-2-1-6-9", "l1-rwd-2-1-7-10", "l1-rwd-2-1-8-11", "l1-rwd-2-1-9-12", "l1-rwd-2-2-1-5", "l1-rwd-2-2-2-6",
+  "l1-rwd-2-2-3-7", "l1-rwd-2-2-4-8", "l1-rwd-2-2-5-9", "l1-rwd-2-2-6-10", "l1-rwd-2-2-8-12", "l1-rwd-2-3-1-6",
+  "l1-rwd-2-3-2-7", "l1-rwd-2-3-3-8", "l1-rwd-2-3-4-9", "l1-rwd-2-3-5-10", "l1-rwd-2-3-7-12", "l1-rwd-2-3-8-13",
+  "l1-rwd-2-4-1-7", "l1-rwd-2-4-2-8", "l1-rwd-2-4-3-9", "l1-rwd-2-4-4-10", "l1-rwd-2-4-6-12", "l1-rwd-2-4-8-14",
+  "l1-rwd-2-5-1-8", "l1-rwd-2-5-2-9", "l1-rwd-2-5-3-10", "l1-rwd-2-5-5-12", "l1-rwd-2-5-8-15", "l1-rwd-2-6-1-9",
+  "l1-rwd-2-6-2-10", "l1-rwd-2-6-4-12", "l1-rwd-2-6-8-16", "l1-rwd-2-7-1-10", "l1-rwd-2-7-3-12", "l1-rwd-2-7-8-17",
+  "l1-rwd-2-8-0-10", "l1-rwd-2-8-1-11", "l1-rwd-2-8-2-12", "l1-rwd-2-8-3-13", "l1-rwd-2-8-4-14", "l1-rwd-2-8-5-15",
+  "l1-rwd-2-8-6-16", "l1-rwd-2-8-7-17", "l1-rwd-2-8-8-18", "l1-rwd-2-8-9-19", "l1-rwd-2-9-1-12", "l1-rwd-2-9-8-19",
+  "l1-rwd-2-10-0-12", "l1-rwd-3-0-7-10", "l1-rwd-3-0-10-13", "l1-rwd-3-1-1-5", "l1-rwd-3-1-2-6", "l1-rwd-3-1-3-7",
+  "l1-rwd-3-1-4-8", "l1-rwd-3-1-5-9", "l1-rwd-3-1-6-10", "l1-rwd-3-1-7-11", "l1-rwd-3-1-9-13", "l1-rwd-3-2-1-6",
+  "l1-rwd-3-2-2-7", "l1-rwd-3-2-3-8", "l1-rwd-3-2-4-9", "l1-rwd-3-2-5-10", "l1-rwd-3-2-7-12", "l1-rwd-3-2-8-13",
+  "l1-rwd-3-3-1-7", "l1-rwd-3-3-2-8", "l1-rwd-3-3-3-9", "l1-rwd-3-3-4-10", "l1-rwd-3-3-7-13", "l1-rwd-3-4-1-8",
+  "l1-rwd-3-4-2-9", "l1-rwd-3-4-3-10", "l1-rwd-3-4-6-13", "l1-rwd-3-4-7-14", "l1-rwd-3-5-1-9", "l1-rwd-3-5-2-10",
+  "l1-rwd-3-5-5-13", "l1-rwd-3-5-7-15", "l1-rwd-3-6-1-10", "l1-rwd-3-6-4-13", "l1-rwd-3-6-7-16", "l1-rwd-3-7-0-10",
+  "l1-rwd-3-7-1-11", "l1-rwd-3-7-2-12", "l1-rwd-3-7-3-13", "l1-rwd-3-7-4-14", "l1-rwd-3-7-5-15", "l1-rwd-3-7-6-16",
+  "l1-rwd-3-7-7-17", "l1-rwd-3-7-8-18", "l1-rwd-3-7-9-19", "l1-rwd-3-8-2-13", "l1-rwd-3-8-7-18", "l1-rwd-3-9-1-13",
+  "l1-rwd-3-9-7-19", "l1-rwd-3-10-0-13", "l1-rwd-4-0-6-10", "l1-rwd-4-0-10-14", "l1-rwd-4-1-1-6", "l1-rwd-4-1-2-7",
+  "l1-rwd-4-1-3-8", "l1-rwd-4-1-4-9", "l1-rwd-4-1-5-10", "l1-rwd-4-1-6-11", "l1-rwd-4-1-9-14", "l1-rwd-4-2-1-7",
+  "l1-rwd-4-2-2-8", "l1-rwd-4-2-3-9", "l1-rwd-4-2-4-10", "l1-rwd-4-2-6-12", "l1-rwd-4-2-8-14", "l1-rwd-4-3-1-8",
+  "l1-rwd-4-3-2-9", "l1-rwd-4-3-3-10", "l1-rwd-4-3-6-13", "l1-rwd-4-3-7-14", "l1-rwd-4-4-1-9", "l1-rwd-4-4-2-10",
+  "l1-rwd-4-4-6-14", "l1-rwd-4-5-1-10", "l1-rwd-4-5-5-14", "l1-rwd-4-5-6-15", "l1-rwd-4-6-0-10", "l1-rwd-4-6-1-11",
+  "l1-rwd-4-6-2-12", "l1-rwd-4-6-3-13", "l1-rwd-4-6-4-14", "l1-rwd-4-6-5-15", "l1-rwd-4-6-6-16", "l1-rwd-4-6-7-17",
+  "l1-rwd-4-6-8-18", "l1-rwd-4-6-9-19", "l1-rwd-4-7-3-14", "l1-rwd-4-7-6-17", "l1-rwd-4-8-2-14", "l1-rwd-4-8-6-18",
+  "l1-rwd-4-9-1-14", "l1-rwd-4-9-6-19", "l1-rwd-4-10-0-14", "l1-rwd-5-0-5-10", "l1-rwd-5-0-10-15", "l1-rwd-5-1-1-7",
+  "l1-rwd-5-1-2-8", "l1-rwd-5-1-3-9", "l1-rwd-5-1-4-10", "l1-rwd-5-1-5-11", "l1-rwd-5-1-9-15", "l1-rwd-5-2-1-8",
+  "l1-rwd-5-2-2-9", "l1-rwd-5-2-3-10", "l1-rwd-5-2-5-12", "l1-rwd-5-2-8-15", "l1-rwd-5-3-1-9", "l1-rwd-5-3-2-10",
+  "l1-rwd-5-3-5-13", "l1-rwd-5-3-7-15", "l1-rwd-5-4-1-10", "l1-rwd-5-4-5-14", "l1-rwd-5-4-6-15", "l1-rwd-5-5-0-10",
+  "l1-rwd-5-5-1-11", "l1-rwd-5-5-2-12", "l1-rwd-5-5-3-13", "l1-rwd-5-5-4-14", "l1-rwd-5-5-5-15", "l1-rwd-5-5-6-16",
+  "l1-rwd-5-5-7-17", "l1-rwd-5-5-8-18", "l1-rwd-5-5-9-19", "l1-rwd-5-6-4-15", "l1-rwd-5-6-5-16", "l1-rwd-5-7-3-15",
+  "l1-rwd-5-7-5-17", "l1-rwd-5-8-2-15", "l1-rwd-5-8-5-18", "l1-rwd-5-9-1-15", "l1-rwd-5-9-5-19", "l1-rwd-5-10-0-15",
+  "l1-rwd-6-0-4-10", "l1-rwd-6-1-1-8", "l1-rwd-6-1-2-9", "l1-rwd-6-1-3-10", "l1-rwd-6-1-4-11", "l1-rwd-6-1-9-16",
+  "l1-rwd-6-2-1-9", "l1-rwd-6-2-2-10", "l1-rwd-6-2-4-12", "l1-rwd-6-2-8-16", "l1-rwd-6-3-1-10", "l1-rwd-6-3-4-13",
+  "l1-rwd-6-3-7-16", "l1-rwd-6-4-0-10", "l1-rwd-6-4-1-11", "l1-rwd-6-4-2-12", "l1-rwd-6-4-3-13", "l1-rwd-6-4-4-14",
+  "l1-rwd-6-4-5-15", "l1-rwd-6-4-6-16", "l1-rwd-6-4-7-17", "l1-rwd-6-4-8-18", "l1-rwd-6-4-9-19", "l1-rwd-6-5-4-15",
+  "l1-rwd-6-5-5-16", "l1-rwd-6-6-4-16", "l1-rwd-6-7-3-16", "l1-rwd-6-7-4-17", "l1-rwd-6-8-2-16", "l1-rwd-6-8-4-18",
+  "l1-rwd-6-9-1-16", "l1-rwd-6-9-4-19", "l1-rwd-7-0-3-10", "l1-rwd-7-1-1-9", "l1-rwd-7-1-2-10", "l1-rwd-7-1-3-11",
+  "l1-rwd-7-1-9-17", "l1-rwd-7-2-1-10", "l1-rwd-7-2-3-12", "l1-rwd-7-2-8-17", "l1-rwd-7-3-0-10", "l1-rwd-7-3-1-11",
+  "l1-rwd-7-3-2-12", "l1-rwd-7-3-3-13", "l1-rwd-7-3-4-14", "l1-rwd-7-3-5-15", "l1-rwd-7-3-6-16", "l1-rwd-7-3-7-17",
+  "l1-rwd-7-3-8-18", "l1-rwd-7-3-9-19", "l1-rwd-7-4-3-14", "l1-rwd-7-4-6-17", "l1-rwd-7-5-3-15", "l1-rwd-7-5-5-17",
+  "l1-rwd-7-6-3-16", "l1-rwd-7-6-4-17", "l1-rwd-7-7-3-17", "l1-rwd-7-8-2-17", "l1-rwd-7-8-3-18", "l1-rwd-7-9-1-17",
+  "l1-rwd-7-9-3-19", "l1-rwd-8-0-2-10", "l1-rwd-8-1-1-10", "l1-rwd-8-1-2-11", "l1-rwd-8-1-9-18", "l1-rwd-8-2-0-10",
+  "l1-rwd-8-2-1-11", "l1-rwd-8-2-2-12", "l1-rwd-8-2-3-13", "l1-rwd-8-2-4-14", "l1-rwd-8-2-5-15", "l1-rwd-8-2-6-16",
+  "l1-rwd-8-2-7-17", "l1-rwd-8-2-8-18", "l1-rwd-8-2-9-19", "l1-rwd-8-3-2-13", "l1-rwd-8-3-7-18", "l1-rwd-8-4-2-14",
+  "l1-rwd-8-4-6-18", "l1-rwd-8-5-2-15", "l1-rwd-8-5-5-18", "l1-rwd-8-6-2-16", "l1-rwd-8-6-4-18", "l1-rwd-8-7-2-17",
+  "l1-rwd-8-7-3-18", "l1-rwd-8-8-2-18", "l1-rwd-8-9-1-18", "l1-rwd-8-9-2-19", "l1-rwd-9-0-1-10", "l1-rwd-9-1-0-10",
+  "l1-rwd-9-1-1-11", "l1-rwd-9-1-2-12", "l1-rwd-9-1-3-13", "l1-rwd-9-1-4-14", "l1-rwd-9-1-5-15", "l1-rwd-9-1-6-16",
+  "l1-rwd-9-1-7-17", "l1-rwd-9-1-8-18", "l1-rwd-9-1-9-19", "l1-rwd-9-2-1-12", "l1-rwd-9-2-8-19", "l1-rwd-9-3-1-13",
+  "l1-rwd-9-3-7-19", "l1-rwd-9-4-1-14", "l1-rwd-9-4-6-19", "l1-rwd-9-5-1-15", "l1-rwd-9-5-5-19", "l1-rwd-9-6-1-16",
+  "l1-rwd-9-6-4-19", "l1-rwd-9-7-1-17", "l1-rwd-9-7-3-19", "l1-rwd-9-8-1-18", "l1-rwd-9-8-2-19", "l1-rwd-9-9-1-19",
+  "l1-rwd-10-0-0-10", "l1-rwd-10-0-1-11", "l1-rwd-10-0-2-12", "l1-rwd-10-0-3-13", "l1-rwd-10-0-4-14", "l1-rwd-10-0-5-15",
+  "l1-rwd-10-1-0-11", "l1-rwd-10-2-0-12", "l1-rwd-10-3-0-13", "l1-rwd-10-4-0-14", "l1-rwd-10-5-0-15", "l1-step2-0-3",
+  "l1-step2-0-4", "l1-step2-0-5", "l1-step2-0-6", "l1-step2-0-7", "l1-step2-0-8", "l1-step2-0-9",
+  "l1-step2-1-2", "l1-step2-1-3", "l1-step2-1-4", "l1-step2-1-5", "l1-step2-1-6", "l1-step2-1-7",
+  "l1-step2-1-8", "l1-step2-1-10", "l1-step2-2-1", "l1-step2-2-2", "l1-step2-2-3", "l1-step2-2-4",
+  "l1-step2-2-5", "l1-step2-2-6", "l1-step2-2-7", "l1-step2-2-8", "l1-step2-2-10", "l1-step2-3-1",
+  "l1-step2-3-2", "l1-step2-3-3", "l1-step2-3-4", "l1-step2-3-5", "l1-step2-3-6", "l1-step2-3-7",
+  "l1-step2-3-10", "l1-step2-4-1", "l1-step2-4-2", "l1-step2-4-3", "l1-step2-4-4", "l1-step2-4-5",
+  "l1-step2-4-6", "l1-step2-4-10", "l1-step2-5-1", "l1-step2-5-2", "l1-step2-5-3", "l1-step2-5-4",
+  "l1-step2-5-5", "l1-step2-5-10", "l1-step2-6-1", "l1-step2-6-2", "l1-step2-6-3", "l1-step2-6-4",
+  "l1-step2-6-10", "l1-step2-7-1", "l1-step2-7-2", "l1-step2-7-3", "l1-step2-7-10", "l1-step2-8-1",
+  "l1-step2-8-2", "l1-step2-8-10", "l1-step2-9-1", "l1-step2-9-10", "l1-step2-10-0", "l1-step2-10-1",
+  "l1-step2-10-2", "l1-step2-10-3", "l1-step2-10-4", "l1-step2-10-5", "l1-step2-10-6", "l1-step2-10-7",
+  "l1-step2-10-8", "l1-step2-10-9", "l1-sub-0-0", "l1-sub-0-1", "l1-sub-0-2", "l1-sub-0-10",
+  "l1-sub-1-1", "l1-sub-1-2", "l1-sub-1-3", "l1-sub-1-4", "l1-sub-1-5", "l1-sub-1-6",
+  "l1-sub-1-7", "l1-sub-1-8", "l1-sub-1-9", "l1-sub-2-1", "l1-sub-2-2", "l1-sub-2-3",
+  "l1-sub-2-4", "l1-sub-2-5", "l1-sub-2-6", "l1-sub-2-7", "l1-sub-2-8", "l1-sub-3-1",
+  "l1-sub-3-2", "l1-sub-3-3", "l1-sub-3-4", "l1-sub-3-5", "l1-sub-3-6", "l1-sub-3-7",
+  "l1-sub-4-1", "l1-sub-4-2", "l1-sub-4-3", "l1-sub-4-4", "l1-sub-4-5", "l1-sub-4-6",
+  "l1-sub-5-1", "l1-sub-5-2", "l1-sub-5-3", "l1-sub-5-4", "l1-sub-5-5", "l1-sub-6-1",
+  "l1-sub-6-2", "l1-sub-6-3", "l1-sub-6-4", "l1-sub-7-1", "l1-sub-7-2", "l1-sub-7-3",
+  "l1-sub-8-1", "l1-sub-8-2", "l1-sub-9-1", "l1-sub-10-0", "l1-sub-find-ten", "l2-cmp-2-9",
+  "l2-cmp-3-8", "l2-cmp-3-9", "l2-cmp-4-7", "l2-cmp-4-8", "l2-cmp-4-9", "l2-cmp-5-6",
+  "l2-cmp-5-7", "l2-cmp-5-8", "l2-cmp-5-9", "l2-cmp-6-5", "l2-cmp-6-7", "l2-cmp-6-8",
+  "l2-cmp-6-9", "l2-cmp-7-4", "l2-cmp-7-5", "l2-cmp-7-6", "l2-cmp-7-8", "l2-cmp-7-9",
+  "l2-cmp-8-3", "l2-cmp-8-4", "l2-cmp-8-5", "l2-cmp-8-6", "l2-cmp-8-7", "l2-cmp-8-9",
+  "l2-cmp-9-2", "l2-cmp-9-3", "l2-cmp-9-4", "l2-cmp-9-5", "l2-cmp-9-6", "l2-cmp-9-7",
+  "l2-cmp-9-8", "l2-rwd-0-0-0", "l2-rwd-1-0-1", "l2-rwd-1-1-2", "l2-rwd-1-2-3", "l2-rwd-1-3-4",
+  "l2-rwd-1-4-5", "l2-rwd-1-5-6", "l2-rwd-1-6-7", "l2-rwd-1-7-8", "l2-rwd-1-8-9", "l2-rwd-1-9-10",
+  "l2-rwd-1-10-11", "l2-rwd-2-0-2", "l2-rwd-2-1-3", "l2-rwd-2-2-4", "l2-rwd-2-3-5", "l2-rwd-2-4-6",
+  "l2-rwd-2-5-7", "l2-rwd-2-6-8", "l2-rwd-2-7-9", "l2-rwd-2-8-10", "l2-rwd-2-9-11", "l2-rwd-2-10-12",
+  "l2-rwd-3-0-3", "l2-rwd-3-1-4", "l2-rwd-3-2-5", "l2-rwd-3-3-6", "l2-rwd-3-4-7", "l2-rwd-3-5-8",
+  "l2-rwd-3-6-9", "l2-rwd-3-7-10", "l2-rwd-3-8-11", "l2-rwd-3-9-12", "l2-rwd-3-10-13", "l2-rwd-4-0-4",
+  "l2-rwd-4-1-5", "l2-rwd-4-2-6", "l2-rwd-4-3-7", "l2-rwd-4-4-8", "l2-rwd-4-5-9", "l2-rwd-4-6-10",
+  "l2-rwd-4-7-11", "l2-rwd-4-8-12", "l2-rwd-4-9-13", "l2-rwd-4-10-14", "l2-rwd-5-0-5", "l2-rwd-5-1-6",
+  "l2-rwd-5-2-7", "l2-rwd-5-3-8", "l2-rwd-5-4-9", "l2-rwd-5-5-10", "l2-rwd-5-6-11", "l2-rwd-5-7-12",
+  "l2-rwd-5-8-13", "l2-rwd-5-9-14", "l2-rwd-5-10-15", "l2-rwd-6-0-6", "l2-rwd-6-1-7", "l2-rwd-6-2-8",
+  "l2-rwd-6-3-9", "l2-rwd-6-4-10", "l2-rwd-6-5-11", "l2-rwd-6-6-12", "l2-rwd-6-7-13", "l2-rwd-6-8-14",
+  "l2-rwd-6-9-15", "l2-rwd-6-10-16", "l2-rwd-7-0-7", "l2-rwd-7-1-8", "l2-rwd-7-2-9", "l2-rwd-7-3-10",
+  "l2-rwd-7-4-11", "l2-rwd-7-5-12", "l2-rwd-7-6-13", "l2-rwd-7-7-14", "l2-rwd-7-8-15", "l2-rwd-7-9-16",
+  "l2-rwd-7-10-17", "l2-rwd-8-0-8", "l2-rwd-8-1-9", "l2-rwd-8-2-10", "l2-rwd-8-3-11", "l2-rwd-8-4-12",
+  "l2-rwd-8-5-13", "l2-rwd-8-6-14", "l2-rwd-8-7-15", "l2-rwd-8-8-16", "l2-rwd-8-9-17", "l2-rwd-8-10-18",
+  "l2-rwd-9-0-9", "l2-rwd-9-1-10", "l2-rwd-9-2-11", "l2-rwd-9-3-12", "l2-rwd-9-4-13", "l2-rwd-9-5-14",
+  "l2-rwd-9-6-15", "l2-rwd-9-7-16", "l2-rwd-9-8-17", "l2-rwd-9-9-18", "l2-rwd-9-10-19", "l2-rwd-10-0-10",
+  "l2-rwd-10-1-11", "l2-rwd-10-2-12", "l2-rwd-10-3-13", "l2-rwd-10-4-14", "l2-rwd-10-5-15", "l2-rwd-10-6-16",
+  "l2-rwd-10-7-17", "l2-rwd-10-8-18", "l2-rwd-10-9-19", "l2-rwd-11-1-12", "l2-rwd-11-2-13", "l2-rwd-11-3-14",
+  "l2-rwd-11-4-15", "l2-rwd-11-5-16", "l2-rwd-11-6-17", "l2-rwd-11-7-18", "l2-rwd-11-8-19", "l2-rwd-11-9-20",
+  "l2-rwd-12-1-13", "l2-rwd-12-2-14", "l2-rwd-12-3-15", "l2-rwd-12-4-16", "l2-rwd-12-5-17", "l2-rwd-12-6-18",
+  "l2-rwd-12-7-19", "l2-rwd-12-8-20", "l2-rwd-12-9-21", "l2-rwd-13-1-14", "l2-rwd-13-2-15", "l2-rwd-13-3-16",
+  "l2-rwd-13-4-17", "l2-rwd-13-5-18", "l2-rwd-13-6-19", "l2-rwd-13-7-20", "l2-rwd-13-8-21", "l2-rwd-13-9-22",
+  "l2-rwd-14-1-15", "l2-rwd-14-2-16", "l2-rwd-14-3-17", "l2-rwd-14-4-18", "l2-rwd-14-5-19", "l2-rwd-14-6-20",
+  "l2-rwd-14-7-21", "l2-rwd-14-8-22", "l2-rwd-14-9-23", "l2-rwd-15-1-16", "l2-rwd-15-2-17", "l2-rwd-15-3-18",
+  "l2-rwd-15-4-19", "l2-rwd-15-5-20", "l2-rwd-15-6-21", "l2-rwd-15-7-22", "l2-rwd-15-8-23", "l2-rwd-15-9-24",
+  "l2-rwd-16-1-17", "l2-rwd-16-2-18", "l2-rwd-16-3-19", "l2-rwd-16-4-20", "l2-rwd-16-5-21", "l2-rwd-16-6-22",
+  "l2-rwd-16-7-23", "l2-rwd-16-8-24", "l2-rwd-16-9-25", "l2-rwd-17-1-18", "l2-rwd-17-2-19", "l2-rwd-17-3-20",
+  "l2-rwd-17-4-21", "l2-rwd-17-5-22", "l2-rwd-17-6-23", "l2-rwd-17-7-24", "l2-rwd-17-8-25", "l2-rwd-17-9-26",
+  "l2-rwd-18-1-19", "l2-rwd-18-2-20", "l2-rwd-18-3-21", "l2-rwd-18-4-22", "l2-rwd-18-5-23", "l2-rwd-18-6-24",
+  "l2-rwd-18-7-25", "l2-rwd-18-8-26", "l2-rwd-18-9-27", "l2-rwd-19-1-20", "l2-rwd-19-2-21", "l2-rwd-19-3-22",
+  "l2-rwd-19-4-23", "l2-rwd-19-5-24", "l2-rwd-19-6-25", "l2-rwd-19-7-26", "l2-rwd-19-8-27", "l2-rwd-19-9-28",
+  "l2-rwd-20-1-21", "l2-rwd-20-2-22", "l2-rwd-20-3-23", "l2-rwd-20-4-24", "l2-rwd-20-5-25", "l2-rwd-20-6-26",
+  "l2-rwd-20-7-27", "l2-rwd-20-8-28", "l2-rwd-20-9-29", "l2-s1-1-9", "l2-s1-1-10", "l2-s1-2-8",
+  "l2-s1-2-9", "l2-s1-2-10", "l2-s1-3-7", "l2-s1-3-8", "l2-s1-3-9", "l2-s1-3-10",
+  "l2-s1-4-6", "l2-s1-4-7", "l2-s1-4-8", "l2-s1-4-9", "l2-s1-4-10", "l2-s1-5-5",
+  "l2-s1-5-6", "l2-s1-5-7", "l2-s1-5-8", "l2-s1-5-9", "l2-s1-5-10", "l2-s1-6-4",
+  "l2-s1-6-5", "l2-s1-6-6", "l2-s1-6-7", "l2-s1-6-8", "l2-s1-6-9", "l2-s1-6-10",
+  "l2-s1-7-3", "l2-s1-7-4", "l2-s1-7-5", "l2-s1-7-6", "l2-s1-7-7", "l2-s1-7-8",
+  "l2-s1-7-9", "l2-s1-7-10", "l2-s1-8-2", "l2-s1-8-3", "l2-s1-8-4", "l2-s1-8-5",
+  "l2-s1-8-6", "l2-s1-8-7", "l2-s1-8-8", "l2-s1-8-9", "l2-s1-8-10", "l2-s1-9-1",
+  "l2-s1-9-2", "l2-s1-9-3", "l2-s1-9-4", "l2-s1-9-5", "l2-s1-9-6", "l2-s1-9-7",
+  "l2-s1-9-8", "l2-s1-9-9", "l2-s1-9-10", "l2-s1-10-1", "l2-s1-10-2", "l2-s1-10-3",
+  "l2-s1-10-4", "l2-s1-10-5", "l2-s1-10-6", "l2-s1-10-7", "l2-s1-10-8", "l2-s1-10-9",
+  "l2-s2-5", "l2-s2-6", "l2-s2-7", "l2-s2-8", "l2-s2-9", "l2-s2-10",
+  "l2-s3-1-0", "l2-s3-1-1", "l2-s3-2-0", "l2-s3-2-1", "l2-s3-2-2", "l2-s3-3-0",
+  "l2-s3-3-1", "l2-s3-3-2", "l2-s3-3-3", "l2-s3-4-0", "l2-s3-4-1", "l2-s3-4-2",
+  "l2-s3-4-3", "l2-s3-4-4", "l2-s3-5-0", "l2-s3-5-1", "l2-s3-5-2", "l2-s3-5-3",
+  "l2-s3-5-4", "l2-s3-5-5", "l2-s3-6-0", "l2-s3-6-1", "l2-s3-6-2", "l2-s3-6-3",
+  "l2-s3-6-4", "l2-s3-7-0", "l2-s3-7-1", "l2-s3-7-2", "l2-s3-7-3", "l2-s3-8-0",
+  "l2-s3-8-1", "l2-s3-8-2", "l2-s3-9-0", "l2-s3-9-1", "l2-s4-1-0-1-10", "l2-s4-1-1-0-9",
+  "l2-s4-2-0-2-10", "l2-s4-2-1-1-9", "l2-s4-2-2-0-8", "l2-s4-3-0-3-10", "l2-s4-3-1-2-9", "l2-s4-3-2-1-8",
+  "l2-s4-3-3-0-7", "l2-s4-4-0-4-10", "l2-s4-4-1-3-9", "l2-s4-4-2-2-8", "l2-s4-4-3-1-7", "l2-s4-4-4-0-6",
+  "l2-s4-5-0-5-10", "l2-s4-5-1-4-9", "l2-s4-5-2-3-8", "l2-s4-5-3-2-7", "l2-s4-5-4-1-6", "l2-s4-5-5-0-5",
+  "l2-s4-6-0-6-10", "l2-s4-6-1-5-9", "l2-s4-6-2-4-8", "l2-s4-6-3-3-7", "l2-s4-6-4-2-6", "l2-s4-7-0-7-10",
+  "l2-s4-7-1-6-9", "l2-s4-7-2-5-8", "l2-s4-7-3-4-7", "l2-s4-8-0-8-10", "l2-s4-8-1-7-9", "l2-s4-8-2-6-8",
+  "l2-s4-9-0-9-10", "l2-s4-9-1-8-9", "l2-s4s-3-8-2-1-8", "l2-s4s-3-9-1-2-9", "l2-s4s-4-7-3-1-7", "l2-s4s-4-9-1-3-9",
+  "l2-s4s-5-6-4-1-6", "l2-s4s-5-7-3-2-7", "l2-s4s-5-8-2-3-8", "l2-s4s-5-9-1-4-9", "l2-s4s-6-8-2-4-8", "l2-s4s-6-9-1-5-9",
+  "l2-s4s-7-8-2-5-8", "l2-s4s-7-9-1-6-9", "l2-s4s-8-9-1-7-9", "l2-simple-0-0", "l2-simple-1-0", "l2-simple-1-1",
+  "l2-simple-1-2", "l2-simple-1-3", "l2-simple-1-4", "l2-simple-1-5", "l2-simple-1-6", "l2-simple-1-7",
+  "l2-simple-1-8", "l2-simple-2-0", "l2-simple-2-1", "l2-simple-2-2", "l2-simple-2-3", "l2-simple-2-4",
+  "l2-simple-2-5", "l2-simple-2-6", "l2-simple-2-7", "l2-simple-3-0", "l2-simple-3-1", "l2-simple-3-2",
+  "l2-simple-3-3", "l2-simple-3-4", "l2-simple-3-5", "l2-simple-3-6", "l2-simple-4-0", "l2-simple-4-1",
+  "l2-simple-4-2", "l2-simple-4-3", "l2-simple-4-4", "l2-simple-4-5", "l2-simple-5-0", "l2-simple-5-1",
+  "l2-simple-5-2", "l2-simple-5-3", "l2-simple-5-4", "l2-simple-6-0", "l2-simple-6-1", "l2-simple-6-2",
+  "l2-simple-6-3", "l2-simple-7-0", "l2-simple-7-1", "l2-simple-7-2", "l2-simple-8-0", "l2-simple-8-1",
+  "l2-simple-9-0", "l2-simple-10-0", "l2-simple-11-1", "l2-simple-11-2", "l2-simple-11-3", "l2-simple-11-4",
+  "l2-simple-11-5", "l2-simple-11-6", "l2-simple-11-7", "l2-simple-11-8", "l2-simple-11-9", "l2-simple-12-1",
+  "l2-simple-12-2", "l2-simple-12-3", "l2-simple-12-4", "l2-simple-12-5", "l2-simple-12-6", "l2-simple-12-7",
+  "l2-simple-12-8", "l2-simple-12-9", "l2-simple-13-1", "l2-simple-13-2", "l2-simple-13-3", "l2-simple-13-4",
+  "l2-simple-13-5", "l2-simple-13-6", "l2-simple-13-7", "l2-simple-13-8", "l2-simple-13-9", "l2-simple-14-1",
+  "l2-simple-14-2", "l2-simple-14-3", "l2-simple-14-4", "l2-simple-14-5", "l2-simple-14-6", "l2-simple-14-7",
+  "l2-simple-14-8", "l2-simple-14-9", "l2-simple-15-1", "l2-simple-15-2", "l2-simple-15-3", "l2-simple-15-4",
+  "l2-simple-15-5", "l2-simple-15-6", "l2-simple-15-7", "l2-simple-15-8", "l2-simple-15-9", "l2-simple-16-1",
+  "l2-simple-16-2", "l2-simple-16-3", "l2-simple-16-4", "l2-simple-16-5", "l2-simple-16-6", "l2-simple-16-7",
+  "l2-simple-16-8", "l2-simple-16-9", "l2-simple-17-1", "l2-simple-17-2", "l2-simple-17-3", "l2-simple-17-4",
+  "l2-simple-17-5", "l2-simple-17-6", "l2-simple-17-7", "l2-simple-17-8", "l2-simple-17-9", "l2-simple-18-1",
+  "l2-simple-18-2", "l2-simple-18-3", "l2-simple-18-4", "l2-simple-18-5", "l2-simple-18-6", "l2-simple-18-7",
+  "l2-simple-18-8", "l2-simple-18-9", "l2-simple-19-1", "l2-simple-19-2", "l2-simple-19-3", "l2-simple-19-4",
+  "l2-simple-19-5", "l2-simple-19-6", "l2-simple-19-7", "l2-simple-19-8", "l2-simple-19-9", "l2-simple-20-1",
+  "l2-simple-20-2", "l2-simple-20-3", "l2-simple-20-4", "l2-simple-20-5", "l2-simple-20-6", "l2-simple-20-7",
+  "l2-simple-20-8", "l2-simple-20-9", "l3-rwd-11-1-12", "l3-rwd-11-2-13", "l3-rwd-11-3-14", "l3-rwd-11-4-15",
+  "l3-rwd-11-5-16", "l3-rwd-11-6-17", "l3-rwd-11-7-18", "l3-rwd-11-8-19", "l3-rwd-11-9-20", "l3-rwd-12-1-13",
+  "l3-rwd-12-2-14", "l3-rwd-12-3-15", "l3-rwd-12-4-16", "l3-rwd-12-5-17", "l3-rwd-12-6-18", "l3-rwd-12-7-19",
+  "l3-rwd-12-8-20", "l3-rwd-13-1-14", "l3-rwd-13-2-15", "l3-rwd-13-3-16", "l3-rwd-13-4-17", "l3-rwd-13-5-18",
+  "l3-rwd-13-6-19", "l3-rwd-13-7-20", "l3-rwd-14-1-15", "l3-rwd-14-2-16", "l3-rwd-14-3-17", "l3-rwd-14-4-18",
+  "l3-rwd-14-5-19", "l3-rwd-14-6-20", "l3-rwd-15-1-16", "l3-rwd-15-2-17", "l3-rwd-15-3-18", "l3-rwd-15-4-19",
+  "l3-rwd-15-5-20", "l3-rwd-16-1-17", "l3-rwd-16-2-18", "l3-rwd-16-3-19", "l3-rwd-16-4-20", "l3-rwd-17-1-18",
+  "l3-rwd-17-2-19", "l3-rwd-17-3-20", "l3-rwd-18-1-19", "l3-rwd-18-2-20", "l3-rwd-19-1-20", "l3-rwd-20-1-21",
+  "l3-rwd-20-2-22", "l3-rwd-20-3-23", "l3-rwd-20-4-24", "l3-rwd-20-5-25", "l3-rwd-20-6-26", "l3-rwd-20-7-27",
+  "l3-rwd-20-8-28", "l3-rwd-20-9-29", "l3-s1-11-1", "l3-s1-11-2", "l3-s1-11-3", "l3-s1-11-4",
+  "l3-s1-11-5", "l3-s1-11-6", "l3-s1-11-7", "l3-s1-11-8", "l3-s1-11-9", "l3-s1-12-1",
+  "l3-s1-12-2", "l3-s1-12-3", "l3-s1-12-4", "l3-s1-12-5", "l3-s1-12-6", "l3-s1-12-7",
+  "l3-s1-12-8", "l3-s1-13-1", "l3-s1-13-2", "l3-s1-13-3", "l3-s1-13-4", "l3-s1-13-5",
+  "l3-s1-13-6", "l3-s1-13-7", "l3-s1-14-1", "l3-s1-14-2", "l3-s1-14-3", "l3-s1-14-4",
+  "l3-s1-14-5", "l3-s1-14-6", "l3-s1-15-1", "l3-s1-15-2", "l3-s1-15-3", "l3-s1-15-4",
+  "l3-s1-15-5", "l3-s1-16-1", "l3-s1-16-2", "l3-s1-16-3", "l3-s1-16-4", "l3-s1-17-1",
+  "l3-s1-17-2", "l3-s1-17-3", "l3-s1-18-1", "l3-s1-18-2", "l3-s1-19-1", "l3-s1-20-1",
+  "l3-s1-20-2", "l3-s1-20-3", "l3-s1-20-4", "l3-s1-20-5", "l3-s1-20-6", "l3-s1-20-7",
+  "l3-s1-20-8", "l3-s1-20-9", "l3-s2-0-1", "l3-s2-0-2", "l3-s2-0-3", "l3-s2-0-4",
+  "l3-s2-0-5", "l3-s2-0-6", "l3-s2-0-7", "l3-s2-0-8", "l3-s2-0-9", "l3-s2-1-1",
+  "l3-s2-1-2", "l3-s2-1-3", "l3-s2-1-4", "l3-s2-1-5", "l3-s2-1-6", "l3-s2-1-7",
+  "l3-s2-1-8", "l3-s2-1-9", "l3-s2-2-1", "l3-s2-2-2", "l3-s2-2-3", "l3-s2-2-4",
+  "l3-s2-2-5", "l3-s2-2-6", "l3-s2-2-7", "l3-s2-2-8", "l3-s2-3-1", "l3-s2-3-2",
+  "l3-s2-3-3", "l3-s2-3-4", "l3-s2-3-5", "l3-s2-3-6", "l3-s2-3-7", "l3-s2-4-1",
+  "l3-s2-4-2", "l3-s2-4-3", "l3-s2-4-4", "l3-s2-4-5", "l3-s2-4-6", "l3-s2-5-1",
+  "l3-s2-5-2", "l3-s2-5-3", "l3-s2-5-4", "l3-s2-5-5", "l3-s2-6-1", "l3-s2-6-2",
+  "l3-s2-6-3", "l3-s2-6-4", "l3-s2-7-1", "l3-s2-7-2", "l3-s2-7-3", "l3-s2-8-1",
+  "l3-s2-8-2", "l3-s2-9-1", "l3-s3-1", "l3-s3-2", "l3-s3-3", "l3-s3-4",
+  "l3-s3-5", "l3-s3-6", "l3-s3-7", "l3-s3-8", "l3-s3-9", "l3-s3-10",
+  "lvl-1-decomp-eq", "lvl-1-decomp-pre", "lvl-1-greeting", "lvl-1-intro", "lvl-2-step-1-eq", "lvl-2-step-1-or",
+  "lvl-2-step-1-pre", "lvl-2-step-1-q", "lvl-2-step-2-big-pre", "lvl-2-step-2-find", "lvl-2-step-2-friend-pre", "lvl-2-step-2-q",
+  "lvl-2-step-3-can-split", "lvl-2-step-3-q", "lvl-2-step-3-split-pre", "lvl-2-step-4-calc", "lvl-2-step-4-split", "lvl-3-intro",
+  "lvl-3-step-1-pre", "lvl-3-step-1-q", "lvl-3-step-1-split", "lvl-3-step-2-pre", "lvl-done", "n-0",
+  "n-1", "n-2", "n-3", "n-4", "n-5", "n-6",
+  "n-7", "n-8", "n-9", "n-10", "n-11", "n-12",
+  "n-13", "n-14", "n-15", "n-16", "n-17", "n-18",
+  "n-19", "panda-cheer-1", "panda-cheer-2", "panda-praise-1", "panda-praise-2", "panda-praise-3",
+  "q-equals", "q-plus", "q-what-is", "whack-done", "whack-intro", "whack-start",
+  "whack-tick", "whack-timeup"
 ];
 
-const audio = {};
-for (const id of CUE_IDS) {
-  // MP3 from Edge TTS (see tools/build-audio-edge.mjs). Safari on iPad
-  // and Chromium on desktop both handle MP3 in <audio> natively.
-  const el = new Audio(`assets/audio/${id}.mp3`);
-  el.preload = "auto";
-  el.dataset.cue = id;
-  audio[id] = el;
-}
+// Lazy audio pool. With ~2000 pool-driven composite cues, eager
+// construction would hit Chrome's per-page WebMediaPlayer cap
+// (crbug.com/1144736 — typically ~50 <audio> elements per tab) and
+// burn ~20 MB of upfront memory for cues that may never fire in a
+// given session. Instead we build each Audio element on first access
+// via a Proxy, then cache it. Safari/iPad doesn't have the Chrome
+// cap, but the lazy pattern is harmless there and keeps `audioUnlocked`
+// semantics tight (only the cues the kid actually heard get the unlock
+// play/pause cycle, instead of every mp3 in the manifest).
+const audioCache = new Map();
+// Audio elements that were materialized (via the Proxy below) AFTER the
+// last user gesture. iPad Safari only allows `.play()` to actually start
+// playback for elements whose first play/pause cycle ran inside a user
+// activation — otherwise the call rejects with "the user didn't interact
+// with the document first" (user-visible as silent failure on every pool-
+// driven composite cue the first time it's requested, e.g. l3-s1-12-6).
+// We can't unlock these lazily at creation time (the Proxy often runs
+// outside a gesture — inside scene init, inside a `playSequence` chain),
+// so we mark them and drain the set on the next pointerdown. drainNeedsUnlock()
+// is called from the gesture handler at the bottom of this file.
+const needsUnlock = new WeakSet();
+// Set of valid cue ids for O(1) lookup in the Proxy traps below — built
+// once from CUE_IDS at boot. Probing `CUE_IDS.includes(id)` per access
+// would be O(n) and slow the audio pool down on every playCue().
+const validCueIds = new Set(CUE_IDS);
+const audio = new Proxy({}, {
+  get(_, id) {
+    if (typeof id !== "string") return undefined;
+    // Reject ids not in CUE_IDS — both deleted cues (panda-celebrate /
+    // enc-try / enc-great etc., removed when the tier system landed)
+    // and typo'd cue strings. Returning a real <audio> element for
+    // these would either silently replay the deleted cue (if the mp3
+    // still exists on disk from a build prior to deletion) or create
+    // a phantom element with no playback source. The
+    // `audio/panda-audio not loaded` warn in playCue catches the
+    // typo case instead.
+    if (!validCueIds.has(id)) return undefined;
+    let el = audioCache.get(id);
+    if (!el) {
+      // MP3 from Tencent TTS (see tools/build-audio-tencent.mjs) and
+      // tools/build-composite-audio.mjs. Safari on iPad and Chromium
+      // on desktop both handle MP3 in <audio> natively.
+      el = new Audio(`assets/audio/${id}.mp3`);
+      el.preload = "auto";
+      el.dataset.cue = id;
+      audioCache.set(id, el);
+      // Mark for unlock on the next user gesture — see the WeakSet
+      // comment above. This is the only line that's different from
+      // a vanilla lazy-Audio pool: every newly-materialized element
+      // gets one play/pause cycle inside a gesture before its first
+      // real play() attempt.
+      needsUnlock.add(el);
+    }
+    return el;
+  },
+  has(_, id) {
+    return typeof id === "string" && validCueIds.has(id);
+  },
+  ownKeys() { return [...CUE_IDS]; },
+  getOwnPropertyDescriptor(_, id) {
+    if (typeof id !== "string" || !validCueIds.has(id)) return undefined;
+    // Touch the proxy getter so the cache is populated, then expose
+    // it as an enumerable own property so `Object.keys(audio)` /
+    // `Object.values(audio)` (used by unlockAudio below) see every
+    // declared cue — but only iterate when actually called, so the
+    // Proxy `get` still does the lazy creation.
+    const el = audio[id];
+    return {
+      value: el,
+      writable: false,
+      enumerable: true,
+      configurable: true,
+    };
+  },
+});
 
 let audioUnlocked = false;
 function unlockAudio() {
   if (audioUnlocked) return;
-  for (const el of Object.values(audio)) {
+  // Iterate only the cues that have already been materialized via the
+  // Proxy — `audio` is lazy, so an unbounded Object.values() here would
+  // force-create every Audio element in CUE_IDS and re-introduce the
+  // Chrome WebMediaPlayer cap (crbug.com/1144736). The cues the kid
+  // hasn't heard yet stay un-cached and unlock the first time they fire.
+  for (const el of audioCache.values()) {
     const wasMuted = el.muted;
     el.muted = true;
     const p = el.play();
@@ -207,6 +472,136 @@ function unlockAudio() {
     }
   }
   audioUnlocked = true;
+}
+
+// Drains every audio element that the Proxy marked as needs-unlock. Runs
+// inside the pointerdown handler so `.play()` happens inside a user
+// gesture — that's the only context in which iPad Safari will accept
+// future play() calls on those elements. Silent (muted), then paused
+// immediately, then back to its previous muted state. Called on every
+// pointerdown so cues materializing in the middle of a session (the
+// common case for pool-driven composites like l3-s1-12-6) still get
+// unlocked before the next kid-driven cue fires.
+function drainNeedsUnlock() {
+  for (const el of audioCache.values()) {
+    if (!needsUnlock.has(el)) continue;
+    const wasMuted = el.muted;
+    el.muted = true;
+    const p = el.play();
+    const restore = () => {
+      el.pause();
+      try { el.currentTime = 0; } catch (_) { /* Safari pre-metadata */ }
+      el.muted = wasMuted;
+      needsUnlock.delete(el);
+    };
+    if (p && typeof p.then === "function") {
+      p.then(restore).catch(() => { el.muted = wasMuted; needsUnlock.delete(el); });
+    } else {
+      restore();
+    }
+  }
+}
+
+// Pool-driven composite cue ids per level. Mirrors the per-round id
+// emission in tools/_emit-cues.mjs exactly — if that script adds a new
+// pattern, this function must be updated to match (or the unlock will
+// silently miss cues the kid will hear).
+//
+// Kept inline rather than imported from the build script so the browser
+// side has zero dependency on the Node toolchain.
+function isMakeTenRound(nums) {
+  for (let i = 0; i < nums.length; i++) {
+    for (let j = i + 1; j < nums.length; j++) {
+      if (nums[i] + nums[j] === 10) return true;
+    }
+  }
+  return false;
+}
+
+function choosePairForCueIds(nums) {
+  // Mirror of scenes/level1.js's choosePair — always pair the first two
+  // addends, since L1's pool is sum-≤-10 only (no make-a-ten shortcut).
+  // scenes/level2.js uses the same shape for its (a, b, c) triples.
+  if (nums[0] + nums[1] === 10) return { pair: [nums[0], nums[1]], third: nums[2] };
+  if (nums[1] + nums[2] === 10) return { pair: [nums[1], nums[2]], third: nums[0] };
+  return { pair: [nums[0], nums[1]], third: nums[2] };
+}
+
+function computePoolCueIds(levelId) {
+  const ids = new Set();
+  if (levelId === 1) {
+    for (const r of poolGens[1]()) {
+      const [a, b, c] = r.nums;
+      const { pair, third } = choosePairForCueIds(r.nums);
+      if (isMakeTenRound(r.nums)) {
+        ids.add(`l1-intro-mt-${a}-${b}-${c}`);
+        ids.add(`l1-sub-find-ten`);
+      } else {
+        ids.add(`l1-intro-${a}-${b}-${c}`);
+        ids.add(`l1-sub-${pair[0]}-${pair[1]}`);
+      }
+      ids.add(`l1-step2-${pair[0] + pair[1]}-${third}`);
+      ids.add(`l1-rwd-${a}-${b}-${c}-${r.answer}`);
+    }
+  } else if (levelId === 2) {
+    for (const r of poolGens[2]()) {
+      const [a, b] = r.nums;
+      ids.add(`l2-simple-${a}-${b}`);
+      ids.add(`l2-rwd-${a}-${b}-${r.answer}`);
+    }
+  } else if (levelId === 3 || levelId === 4) {
+    // L4 reuses the L3 cue naming (see scenes/level4.js header comment),
+    // and the L4 pool is a strict subset of the L3 pool structure, so
+    // iterating the L3 pool pre-unlocks everything L4 will ever play.
+    for (const r of poolGens[3]()) {
+      const ones = r.a % 10;
+      const sum = ones + r.b;
+      ids.add(`l3-s1-${r.a}-${r.b}`);
+      ids.add(`l3-s2-${ones}-${r.b}`);
+      ids.add(`l3-s3-${sum}`);
+      ids.add(`l3-rwd-${r.a}-${r.b}-${r.answer}`);
+    }
+  }
+  return ids;
+}
+
+// Pre-unlock every pool-driven composite cue for a level. MUST be called
+// from inside a user gesture (level picker onClick / card.onPick) — iPad
+// Safari only accepts .play() for elements whose first play/pause cycle
+// ran inside a user activation, and the level card tap is the only
+// gesture available before roundScene's first .play() attempt.
+//
+// Without this, the first play() of l3-s1-12-6 (or whichever pool cue
+// round 0 fires) rejects with "user didn't interact with the document
+// first" and the kid hears silence for the entire first round. The
+// fix the user reported 2026-08-12 ("用户第一次进来点击时，必然出现").
+//
+// Static cues (enc-*, panda-praise-*, panda-cheer-*, enc-wrong-*,
+// enc-near-*, enc-specific-*) are NOT pre-unlocked here — they fire
+// in roundScene only after the kid has tapped an answer, which is a
+// gesture, and drainNeedsUnlock in the pointerdown handler picks them
+// up. Including them would balloon the cue set and hit Chrome's
+// WebMediaPlayer cap (crbug.com/1144736).
+function unlockLevelPool(levelId) {
+  const ids = computePoolCueIds(levelId);
+  for (const id of ids) {
+    const el = audio[id];
+    if (!el) continue;          // unknown id, leave to playCue's no-element warn
+    if (!needsUnlock.has(el)) continue;  // already unlocked by an earlier gesture
+    el.muted = true;
+    const p = el.play();
+    const restore = () => {
+      el.pause();
+      try { el.currentTime = 0; } catch (_) { /* Safari pre-metadata */ }
+      el.muted = false;
+      needsUnlock.delete(el);
+    };
+    if (p && typeof p.then === "function") {
+      p.then(restore).catch(() => { el.muted = false; needsUnlock.delete(el); });
+    } else {
+      restore();
+    }
+  }
 }
 
 // Plays a single cue's audio element from the start. Use playCueRaw()
@@ -302,7 +697,11 @@ function stopAllAudio() {
     }
   }
   activeAfters.clear();
-  for (const el of Object.values(audio)) {
+  // Iterate only the cues that have actually been materialized — same
+  // reason as unlockAudio above. A cue that hasn't fired yet has no
+  // <audio> element to pause, and forcing one to exist would defeat
+  // the lazy pool and re-introduce Chrome's WebMediaPlayer cap.
+  for (const el of audioCache.values()) {
     if (!el.paused) {
       try { el.pause(); } catch (_) {}
     }
@@ -501,7 +900,7 @@ const k = kaplay({
 });
 
 window.kaplay = k;
-window.PandaAudio = { audio, unlockAudio, playCue, playSequence, playAfter, stopAllAudio, isUnlocked: () => audioUnlocked };
+window.PandaAudio = { audio, unlockAudio, unlockLevelPool, playCue, playSequence, playAfter, stopAllAudio, isUnlocked: () => audioUnlocked };
 
 // Wrap k.go so any scene transition (level card tap, back button, round
 // transition, level-complete) stops the currently-speaking audio first.
@@ -583,6 +982,12 @@ tryLockLandscape();
 // tryLockLandscape explicitly so tapping the hint's button works
 // even if the canvas doesn't see the event.
 document.addEventListener("pointerdown", () => {
+  // Unlock lazily-materialized audio elements first — these are the
+  // cues the kid has triggered since the last gesture (e.g. the step
+  // audio that just played and rejected). unlockAudio() below runs
+  // only on the FIRST gesture (audioUnlocked early-returns), so this
+  // call is what keeps the unlock pattern working mid-session.
+  drainNeedsUnlock();
   unlockAudio();
   tryLockLandscape();
 }, { passive: true, once: false });

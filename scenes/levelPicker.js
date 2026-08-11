@@ -128,6 +128,15 @@ function drawCard(k, parent, level, unlocked, dailyLocked, cardW = 320) {
       return;
     }
     if (unlocked) {
+      // Pre-unlock every pool-driven composite cue for this level while
+      // we're still inside the card tap gesture. iPad Safari only
+      // accepts .play() for <audio> elements whose first play/pause
+      // cycle ran inside a user activation — and roundScene's first
+      // .play() (the step-1 cue, e.g. l3-s1-12-6) fires after k.go()
+      // returns, which is OUTSIDE the gesture. Without this, the first
+      // round plays in silence and the rejection logs once per pool
+      // cue. User-reported 2026-08-12: "用户第一次进来点击时，必然出现".
+      window.PandaAudio.unlockLevelPool(level.id);
       k.go(`level${level.id}`);
     }
   };
