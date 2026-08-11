@@ -204,7 +204,7 @@ for (const r of l1Pool) {
   // Pattern A (sum ≤ 10, no pair to ten): "look at the first two".
   composites.push({
     id: `l1-intro-${a}-${b}-${c}`,
-    text: `先看下${numZh(a)}加${numZh(b)}加${numZh(c)}等于几，这个问题可以分解成我们先看看前两个数相加。`,
+    text: `${numZh(a)}加${numZh(b)}加${numZh(c)}等于几，这个问题可以分解成我们先看看前两个数相加。`,
   });
   composites.push({
     id: `l1-sub-${pair[0]}-${pair[1]}`,
@@ -232,7 +232,7 @@ for (const r of l2Pool) {
   const { pair, third: thirdVal } = choosePair(r.nums);
   composites.push({
     id: `l1-intro-mt-${a}-${b}-${c}`,
-    text: `先看下${numZh(a)}加${numZh(b)}加${numZh(c)}等于几，这个问题可以分解成我们先找出相加为10的数。`,
+    text: `${numZh(a)}加${numZh(b)}加${numZh(c)}等于几，这个问题可以分解成我们先找出相加为10的数。`,
   });
   composites.push({
     id: `l1-rwd-${a}-${b}-${c}-${answer}`,

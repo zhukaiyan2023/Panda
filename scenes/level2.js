@@ -320,12 +320,14 @@ function speakSequence(k, ids, ctx) {
 
 // Per-round phase-1 sentence for L2. The full sentence reads:
 //
-//   先看下 a 加 b 加 c 等于几，这个问题可以分解成我们先找出相加为10的数。
+//   a 加 b 加 c 等于几，这个问题可以分解成我们先找出相加为10的数。
 //   哪两个数相加等于10
 //
 // Single composite mp3 — see tools/build-composite-audio.mjs. The
 // matching phase-2 cue is generic (shared across all L2 rounds) since
 // the actual pair depends on which two addends sum to 10.
+// (2026-08-12: dropped the leading "先看下" — the user found it
+// redundant; the sentence already opens with the equation.)
 function buildL2Phase1MakeTenIds(a, b, c) {
   return [`l1-intro-mt-${a}-${b}-${c}`];
 }
@@ -357,6 +359,8 @@ export default createRoundScene({
   //   "先看下 a+b+c 等于几，这个问题可以分解成我们先找出相加为10的数"
   // — it tells the kid the strategy ("find the ten-pair") and the
   // question ("which two addends sum to ten?") in one fluent sentence.
+  // (2026-08-12: dropped the leading "先看下" — it was redundant with
+  // the equation that immediately follows.)
   //
   // (Subsequent rounds also play the same phase-1 audio — same
   // strategy prompt, just for the new round's numbers.)

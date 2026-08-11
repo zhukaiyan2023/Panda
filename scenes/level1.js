@@ -426,7 +426,7 @@ function speakSequence(k, ids, ctx) {
 // Builds the per-round L1 "decompose" sentence as one pre-baked composite
 // mp3 per (a, b, c). The full sentence reads:
 //
-//   先看下 a 加 b 加 c 等于几，这个问题可以分解成我们先看看前两个数相加。
+//   a 加 b 加 c 等于几，这个问题可以分解成我们先看看前两个数相加。
 //   a 加 b 等于几
 //
 // The split lets the step-1 sub-question ("a + b = ?") appear at the
@@ -436,6 +436,8 @@ function speakSequence(k, ids, ctx) {
 // "2+3=?" they're meant to answer, paired with the phase-2 question
 // "2 加 3 等于几". Showing the sub-question immediately (the old
 // behavior) made the screen busy before the kid knew the strategy.
+// (2026-08-12: dropped the leading "先看下" — the user found it
+// redundant; the sentence already opens with the equation.)
 function buildL1Phase1Ids(a, b, c) {
   // Single composite mp3 — "先看下 a 加 b 加 c 等于几，这个问题可以分解成..."
   return [`l1-intro-${a}-${b}-${c}`];
@@ -467,7 +469,9 @@ export default createRoundScene({
   // step 1 phase-1 audio IS the entry guidance:
   //   "先看下 a+b+c 等于几，这个问题可以分解成我们先看看前两个数相加"
   // — it tells the kid the strategy ("decompose") and the question
-  // ("what does this equal?") in one fluent sentence.
+  // ("what does this equal?") in one fluent sentence. (2026-08-12:
+  // dropped the leading "先看下" — it was redundant with the equation
+  // that immediately follows.)
   //
   // (Subsequent rounds also play the same phase-1 audio — same
   // strategy prompt, just for the new round's numbers.)
