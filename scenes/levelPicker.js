@@ -43,7 +43,7 @@ function sprite(parent, k, name, { x, y, size }) {
   return node;
 }
 
-function drawCard(k, parent, level, unlocked, cardW = 320) {
+function drawCard(k, parent, level, unlocked, dailyLocked, cardW = 320) {
   const w = cardW;
   const h = 380;
   const { cardX: x, cardY: y } = level;
@@ -98,7 +98,7 @@ function drawCard(k, parent, level, unlocked, cardW = 320) {
     k.anchor("center"),
   ]);
 
-  if (unlocked) {
+  if (unlocked && !dailyLocked) {
     card.add([
       k.text("▶", { size: 56, font: FONT }),
       k.color(...accent),
@@ -106,8 +106,12 @@ function drawCard(k, parent, level, unlocked, cardW = 320) {
       k.anchor("center"),
     ]);
   } else if (!sprite(card, k, "lock", { x: 0, y: h / 2 - 62, size: 72 })) {
+    // Both truly-locked and daily-locked fall through here. They
+    // share the same greyed visual so the kid just sees "not now".
+    // The text differs ("还没解锁" vs "今天练够啦") so an adult
+    // notices the distinction; a pre-reader doesn't need to.
     card.add([
-      k.text("还没解锁", { size: 32, font: FONT }),
+      k.text(dailyLocked ? "今天练够啦" : "还没解锁", { size: 32, font: FONT }),
       k.color(...titleColor),
       k.pos(0, h / 2 - 62),
       k.anchor("center"),
@@ -115,6 +119,14 @@ function drawCard(k, parent, level, unlocked, cardW = 320) {
   }
 
   const onPick = () => {
+    if (unlocked && dailyLocked) {
+      // Friendly feedback — kid tapped a card they've used up for
+      // today. stopAllAudio first so the previous cue doesn't
+      // bleed through. Same cue the dailyDone scene plays.
+      window.PandaAudio.stopAllAudio();
+      window.PandaAudio.playCue("daily-done");
+      return;
+    }
     if (unlocked) {
       k.go(`level${level.id}`);
     }
@@ -190,6 +202,10 @@ export default function levelPickerScene(k) {
   const totalSpan = (levels.length - 1) * stride;
   const baseY = 560;
   levels.forEach((lvl, i) => {
+    const unlocked = lvl.id <= save.unlockedLevel;
+    // dailyLocked is only meaningful for unlocked levels — a truly
+    // locked level is already gated by the unlocked check above.
+    const dailyLocked = unlocked && window.PandaSave?.isLevelDailyLocked(lvl.id);
     drawCard(
       k,
       k,
@@ -198,7 +214,8 @@ export default function levelPickerScene(k) {
         cardX: k.width() / 2 - totalSpan / 2 + i * stride,
         cardY: baseY,
       },
-      lvl.id <= save.unlockedLevel,
+      unlocked,
+      dailyLocked,
       cardW,
     );
   });
