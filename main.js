@@ -14,11 +14,21 @@ import "./save.js";
 // each level scene passes a `poolGen` to createRoundScene which samples
 // 10 rounds per session from the full enumeration. This inline levelsData
 // only carries metadata (title, intro) for the menu UI.
+//
+// Four math levels (added 2026-08-11 when the original combined L1
+// was split into sum-≤-10 + two-sum-to-10, and 凑十法 / 二十以内 were
+// renumbered to L3 / L4):
+//   L1 三数相加<10  sum of three 1-digit addends ≤ 10
+//   L2 两个数凑十   three addends where two sum to 10
+//   L3 凑十法       single-digit pair whose sum > 10, teach the
+//                   make-a-ten decomposition
+//   L4 二十以内     teen + digit, no-carry, use 10+ones strategy
 const levelsData = {
   "levels": [
-    { "id": 1, "title": "三数相加" },
-    { "id": 2, "title": "凑十法" },
-    { "id": 3, "title": "二十以内" },
+    { "id": 1, "title": "三数相加<10" },
+    { "id": 2, "title": "两个数凑十" },
+    { "id": 3, "title": "凑十法" },
+    { "id": 4, "title": "二十以内" },
   ],
 };
 
@@ -708,6 +718,7 @@ watchOrientation();
     { default: level1 },
     { default: level2 },
     { default: level3 },
+    { default: level4 },
     { default: gameBoat },
     { default: gameBounce },
     { default: gameCloud },
@@ -719,6 +730,7 @@ watchOrientation();
     import("./scenes/level1.js"),
     import("./scenes/level2.js"),
     import("./scenes/level3.js"),
+    import("./scenes/level4.js"),
     import("./scenes/gameBoat.js"),
     import("./scenes/gameBounce.js"),
     import("./scenes/gameCloud.js"),
@@ -736,6 +748,7 @@ watchOrientation();
   k.scene("level1", () => level1(k));
   k.scene("level2", () => level2(k));
   k.scene("level3", () => level3(k));
+  k.scene("level4", () => level4(k));
   k.scene("gameBoat",   () => gameBoat(k));
   k.scene("gameBounce", () => gameBounce(k));
   k.scene("gameCloud",  () => gameCloud(k));

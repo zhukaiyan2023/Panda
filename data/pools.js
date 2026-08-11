@@ -1,51 +1,49 @@
 // data/pools.js — per-level round pool generators.
 //
-// Each level defines a `poolGen()` that enumerates every valid round
+// Each level defines its own `poolGen()` that enumerates every valid round
 // for that level. The level scene passes the poolGen to createRoundScene,
 // which shuffles the pool and samples `sampleSize` rounds at scene init
 // (roundIdx === 0). The kid sees those N rounds in random order; the
 // next time they enter the level, a fresh sample is drawn.
 //
-// Pool sizes (per the project goal):
-//   L1 三数相加  — 337 triples (sum ≤ 10 OR two-sum-to-10), sample 10
-//   L2 凑十法    — 36 ordered (a, b) pairs, both single digits, sum > 10.
-//                  Sample 10 per session. See generateL2Pool for the
-//                  derivation.
-//   L3 二十以内  — full enumeration (36), sample 10
+// Four fully-independent pools. Each level owns its own math rule and
+// its own enumeration — adding / removing / changing one level does
+// not touch any other.
+//
+//   L1 三数相加小于10  — triples (a,b,c) ∈ {1..9}³ with a+b+c ≤ 10.
+//                       120 ordered triples. Sample 10 per session.
+//   L2 两个数凑十      — triples (a,b,c) ∈ {1..9}³ with two of the
+//                       three summing to 10. 217 ordered triples.
+//                       Sample 10 per session.
+//   L3 凑十法          — ordered (a, b) pairs, both single digits,
+//                       sum > 10. 36 pairs. Sample 10 per session.
+//   L4 二十以内        — a ∈ [11, 19], b ∈ [1, 9], ones(a)+b < 10.
+//                       36 ordered pairs. Sample 10 per session.
 //
 // All generators are pure functions of the level schema — no I/O, no
 // randomness. The shuffle lives in roundScene.js so poolGen can be
 // diffed in tests without random noise.
 
-// L1 — 三数相加.
-// Enumerate ordered triples (a, b, c) with each ∈ {1..9} that satisfy
-// EITHER (a) a+b+c ≤ 10 (kid can count on fingers) OR (b) two of the
-// three addends sum to 10 (the make-a-ten strategy applies). The two
-// sets are disjoint (sum ≤ 10 + two-sum-to-10 forces the third to be
-// ≤ 0, but all addends ≥ 1, so no overlap).
+// L1 — 三数相加小于10.
+// Enumerate ordered triples (a, b, c) with each ∈ {1..9} and a+b+c ≤ 10.
+// This is the "easy" three-addend pool: kid can count on fingers, no
+// make-a-ten trick required (and explicitly excluded here so L1 stays
+// focused on its single rule).
 //
-// Count: 120 (sum ≤ 10) + 217 (≥ one pair sums to 10, by
-// inclusion-exclusion) = 337 ordered triples. See
-// docs/superpowers/specs/2026-08-10-pool-rules-update-design.md for
-// the full derivation.
+// Count: for each a in 1..9, b in 1..9, c in 1..9 with a+b+c ≤ 10.
+//   a=1: c can be 1..8 (sum ≤ 10, b ≤ 9, c ≤ 10-a-b)  → 8
+//   a=2: c can be 1..7 (with b=1, c≤7) → 7
+//   ...
+//   a=9: c can only be 1 (9+1+1=11 > 10, fails), so 0
+// Total: 8+7+6+5+4+3+2+1+0 = 36 triples per (a,b) pair? No — the actual
+// count for ordered triples in {1..9}³ with a+b+c ≤ 10 is 120 (verified
+// by direct enumeration below).
 function generateL1Pool() {
   const pool = [];
-  // Loop 1 — sum ≤ 10 (no 0s, all positive addends).
   for (let a = 1; a <= 9; a++) {
     for (let b = 1; b <= 9; b++) {
       for (let c = 1; c <= 9; c++) {
-        const sum = a + b + c;
-        if (sum > 10) continue;
-        pool.push({ kind: "three-sum", nums: [a, b, c], answer: sum });
-      }
-    }
-  }
-  // Loop 2 — at least one pair sums to 10.
-  for (let a = 1; a <= 9; a++) {
-    for (let b = 1; b <= 9; b++) {
-      for (let c = 1; c <= 9; c++) {
-        const ten = a + b === 10 || a + c === 10 || b + c === 10;
-        if (!ten) continue;
+        if (a + b + c > 10) continue;
         pool.push({ kind: "three-sum", nums: [a, b, c], answer: a + b + c });
       }
     }
@@ -53,7 +51,37 @@ function generateL1Pool() {
   return pool;
 }
 
-// L2 — 凑十法.
+// L2 — 两个数凑十 (two-of-three sum to 10).
+// Enumerate ordered triples (a, b, c) ∈ {1..9}³ where AT LEAST ONE pair
+// of the three addends sums to 10. This is the "make-a-ten" practice
+// pool: the kid has to spot which two addends combine to ten, then add
+// the third. (Sum is necessarily > 10 since the third addend ≥ 1.)
+//
+// Count: by inclusion-exclusion on the three pair conditions (a+b=10,
+// a+c=10, b+c=10) inside {1..9}³. The single-pair sets are not disjoint
+// (a+b=10 and a+c=10 can both hold when b=c, e.g. {5, 5, 5}; a+b=10
+// and b+c=10 share nothing else; a+b=10 and a+c=10 share a-b=c which
+// for fixed a+b=10 means c=b so a=10-b). Direct enumeration gives 217
+// ordered triples — verified by the loop below.
+//
+// This pool is intentionally disjoint from generateL1Pool: the L1
+// pool only emits triples with a+b+c ≤ 10, so no triple can both sum
+// ≤ 10 AND have a pair summing to 10 (the third would have to be 0).
+function generateL2Pool() {
+  const pool = [];
+  for (let a = 1; a <= 9; a++) {
+    for (let b = 1; b <= 9; b++) {
+      for (let c = 1; c <= 9; c++) {
+        const ten = a + b === 10 || a + c === 10 || b + c === 10;
+        if (!ten) continue;
+        pool.push({ kind: "three-ten", nums: [a, b, c], answer: a + b + c });
+      }
+    }
+  }
+  return pool;
+}
+
+// L3 — 凑十法.
 // Make-ten is the strategy of splitting the smaller addend so the
 // larger + part-of-smaller = 10, then adding the leftover. The math
 // ONLY works when big ≤ 10 (otherwise need = 10 - big is negative).
@@ -74,7 +102,7 @@ function generateL1Pool() {
 // Variety: roundScene samples 10 of 36 per session, so the number of
 // distinct orderings is P(36, 10) ≈ 1.0 × 10¹⁴ — effectively infinite
 // replay variety.
-function generateL2Pool() {
+function generateL3Pool() {
   const pool = [];
   for (let a = 1; a <= 9; a++) {
     for (let b = 1; b <= 9; b++) {
@@ -90,7 +118,7 @@ function generateL2Pool() {
   return pool;
 }
 
-// L3 — 二十以内 (no carrying).
+// L4 — 二十以内 (no carrying).
 // The strategy: split a into 10 + ones(a), add ones(a) + b = sum, then
 // 10 + sum = answer. Per user rules:
 //   - a ∈ [11, 19] (one addend must be a "十几" — teen, not 二十)
@@ -108,7 +136,7 @@ function generateL2Pool() {
 //
 // The user wants every valid round listed — no curation. Sample 10 per
 // session, leaving the other 26 for future runs.
-function generateL3Pool() {
+function generateL4Pool() {
   const pool = [];
   for (let a = 11; a <= 19; a++) {
     const ones = a % 10;
@@ -120,17 +148,21 @@ function generateL3Pool() {
   return pool;
 }
 
+// Per-level pool arrays. roundScene imports these (or poolGens below)
+// to sample a fresh batch of rounds on each entry.
 export const levelPools = {
   1: generateL1Pool(),
   2: generateL2Pool(),
   3: generateL3Pool(),
+  4: generateL4Pool(),
 };
 
 // Re-export the generators so tools/build-composite-audio.mjs (or a
-// test harness) can rebuild the pool without going through the
+// test harness) can rebuild any pool without going through the
 // already-mutated `levelPools` array (which roundScene shuffles).
 export const poolGens = {
   1: generateL1Pool,
   2: generateL2Pool,
   3: generateL3Pool,
+  4: generateL4Pool,
 };

@@ -1,26 +1,30 @@
-// scenes/level1.js — three-addend addition, taught in 2 explicit steps with
-// a persistent top anchor.
+// scenes/level1.js — 三数相加小于10 (three-addend addition, sum ≤ 10).
+// Taught in 2 explicit steps with a persistent top anchor.
 //
-// Layout (matches L2 for visual consistency):
+// Layout (matches L2/L3/L4 for visual consistency):
 //   * Top:   persistent anchor "a + b + c = ?" — the goal the child is
 //            working toward. Large and bold, never disappears between steps.
 //   * Middle: cells with circles — the visual representation of the three
-//             addends. The pair-to-add-first gets an orange ring on step 1.
+//             addends.
 //   * Bottom: sub-question that changes per step.
 //
-// Teaching flow:
-//   * Pattern A (sum ≤ 10, no pair to ten): pair = first two sequentially.
-//   * Pattern B (two of three pair to ten): pair = the two that make ten.
+// Teaching flow (sum ≤ 10, no pair-to-ten trick):
+//   * Pair = the first two addends. Third is the leftover.
+//   * Step 1 — Pair:        sub "pair[0] + pair[1] = ?"
+//                            child picks pairSum. The pair's cells light up
+//                            with orange rings so the eye lands on them.
+//   * Step 2 — Add the rest: shows the parenthesized form "(pair[0] + pair[1])
+//                            + third = pairSum" above the cells (a visual aid
+//                            that ties the pair to the running sum), then the
+//                            simplified "pairSum + third = ?" below the cells
+//                            as the actual pick. Child picks the total, cells
+//                            pulse on correct.
 //
-//   Step 1 — Pair:        sub "pair[0] + pair[1] = ?"
-//                          child picks pairSum. The pair's cells light up
-//                          with orange rings so the eye lands on them.
-//   Step 2 — Add the rest: shows the parenthesized form "(pair[0] + pair[1])
-//                          + third = pairSum" above the cells (a visual aid
-//                          that ties the pair to the running sum), then the
-//                          simplified "pairSum + third = ?" below the cells
-//                          as the actual pick. Child picks the total, cells
-//                          pulse on correct.
+// This level's pool is the SUM-≤-10 branch only — make-a-ten triples
+// (where two of three sum to 10) live in level2.js, NOT here. So
+// `choosePair` never has to look for a pair-to-ten; it always uses
+// the first two indices. That's why this file is much shorter than
+// the original "combined" L1.
 //
 // On a correct pick on step 2 the anchor's "?" reveals to the answer
 // (alongside the sub-question's "?"). Step 1's correct pick only fills
@@ -32,55 +36,19 @@ import createRoundScene, { LAYOUT, options } from "./roundScene.js";
 import { poolGens } from "../data/pools.js";
 
 const COLORS = [NUM_BLUE, NUM_YELLOW, NUM_PINK];
-const TEN = 10;
 
-// Pick the pair to add first: prefer a pair that sums to ten, otherwise
-// use the first two addends sequentially. Returns the addends in the order
-// they should appear in the equation (always a + b). The `isMakeTen` flag
-// tells the scene to switch the sub-question to "? + ? = 10" and the
-// answer options to "a+b" pair labels (so the kid practices finding the
-// pair that makes ten, not just adding the first two).
+// Pick the pair to add first. L1's pool only contains sum-≤-10 triples,
+// so there is never a pair-to-ten shortcut — always use the first two
+// addends as the pair and the last as the third. The function shape
+// mirrors level2.js's choosePair for visual consistency, but here
+// `isMakeTen` is always false.
 function choosePair(nums) {
-  for (let i = 0; i < nums.length; i++) {
-    for (let j = i + 1; j < nums.length; j++) {
-      if (nums[i] + nums[j] === TEN) {
-        const thirdIdx = nums.findIndex((n, k) => k !== i && k !== j);
-        return {
-          pair: [nums[i], nums[j]],
-          third: nums[thirdIdx],
-          pairSum: TEN,
-          isMakeTen: true,
-        };
-      }
-    }
-  }
-  return { pair: [nums[0], nums[1]], third: nums[2], pairSum: nums[0] + nums[1], isMakeTen: false };
-}
-
-// All ordered pairs that sum to 10. The step-1 button options for a
-// make-a-ten round are 4 of these 5 (the correct pair + 3 distractors).
-// The correct pair is the one whose addends are both in the triple; the
-// kid picks it by recognising which two addends make ten.
-const ALL_TEN_PAIRS = [[1, 9], [2, 8], [3, 7], [4, 6], [5, 5]];
-
-function makeTenPairOptions(correctPair) {
-  // Normalize pair order so [6, 4] matches [4, 6] in ALL_TEN_PAIRS.
-  // choosePair returns the pair in the order it walks the indices, so
-  // the same unordered pair can come back as [4, 6] or [6, 4] depending
-  // on the triple's order. Without this, the filter below misses the
-  // match and the correct pair ends up dropped from the options.
-  const [a, b] = correctPair;
-  const norm = a <= b ? [a, b] : [b, a];
-  const distractors = ALL_TEN_PAIRS.filter(
-    ([x, y]) => !(x === norm[0] && y === norm[1]),
-  );
-  // Deterministic: pick the first 3 distractors in sorted order. Stable
-  // across re-renders so the scene's diff is meaningful.
-  const label = (p) => `${p[0]}+${p[1]}`;
-  const correct = label(norm);
-  const opts = [correct];
-  for (let i = 0; i < 3; i++) opts.push(label(distractors[i]));
-  return opts;
+  return {
+    pair: [nums[0], nums[1]],
+    third: nums[2],
+    pairSum: nums[0] + nums[1],
+    isMakeTen: false,
+  };
 }
 
 // Anchor slots for the persistent top equation "a + b + c = ?". Each addend
@@ -274,14 +242,8 @@ function speakSequence(k, ids, ctx) {
   k.wait(0.1, () => window.PandaAudio.playSequence(ids, 40));
 }
 
-// Builds the per-round L1 "decompose" sentence as two phases of
-// pre-baked composite audio cues. Each round's full sentence is one
-// mp3 (e.g. "先看下二加三加四等于几...") instead of a chain of
-// single-syllable cues stitched together at play time. The TTS
-// pipeline (tools/build-composite-audio.mjs) synthesizes one mp3 per
-// (a, b, c) combination from data/levels.json.
-//
-// For nums [a, b, c] the sentence reads:
+// Builds the per-round L1 "decompose" sentence as one pre-baked composite
+// mp3 per (a, b, c). The full sentence reads:
 //
 //   先看下 a 加 b 加 c 等于几，这个问题可以分解成我们先看看前两个数相加。
 //   a 加 b 等于几
@@ -303,35 +265,9 @@ function buildL1Phase2Ids(a, b) {
   return [`l1-sub-${a}-${b}`];
 }
 
-// Make-a-ten variants. Used when two of the three addends sum to 10 —
-// the kid is asked to FIND the pair that makes ten, not to add the
-// first two. Phase 1 is per-round (mentions the three numbers); phase 2
-// is a generic "哪两个数相加等于10" question shared across all make-a-ten
-// rounds.
-function buildL1Phase1MakeTenIds(a, b, c) {
-  return [`l1-intro-mt-${a}-${b}-${c}`];
-}
-
-function buildL1Phase2MakeTenIds() {
-  return ["l1-sub-find-ten"];
-}
-
-// Maps a non-negative integer to the cue id(s) that read it aloud in
-// Mandarin. 0..10 are single-syllable. 11..19 are 十+X. 20 is 二十
-// (十+十). L1 answers go up to 15; L3 answers go up to 20.
-function numToCueIds(n) {
-  if (n < 0 || !Number.isFinite(n) || !Number.isInteger(n)) return [];
-  if (n <= 10) return [`n-${n}`];
-  if (n < 20) return ["n-10", `n-${n - 10}`];
-  if (n === 20) return ["n-10", "n-10"];
-  // 21+ is out of L1's range; fall back to the bare digit so the audio
-  // still produces something rather than going silent.
-  return [`n-${n}`];
-}
-
 // Builds the "X 加 Y 加 Z 等于 答" reward sentence played after the
 // child picks the correct answer on L1 step 2. One composite mp3
-// per (a, b, c, answer) — see tools/build-composite-audio.mjs.
+// per (a, b, c, answer).
 function buildL1AnswerIds(a, b, c, answer) {
   return [`l1-rwd-${a}-${b}-${c}-${answer}`];
 }
@@ -339,7 +275,7 @@ function buildL1AnswerIds(a, b, c, answer) {
 export default createRoundScene({
   levelId: 1,
   sceneName: "level1",
-  // Pull the 200-round pool from data/pools.js. roundScene samples 10
+  // Pull the 120-round pool from data/pools.js. roundScene samples 10
   // of them on first entry and walks through in random order.
   poolGen: () => poolGens[1](),
   sampleSize: 10,
@@ -359,10 +295,11 @@ export default createRoundScene({
   stepLabels: ["两数相加", "计算结果"],
 
   steps: [
-    // Step 1 — Pair: "pair[0] + pair[1] = ?" (sum ≤ 10) or
-    // "? + ? = 10" (two-of-three sum to 10).
+    // Step 1 — Pair: "pair[0] + pair[1] = ?". Pair is always the first
+    // two addends (L1's pool is sum-≤-10 only, so there's no pair-to-ten
+    // shortcut to teach).
     (ctx, round) => {
-      const { pair, isMakeTen } = choosePair(round.nums);
+      const { pair } = choosePair(round.nums);
       const aIdx = round.nums.indexOf(pair[0]);
       const bIdx = round.nums.indexOf(pair[1], aIdx + 1);
       const pairSum = pair[0] + pair[1];
@@ -380,13 +317,9 @@ export default createRoundScene({
       // immediately (the old behavior) made the screen busy before the
       // kid had heard the strategy.
       //
-      // Two audio paths:
-      //   • Sum ≤ 10 (no pair to ten): "先看下 a+b+c 等于几, 这个问题
-      //     可以分解成我们先看看前两个数相加" + "a 加 b 等于几"
-      //   • Two-of-three sum to 10 (make-a-ten practice): "先看下 a+b+c
-      //     等于几, 这个问题可以分解成我们先找出相加为10的数" + "哪两个数
-      //     相加等于10" — the kid picks the pair (e.g. "4+6") that
-      //     matches the triple, practising the make-a-ten strategy.
+      // Audio path (sum ≤ 10 only — make-a-ten moved to level2.js):
+      //   "先看下 a+b+c 等于几, 这个问题可以分解成我们先看看前两个数相加"
+      //   + "a 加 b 等于几"
       //
       // phase 1 chain plays the per-round decompose sentence directly on
       // every round (no entry greeting — see config-level comment).
@@ -394,24 +327,15 @@ export default createRoundScene({
       // after the LAST cue's
       // `ended` event — i.e. after the audio has actually finished.
       const [a, b, c] = round.nums;
-      const phase1Ids = isMakeTen
-        ? buildL1Phase1MakeTenIds(a, b, c)
-        : buildL1Phase1Ids(a, b, c);
-      const phase2Ids = isMakeTen
-        ? buildL1Phase2MakeTenIds()
-        : buildL1Phase2Ids(pair[0], pair[1]);
+      const phase1Ids = buildL1Phase1Ids(a, b, c);
+      const phase2Ids = buildL1Phase2Ids(pair[0], pair[1]);
 
-      // Sub-question slots + colors. Make-a-ten flips the question to
-      // "? + ? = 10" (the kid hunts for the pair); the normal path
-      // shows the actual chosen pair.
-      const subSlots = isMakeTen
-        ? ["?", "+", "?", "=", TEN]
-        : [pair[0], "+", pair[1], "=", "?"];
-      const subColors = [undefined, undefined, undefined, undefined, undefined];
-      if (!isMakeTen) {
-        subColors[0] = COLORS[aIdx];
-        subColors[2] = COLORS[bIdx];
-      }
+      // Sub-question slots + colors. Always "pair[0] + pair[1] = ?"
+      // — no make-a-ten variant here (that branch lives in level2.js).
+      const subSlots = [pair[0], "+", pair[1], "=", "?"];
+      const subColors = [
+        COLORS[aIdx], undefined, COLORS[bIdx], undefined, undefined,
+      ];
 
       const firePhase2 = () => {
         // Show the step-1 sub-question NOW — the kid has heard the
@@ -436,34 +360,14 @@ export default createRoundScene({
         // child reads "2+3+4=?" then "2+3=?" as a single thought. The
         // cells row sits below as the visual aid.
         equationOpts: { y: 340, size: 82 },
-        // No `cue` here — the L1 step-1 audio is the per-round
-        // decompose sentence fired above (via playAfter). The old
-        // `cue: "step-1"` was the L2 phrase "比一比" and leaked into
-        // L1, which is why the user heard it on every L1 round.
-        question: isMakeTen
-          ? {
-              // Kid picks the pair like "4+6" whose addends are in the
-              // triple. 4 ordered-string options summing to 10. The
-              // correct label is normalized (smaller first) so it
-              // matches an option in makeTenPairOptions regardless of
-              // which order choosePair walked the indices in.
-              correct: pair[0] <= pair[1]
-                ? `${pair[0]}+${pair[1]}`
-                : `${pair[1]}+${pair[0]}`,
-              values: makeTenPairOptions(pair),
-            }
-          : {
-              correct: pairSum,
-              values: options(pairSum, { min: 0, max: 16, count: 4 }),
-            },
+        question: {
+          correct: pairSum,
+          values: options(pairSum, { min: 0, max: 16, count: 4 }),
+        },
         onAdvance: () => {
           ctx.setEquation({
-            slots: isMakeTen
-              ? [pair[0], "+", pair[1], "=", TEN]
-              : [pair[0], "+", pair[1], "=", pairSum],
-            colors: isMakeTen
-              ? [COLORS[aIdx], undefined, COLORS[bIdx], undefined, ORANGE]
-              : [COLORS[aIdx], undefined, COLORS[bIdx], undefined, ORANGE],
+            slots: [pair[0], "+", pair[1], "=", pairSum],
+            colors: [COLORS[aIdx], undefined, COLORS[bIdx], undefined, ORANGE],
           }, { y: 340, size: 82 });
         },
       };
@@ -516,25 +420,18 @@ export default createRoundScene({
         // aid that mirrors the original equation in parens form). The cells
         // row sits further down as the visual aid for the simplified form.
         equationOpts: { y: 440, size: 82 },
-        // No `cue` — the L1 step-2 audio is the speakSequence fired
-        // above ("几加 X 加 Y"), chained event-by-event.
         question: {
           correct: round.answer,
-          // L1 answer range: sum ≤ 10 path yields answers in [3, 10];
-          // make-a-ten path yields 10 + third ∈ [11, 19]. max: 20
-          // covers the worst case (10 + 9 = 19) with one slot of
-          // headroom. The previous `max: 16` silently dropped answers
-          // 17, 18, 19 — for triples like 7+7+3 (answer 17) the kid
-          // saw options [16, 15, 14, 13] with no correct answer to
-          // pick.
+          // L1 sum-≤-10 answer range: max sum is 10, so answers are in
+          // [3, 10]. min: 0, max: 20 covers the worst case with one
+          // slot of headroom.
           values: options(round.answer, { min: 0, max: 20, count: 4 }),
         },
         // Step 2 is the last step AND the one that reads back the
         // full equation on a correct pick. The advance is gated on
         // the equation audio finishing (see onAdvance below) instead
         // of a hardcoded pause — the equation chain's actual length
-        // varies with the round's numbers (single-digit answers need
-        // 7 cues; two-digit answers need 8). advancePauseMs stays as
+        // varies with the round's numbers. advancePauseMs stays as
         // a safety ceiling in case the audio chain gets stuck.
         advancePauseMs: 12000,
         onAdvance: () => {
