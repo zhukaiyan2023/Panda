@@ -2,9 +2,9 @@
 //
 // Shape:
 //   {
-//     currentLevel: 1..3,
-//     unlockedLevel: 1..3,
-//     starsByLevel: { 1: n, 2: n, 3: n },
+//     currentLevel: 1..4,
+//     unlockedLevel: 1..4,
+//     starsByLevel: { 1: n, 2: n, 3: n, 4: n },
 //     unlockedGame: 1..5,           // panda-park games, parallel track
 //     starsByGame:  { 1: n, 2: n, 3: n, 4: n, 5: n },
 //   }
@@ -72,11 +72,11 @@ function sanitize(value) {
   if (!value || typeof value !== "object") {
     return cloneSave(DEFAULT);
   }
-  const unlocked = clampInt(value.unlockedLevel, 1, 3, 1);
+  const unlocked = clampInt(value.unlockedLevel, 1, 4, 1);
   const current = clampInt(value.currentLevel, 1, unlocked, 1);
   const stars = {};
   if (value.starsByLevel && typeof value.starsByLevel === "object") {
-    for (let i = 1; i <= 3; i++) {
+    for (let i = 1; i <= 4; i++) {
       stars[i] = clampInt(value.starsByLevel[i], 0, 999, 0);
     }
   }

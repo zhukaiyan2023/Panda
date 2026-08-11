@@ -14,11 +14,21 @@ import "./save.js";
 // each level scene passes a `poolGen` to createRoundScene which samples
 // 10 rounds per session from the full enumeration. This inline levelsData
 // only carries metadata (title, intro) for the menu UI.
+//
+// Four math levels (added 2026-08-11 when the original combined L1
+// was split into sum-≤-10 + two-sum-to-10, and 凑十法 / 二十以内 were
+// renumbered to L3 / L4):
+//   L1 三数相加<10  sum of three 1-digit addends ≤ 10
+//   L2 两个数凑十   three addends where two sum to 10
+//   L3 凑十法       single-digit pair whose sum > 10, teach the
+//                   make-a-ten decomposition
+//   L4 二十以内     teen + digit, no-carry, use 10+ones strategy
 const levelsData = {
   "levels": [
     { "id": 1, "title": "三数相加" },
-    { "id": 2, "title": "凑十法" },
-    { "id": 3, "title": "二十以内" },
+    { "id": 2, "title": "两数凑十" },
+    { "id": 3, "title": "凑十法" },
+    { "id": 4, "title": "二十以内" },
   ],
 };
 
@@ -236,6 +246,12 @@ const CUE_IDS = [
   "l1-intro-mt-9-5-1", "l1-rwd-9-5-1-15", "l1-intro-mt-9-5-5", "l1-rwd-9-5-5-19", "l1-intro-mt-9-6-1", "l1-rwd-9-6-1-16",
   "l1-intro-mt-9-6-4", "l1-rwd-9-6-4-19", "l1-intro-mt-9-7-1", "l1-rwd-9-7-1-17", "l1-intro-mt-9-7-3", "l1-rwd-9-7-3-19",
   "l1-intro-mt-9-8-1", "l1-rwd-9-8-1-18", "l1-intro-mt-9-8-2", "l1-rwd-9-8-2-19", "l1-intro-mt-9-9-1", "l1-rwd-9-9-1-19",
+  // L2 step-2 mirrored cues (b+c=10 case → "{third}加十等于几") — pairs
+  // with the existing l1-step2-10-{third} set above (a+b=10 case →
+  // "十加{third}等于几"). level2.js picks the right variant at runtime
+  // via choosePair().pairIndices[0]. 9 cues total, one per third ∈ {1..9}.
+  "l1-step2-1-10", "l1-step2-2-10", "l1-step2-3-10", "l1-step2-4-10", "l1-step2-5-10",
+  "l1-step2-6-10", "l1-step2-7-10", "l1-step2-8-10", "l1-step2-9-10",
   "l2-rwd-2-9-11", "l2-s1-2-9", "l2-s2-9", "l2-s3-2-1", "l2-s4-2-1-1-9", "l2-cmp-2-9",
   "l2-rwd-3-8-11", "l2-s1-3-8", "l2-s2-8", "l2-s3-3-2", "l2-s4-3-2-1-8", "l2-cmp-3-8",
   "l2-s4s-3-8-2-1-8", "l2-rwd-3-9-12", "l2-s1-3-9", "l2-s3-3-1", "l2-s4-3-1-2-9", "l2-cmp-3-9",
@@ -475,6 +491,11 @@ function playSequence(ids, seqGapMs = 90, startDelayMs = 0, onComplete) {
     }
     const el = audio[ids[i]];
     if (!el) {
+      // Silent no-op when a cue isn't preloaded — but log it so a missing
+      // audio file (e.g. a newly-added composite cue that hasn't been
+      // built yet) is visible during dev instead of the kid hearing
+      // nothing with no breadcrumb.
+      console.warn(`[PandaAudio] cue "${ids[i]}" not loaded — chain continues silently. Re-run \`npm run audio:build\` if this is a new cue.`);
       activeSequences.delete(seq);
       if (onComplete) onComplete();
       return;
@@ -708,6 +729,7 @@ watchOrientation();
     { default: level1 },
     { default: level2 },
     { default: level3 },
+    { default: level4 },
     { default: gameBoat },
     { default: gameBounce },
     { default: gameCloud },
@@ -719,6 +741,7 @@ watchOrientation();
     import("./scenes/level1.js"),
     import("./scenes/level2.js"),
     import("./scenes/level3.js"),
+    import("./scenes/level4.js"),
     import("./scenes/gameBoat.js"),
     import("./scenes/gameBounce.js"),
     import("./scenes/gameCloud.js"),
@@ -736,6 +759,7 @@ watchOrientation();
   k.scene("level1", () => level1(k));
   k.scene("level2", () => level2(k));
   k.scene("level3", () => level3(k));
+  k.scene("level4", () => level4(k));
   k.scene("gameBoat",   () => gameBoat(k));
   k.scene("gameBounce", () => gameBounce(k));
   k.scene("gameCloud",  () => gameCloud(k));

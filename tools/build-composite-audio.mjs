@@ -2,7 +2,7 @@
 // tools/build-composite-audio.mjs — synthesize per-round composite
 // sentences (one mp3 per round, not chunked) via Tencent Cloud TTS.
 //
-// The scene code in scenes/level{1,2,3}.js builds each per-step
+// The scene code in scenes/level{1,2,3,4}.js builds each per-step
 // sentence from many small universal cues (n-*, q-plus, equals,
 // lvl-*-step-*-*) using playSequence(). Per user feedback ("不要拆开
 // 一个音频一个音频的读。直接生成 2+3+4等于几"), the user wants each
@@ -10,9 +10,15 @@
 // phrase, not a choppy list.
 //
 // Pool-driven approach: instead of hand-picked rounds, each level now
-// generates its pool via data/pools.js (200 for L1, max-valid 63 for
-// L2, full 54 for L3). This script inlines the pool generators and
-// synthesizes one mp3 per unique composite id reachable from the pool:
+// generates its pool via data/pools.js. Four math levels (added
+// 2026-08-11 when the original combined L1 was split into sum-≤-10 +
+// two-sum-to-10):
+//   L1 sum-≤-10        120 triples, every (a,b,c) with a+b+c ≤ 10
+//   L2 two-sum-to-10   217 triples, every (a,b,c) with two summing to 10
+//   L3 凑十法           36 ordered (a, b) pairs, sum > 10
+//   L4 二十以内         36 ordered (a, b) pairs, a teen + digit
+// This script inlines the pool generators and synthesizes one mp3
+// per unique composite id reachable from the pool:
 //   l1-intro-{a}-{b}-{c}     L1 step 1 phase 1 decompose sentence
 //   l1-sub-{a}-{b}           L1 step 1 phase 2 sub-question
 //   l1-step2-{pairSum}-{third}
@@ -132,34 +138,34 @@ function choosePair(nums) {
 // on a CI worker with just the .env creds). The bounds MUST match
 // data/pools.js exactly; the safeInt checks below catch any drift.
 //
-// L1 三数相加 — two loops (sum ≤ 10 OR two of three sum to 10), no 0s.
+// L1 三数相加<10 — triples with a+b+c ≤ 10, no 0s.
 const l1Pool = [];
 for (let a = 1; a <= 9; a++) {
   for (let b = 1; b <= 9; b++) {
     for (let c = 1; c <= 9; c++) {
-      const sum = a + b + c;
-      if (sum <= 10) l1Pool.push({ kind: "three-sum", nums: [a, b, c], answer: sum });
-    }
-  }
-}
-for (let a = 1; a <= 9; a++) {
-  for (let b = 1; b <= 9; b++) {
-    for (let c = 1; c <= 9; c++) {
-      const ten = a + b === 10 || a + c === 10 || b + c === 10;
-      if (!ten) continue;
+      if (a + b + c > 10) continue;
       l1Pool.push({ kind: "three-sum", nums: [a, b, c], answer: a + b + c });
     }
   }
 }
-const l1HasMakeTen = (r) => {
-  const [a, b, c] = r.nums;
-  return a + b === 10 || a + c === 10 || b + c === 10;
-};
-const l1Curated = l1Pool;
 
+// L2 两个数凑十 — triples where a+b=10 OR b+c=10. The a+c=10 case is
+// intentionally DROPPED (matches data/pools.js): the user wants the
+// second addend to be the shared friend of either neighbour, so the
+// pair always includes b and the third can live at either end.
 const l2Pool = [];
-// Strict make-a-ten — 36 ordered pairs, a, b ∈ {1..9}, sum > 10.
-// (Replaces the previous 5-sub-pool 200-round pool.)
+for (let a = 1; a <= 9; a++) {
+  for (let b = 1; b <= 9; b++) {
+    for (let c = 1; c <= 9; c++) {
+      const ten = a + b === 10 || b + c === 10;
+      if (!ten) continue;
+      l2Pool.push({ kind: "three-ten", nums: [a, b, c], answer: a + b + c });
+    }
+  }
+}
+
+// L3 凑十法 — strict make-a-ten: ordered (a, b) pairs, sum > 10, both digits.
+const l3Pool = [];
 for (let a = 1; a <= 9; a++) {
   for (let b = 1; b <= 9; b++) {
     const sum = a + b;
@@ -168,50 +174,47 @@ for (let a = 1; a <= 9; a++) {
     const small = a >= b ? b : a;
     const need = 10 - big;
     const rest = small - need;
-    l2Pool.push({ kind: "make-ten", a, b, need, rest, answer: sum });
+    l3Pool.push({ kind: "make-ten", a, b, need, rest, answer: sum });
   }
 }
 
-const l3Pool = [];
-// Strict: a ∈ [11, 19] (teen), b ∈ [1, 9] (single digit), ones + b < 10.
+// L4 二十以内 — a ∈ [11, 19], b ∈ [1, 9], ones + b < 10.
+const l4Pool = [];
 for (let a = 11; a <= 19; a++) {
   const ones = a % 10;
   const bMax = 9 - ones;
   for (let b = 1; b <= Math.min(9, bMax); b++) {
-    l3Pool.push({ a, b, answer: a + b });
+    l4Pool.push({ a, b, answer: a + b });
   }
 }
 
-console.log(`[composite] pool sizes — L1: ${l1Curated.length}, L2: ${l2Pool.length}, L3: ${l3Pool.length}`);
+console.log(`[composite] pool sizes — L1: ${l1Pool.length}, L2: ${l2Pool.length}, L3: ${l3Pool.length}, L4: ${l4Pool.length}`);
 
 const composites = [];
 
-// L1 — 三数相加.
-for (const r of l1Curated) {
+// L1 — 三数相加<10 (Pattern A only — no make-a-ten branch in this level).
+for (const r of l1Pool) {
   const [a, b, c] = r.nums.map((n) => safeInt(n, 1, 9, "l1.nums"));
-  const answer = safeInt(r.answer, 3, 27, "l1.answer");
-  const { pair, third: thirdVal, isMakeTen } = choosePair(r.nums);
+  const answer = safeInt(r.answer, 3, 10, "l1.answer");
+  // L1's pool only emits sum-≤-10 triples; the pair is always the
+  // first two addends and the third is the leftover. No make-a-ten
+  // variant.
+  const pair = [r.nums[0], r.nums[1]];
+  const thirdVal = r.nums[2];
   // Pattern A (sum ≤ 10, no pair to ten): "look at the first two".
   composites.push({
     id: `l1-intro-${a}-${b}-${c}`,
-    text: `先看下${numZh(a)}加${numZh(b)}加${numZh(c)}等于几，这个问题可以分解成我们先看看前两个数相加。`,
+    text: `${numZh(a)}加${numZh(b)}加${numZh(c)}等于几，这个问题可以分解成我们先看看前两个数相加。`,
   });
   composites.push({
     id: `l1-sub-${pair[0]}-${pair[1]}`,
     text: `${numZh(pair[0])}加${numZh(pair[1])}等于几`,
   });
-  // Pattern B (two of three sum to 10): make-a-ten practice.
-  if (isMakeTen) {
-    composites.push({
-      id: `l1-intro-mt-${a}-${b}-${c}`,
-      text: `先看下${numZh(a)}加${numZh(b)}加${numZh(c)}等于几，这个问题可以分解成我们先找出相加为10的数。`,
-    });
-  }
   composites.push({
     id: `l1-rwd-${a}-${b}-${c}-${answer}`,
     text: `${numZh(a)}加${numZh(b)}加${numZh(c)}等于${numZh(answer)}`,
   });
-  const pairSum = safeInt(pair[0] + pair[1], 0, 20, "l1 pair sum");
+  const pairSum = safeInt(pair[0] + pair[1], 0, 10, "l1 pair sum");
   const third = safeInt(thirdVal, 1, 9, "l1 third addend");
   composites.push({
     id: `l1-step2-${pairSum}-${third}`,
@@ -219,14 +222,48 @@ for (const r of l1Curated) {
   });
 }
 
-// Generic phase-2 cue for the L1 make-a-ten pattern: "哪两个数相加等于10".
-// Shared across all ~217 make-a-ten rounds so only one cue is needed.
+// L2 — 两个数凑十 (Pattern B only — every triple has a pair summing to 10).
+for (const r of l2Pool) {
+  const [a, b, c] = r.nums.map((n) => safeInt(n, 1, 9, "l2.nums"));
+  const answer = safeInt(r.answer, 11, 19, "l2.answer");
+  // Every L2 triple has at least one pair summing to 10; choosePair
+  // always finds one. The pair becomes the "ten" and the leftover is
+  // the third.
+  const { pair, third: thirdVal } = choosePair(r.nums);
+  composites.push({
+    id: `l1-intro-mt-${a}-${b}-${c}`,
+    text: `${numZh(a)}加${numZh(b)}加${numZh(c)}等于几，这个问题可以分解成我们先找出相加为10的数。`,
+  });
+  composites.push({
+    id: `l1-rwd-${a}-${b}-${c}-${answer}`,
+    text: `${numZh(a)}加${numZh(b)}加${numZh(c)}等于${numZh(answer)}`,
+  });
+  // pairSum is always 10 for L2 (the pool guarantees it), so the
+  // step-2 cue is "十 加 third 等于几" or "{third} 加 十 等于几" —
+  // both variants carry the literal 10 but its position mirrors the
+  // pair's: a+b=10 → "10 on the left" (tenOnLeft in level2.js); b+c=10
+  // → "10 on the right" (tenOnRight). The scene picks the variant at
+  // runtime via pairIndices. Emit BOTH per-third — `seen` dedupes
+  // across rounds so 9 + 9 = 18 cues total, not 18 × 153.
+  const third = safeInt(thirdVal, 1, 9, "l2 third addend");
+  composites.push({
+    id: `l1-step2-10-${third}`,
+    text: `十加${numZh(third)}等于几`,
+  });
+  composites.push({
+    id: `l1-step2-${third}-10`,
+    text: `${numZh(third)}加十等于几`,
+  });
+}
+
+// Generic phase-2 cue for the L2 make-a-ten pattern: "哪两个数相加等于10".
+// Shared across all 217 L2 rounds so only one cue is needed.
 composites.push({
   id: "l1-sub-find-ten",
   text: "哪两个数相加等于10",
 });
 
-// L2 — 凑十法 + adjacent kinds (simple / no-carry-2d / carry-2d / trivial).
+// L3 — 凑十法 (the dedicated two-addend make-a-ten level).
 // Strict make-ten (a, b ∈ [1, 10], sum ∈ [10, 19]) gets the full 4-step
 // teaching: compare → find-friend → split → count. Other kinds get a
 // single-step scene (just "a + b = ?") so the make-ten audio prompt
@@ -298,13 +335,15 @@ for (const r of l2Pool) {
   });
 }
 
-// L3 — 二十以内.
-for (const r of l3Pool) {
-  const a = safeInt(r.a, 11, 19, "l3.a");
-  const b = safeInt(r.b, 1, 9, "l3.b");
-  const answer = safeInt(r.answer, 12, 19, "l3.answer");
-  const ones = safeInt(a % 10, 0, 9, "l3.ones");
-  const sum = safeInt(ones + b, 2, 9, "l3.sum");
+// L4 — 二十以内 (cues are still named l3-* because the MP3 assets on
+// disk predate the four-way split; renaming would require regenerating
+// every pre-baked cue and is out of scope for this refactor).
+for (const r of l4Pool) {
+  const a = safeInt(r.a, 11, 19, "l4.a");
+  const b = safeInt(r.b, 1, 9, "l4.b");
+  const answer = safeInt(r.answer, 12, 19, "l4.answer");
+  const ones = safeInt(a % 10, 0, 9, "l4.ones");
+  const sum = safeInt(ones + b, 2, 9, "l4.sum");
   composites.push({
     id: `l3-s1-${a}-${b}`,
     text: `${numZh(a)}加${numZh(b)}等于几，我们先把${numZh(a)}进行拆分，拆成十加几`,

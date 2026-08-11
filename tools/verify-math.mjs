@@ -19,7 +19,7 @@
 import { chromium } from "playwright";
 
 const URL = process.env.PANDA_URL || "http://localhost:8126/";
-const LEVELS = [1, 2, 3];
+const LEVELS = [1, 2, 3, 4];
 const EQUATION_Y = 310;
 const BUTTON_Y = 838;
 const ROW_TOLERANCE = 8;
@@ -63,11 +63,11 @@ await page.waitForTimeout(2000);
 // any scene loads.
 await page.evaluate(() => { window.__skipTimers = true; });
 
-// Unlock every level so all three are reachable without playing through.
+// Unlock every level so all four are reachable without playing through.
 await page.evaluate(() =>
   localStorage.setItem(
     "panda-save-v1",
-    JSON.stringify({ unlockedLevel: 3, starsByLevel: {}, currentLevel: 1 }),
+    JSON.stringify({ unlockedLevel: 4, starsByLevel: {}, currentLevel: 1 }),
   ),
 );
 
@@ -127,31 +127,33 @@ async function roundData(levelId, roundIdx) {
       const lvl = window.PandaLevels.levels.find((l) => l.id === levelId);
       const r = lvl.rounds[roundIdx];
       const answers = [];
-      if (r.kind === "three-sum" || r.kind === "three-ten") {
-        // L1 is two steps now: Pair, then Add the rest.
-        //   Pattern A (sum ≤ 10): pair = first two, pairSum = nums[0]+nums[1].
-        //   Pattern B (pair to ten): pair = the two that make ten, pairSum=10.
-        // Step 1: child picks pairSum.
+      if (levelId === 1) {
+        // L1 三数相加<10 — sum of three 1-digit addends ≤ 10.
+        // Step 1: child picks the pair sum (always nums[0] + nums[1]).
         // Step 2: child picks the total.
-        let pair, pairSum;
+        const pairSum = r.nums[0] + r.nums[1];
+        answers.push(pairSum);
+        answers.push(r.answer);
+      } else if (levelId === 2) {
+        // L2 两个数凑十 — three addends where two sum to 10.
+        // Step 1: child picks the pair label (e.g. "4+6") matching two
+        // of the three addends.
+        // Step 2: child picks the total (10 + third).
+        let pair;
         for (let i = 0; i < r.nums.length; i++) {
           for (let j = i + 1; j < r.nums.length; j++) {
             if (r.nums[i] + r.nums[j] === 10) {
               pair = [r.nums[i], r.nums[j]];
-              pairSum = 10;
               break;
             }
           }
           if (pair) break;
         }
-        if (!pair) {
-          pair = [r.nums[0], r.nums[1]];
-          pairSum = r.nums[0] + r.nums[1];
-        }
-        answers.push(pairSum);
+        const norm = pair[0] <= pair[1] ? pair : [pair[1], pair[0]];
+        answers.push(`${norm[0]}+${norm[1]}`);
         answers.push(r.answer);
-      } else if (r.kind === "make-ten") {
-        // L2 redesigned: Compare → To ten → Split → Count.
+      } else if (levelId === 3) {
+        // L3 凑十法 — single-digit pair whose sum > 10.
         // Step 1: pick ">" (the bigger wins). Step 2: how many does big
         // need to make ten? Step 3: split small into (need, rest) — the
         // button text is the literal expression "need+rest". Step 4: the
@@ -161,7 +163,7 @@ async function roundData(levelId, roundIdx) {
         answers.push(`${r.need}+${r.rest}`);
         answers.push(r.answer);
       } else {
-        // L3 (二十以内) redesigned: split 2-digit → add ones → add 10+sum.
+        // L4 二十以内 — split 2-digit → add ones → add 10+sum.
         // Step 1: pick the ones digit (a % 10).
         // Step 2: pick the sum of ones + b.
         // Step 3: pick the total a + b (== round.answer).

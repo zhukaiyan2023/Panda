@@ -14,7 +14,9 @@
 //     l1-rwd-{a}-{b}-{c}-{answer}
 //   L1 [a, b, c], make-ten (some pair sums to 10):
 //     l1-intro-mt-{a}-{b}-{c}, l1-sub-find-ten (shared),
-//     l1-step2-10-{third}, l1-rwd-{a}-{b}-{c}-{answer}
+//     l1-step2-10-{third} AND l1-step2-{third}-10 (mirrored — scene picks
+//     the variant matching the pair's position via pairIndices[0]),
+//     l1-rwd-{a}-{b}-{c}-{answer}
 //   L2 (a, b), a + b > 10:
 //     l2-s1-{a}-{b}, l2-s2-{big}, l2-s3-{small}-{need},
 //     l2-s4-{small}-{need}-{rest}-{big}, l2-rwd-{a}-{b}-{answer}
@@ -91,7 +93,11 @@ function expectedL1() {
           }
         }
       }
+      // Both step-2 variants — scene picks at runtime via pairIndices
+      // (a+b=10 → "10 + third", b+c=10 → "third + 10"). See
+      // scenes/level2.js.
       out.add(`l1-step2-10-${third}`);
+      out.add(`l1-step2-${third}-10`);
     } else {
       out.add(`l1-intro-${a}-${b}-${c}`);
       out.add(`l1-sub-${a}-${b}`);

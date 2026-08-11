@@ -1,7 +1,9 @@
-// scenes/levelPicker.js — L1 / L2 / L3 selection screen.
+// scenes/levelPicker.js — L1 / L2 / L3 / L4 selection screen.
 //
-// Three large cards. Locked levels show a lock badge and play level-locked.mp3
-// when tapped. Unlocked levels are reachable from save data (window.PandaSave).
+// Four large cards, one per math level. Locked levels show a lock badge
+// and play level-locked.mp3 when tapped. Unlocked levels are reachable
+// from save data (window.PandaSave). The card row auto-sizes — adding
+// more levels shrinks the stride so the row stays inside the canvas.
 //
 // The emoji lock and star are replaced by the SVG sprites in assets/art/, and
 // the panda now actually appears on the screen the game is named after.
@@ -16,11 +18,12 @@ const LOCKED_INK = [150, 140, 170];
 
 const SHORT_TITLES = {
   1: "三数相加",
-  2: "凑十法",
-  3: "二十以内",
+  2: "两数凑十",
+  3: "凑十法",
+  4: "二十以内",
 };
 
-const CARD_ACCENT = { 1: BLUE, 2: ORANGE, 3: PURPLE };
+const CARD_ACCENT = { 1: BLUE, 2: ORANGE, 3: PURPLE, 4: YELLOW };
 
 // Sprites are decoration: a missing art file must not blank the screen a child
 // needs in order to start playing.
@@ -40,8 +43,8 @@ function sprite(parent, k, name, { x, y, size }) {
   return node;
 }
 
-function drawCard(k, parent, level, unlocked) {
-  const w = 320;
+function drawCard(k, parent, level, unlocked, cardW = 320) {
+  const w = cardW;
   const h = 380;
   const { cardX: x, cardY: y } = level;
 
@@ -162,7 +165,28 @@ export default function levelPickerScene(k) {
     k.anchor("center"),
   ]);
 
-  const stride = 380;
+  // Auto-size the card row so N cards fit across the canvas.
+  //   * Start at the ideal cardW (320). Shrink only if even a
+  //     minimum-gap (6px) layout would overflow the margin. That
+  //     keeps the 3-card historical layout intact (320 wide, 232
+  //     gap) while letting 4 cards shrink to ~280 wide so the row
+  //     fits with a comfortable gap.
+  //   * Below 240 px wide the badge + title stop being readable —
+  //     stop shrinking there.
+  const margin = 80;
+  const idealCardW = 320;
+  const minGap = 6;
+  let cardW = idealCardW;
+  while (cardW > 240) {
+    const needed = cardW * levels.length + minGap * (levels.length - 1);
+    if (needed <= k.width() - 2 * margin) break;
+    cardW -= 20;
+  }
+  // Final gap that uses all available horizontal space (no upper
+  // cap — the canvas is wide enough that the gap stays comfortable).
+  const availForGaps = k.width() - 2 * margin - cardW * levels.length;
+  const gap = Math.max(minGap, availForGaps / Math.max(1, levels.length - 1));
+  const stride = cardW + gap;
   const totalSpan = (levels.length - 1) * stride;
   const baseY = 560;
   levels.forEach((lvl, i) => {
@@ -175,6 +199,7 @@ export default function levelPickerScene(k) {
         cardY: baseY,
       },
       lvl.id <= save.unlockedLevel,
+      cardW,
     );
   });
 

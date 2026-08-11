@@ -6,16 +6,25 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, "..");
 const { poolGens } = await import(path.join(ROOT, "data/pools.js"));
 
+// Decide which two addends the kid should pair first, and which one is the
+// "leftover" they add at the end. Returns the pair VALUES plus the third
+// VALUE.
+//
+// Mirrors scenes/level2.js: only checks pool-valid pair positions
+// (0,1) and (1,2) — skips (0,2). The L2 pool filter
+// (data/pools.js: `a+b=10 || b+c=10`) drops a+c=10-only triples, but
+// triples of form (a, a, 10-a) DO have a+c=10 too (e.g. (1,1,9));
+// choosing (0,2) there would mismatch the tenOnLeft/tenOnRight mirror
+// in step 2 (the pair would land at the start of nums, the leftover
+// at the middle, so "third + 10" would read as "10 + third").
 function choosePair(nums) {
-  for (let i = 0; i < nums.length; i++) {
-    for (let j = i + 1; j < nums.length; j++) {
-      if (nums[i] + nums[j] === 10) {
-        const thirdIdx = nums.findIndex((_, k) => k !== i && k !== j);
-        return { pair: [nums[i], nums[j]], third: nums[thirdIdx] };
-      }
-    }
+  if (nums[0] + nums[1] === 10) {
+    return { pair: [nums[0], nums[1]], third: nums[2], pairIndices: [0, 1] };
   }
-  return { pair: [nums[0], nums[1]], third: nums[2] };
+  if (nums[1] + nums[2] === 10) {
+    return { pair: [nums[1], nums[2]], third: nums[0], pairIndices: [1, 2] };
+  }
+  return { pair: [nums[0], nums[1]], third: nums[2], pairIndices: [0, 1] };
 }
 
 const seen = new Set();
