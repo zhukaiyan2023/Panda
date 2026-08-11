@@ -10,3 +10,4 @@ test-results/
 
 .claude/worktrees/
 /.claude/
+!.claude/skills/
