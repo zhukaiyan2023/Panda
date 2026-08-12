@@ -70,18 +70,26 @@ function anchorSlots(round, sumSlot) {
   };
 }
 
-// Widest lifetime content of the split row (y=440). Slot 2 goes
-// "□" → ones digit (same width), slot 6 stays "?" — but reserving keeps
-// it explicit and immune to future content changes.
+// Widest lifetime content of the split row (y=440). Slot 2 reveals
+// "□" → ones digit (round.a % TEN). The "□" box is 0.9 × size wide
+// but the ones digit is only 0.62 × size — reserving to the ones
+// digit alone (e.g. `round.a % TEN`) does NOT lock the slot center
+// (max(0.9, 0.62) = 0.9 for box, max(0.62, 0.62) = 0.62 for digit
+// — widths diverge). Reserving to "□" (or any content ≥ 0.9 wide)
+// pins the slot to a stable bucket across the reveal. Slot 6's
+// reserve pins the answer slot to its 2-digit width.
 function splitReserve(round) {
-  return [TEN, "+", round.a % TEN, "+", round.b, "=", round.answer];
+  return [TEN, "+", "□", "+", round.b, "=", round.answer];
 }
 
-// Widest lifetime content of the bottom row (y=600): slot 2 goes
-// "□" → the ones-sum (which can be 10, two digits) and slot 4 goes
-// "?" → the 2-digit answer. Both widen, so both must be reserved.
+// Widest lifetime content of the bottom row (y=600): slot 2 reveals
+// "□" → the ones-sum (always 1 digit, since L4's pool enforces
+// ones(a) + b < 10 — max sum is 9). The ones-sum is 1 digit wide,
+// the box is 0.9 × size wide — same "□" reserve pattern as the
+// split row to lock slot 2. Slot 4 reveals "?" → the 2-digit
+// answer; reserving to the answer locks it.
 function bottomReserve(round) {
-  return [TEN, "+", (round.a % TEN) + round.b, "=", round.answer];
+  return [TEN, "+", "□", "=", round.answer];
 }
 
 function splitLinkPoints(anchor, split) {

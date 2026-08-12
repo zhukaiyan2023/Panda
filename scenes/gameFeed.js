@@ -76,7 +76,38 @@ function body(ctx) {
   round.candidates.forEach((v, i) => {
     const x = gridX + i * cellW;
     const y = gridY;
-    items.push(item(k, { value: v, sprite: "bubble", x, y, size: 110 }));
+    // bubble.png is 740x762 — at the pickerItem default spriteScale 0.6
+    // the bubble renders ~444 px wide, but cellW is only 110, so 5/7/9
+    // bubbles overlap heavily and the digits get buried (only the
+    // rightmost digit is readable on top of the stack). 0.16 shrinks
+    // the bubble to ~118 px wide — about cellW, so the bubbles nearly
+    // touch but the round shape leaves the corners empty and adjacent
+    // bubbles read as separate. labelYOffset: -16 puts the digit at
+    // the bubble's visual center (the sprite is drawn at y-16, so the
+    // digit at y-16 sits on the body, not below it). hideFace drops
+    // the rounded card behind the bubble — with the bubble no longer
+    // filling the cell, the card peeked out as a cream-colored square
+    // around the small bubble and looked wrong. noLabelBg skips the
+    // white disc behind the digit so the green bubble is the visual;
+    // dark text + white stroke (same pattern as gameCloud's cloud
+    // digits) reads on the green body and on the bubble's white
+    // highlight alike.
+    items.push(item(k, {
+      value: v,
+      sprite: "bubble",
+      x, y, size: 110,
+      spriteScale: 0.16,
+      labelYOffset: -16,
+      hideFace: true,
+      // Same pattern as gameCloud's cloud digits: the bubble's green body
+      // is the contrast, the digit needs a dark fill + white stroke so it
+      // reads on the green and on the bubble's white highlight alike.
+      // Drop-shadow stroke is a slightly-offset white copy at opacity 0.7
+      // (see pickerItem.js's noLabelBg branch).
+      noLabelBg: true,
+      noLabelBgTextColor: [40, 40, 40],
+      noLabelBgStrokeColor: [255, 255, 255],
+    }));
   });
   ctx.items = items;
 

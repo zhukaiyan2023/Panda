@@ -144,8 +144,15 @@ function token(parent, k, text, size, muted, color, isBox) {
 }
 
 function isOperator(s) {
+  // Comparison symbols are operators too — they render at OP_SCALE × size
+  // and use the narrow operator width in slot layout. Without ">" and "<"
+  // here, the step-1 compare reveal ("□" → ">" / "<") would treat the
+  // symbol as a regular digit and the slot would resize from 0.9 × size
+  // (box width) to 0.62 × size (digit width), shifting a/b centers.
+  // Per user feedback 2026-08-13: "选中正确答案之后，9和3的位置移动
+  // 了，应该是 ◻ 只占了一个位置，但是 > 或者 < 占位不一致。"
   return s === "+" || s === "-" || s === "=" || s === "×" || s === "÷"
-    || s === "(" || s === ")";
+    || s === "(" || s === ")" || s === ">" || s === "<";
 }
 
 export default function expression(parent, opts = {}) {

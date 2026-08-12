@@ -153,21 +153,21 @@ function drawRound(k, ctx) {
       size: 100,
       hideFace: true,     // no card frame around the balloon
       noLabelBg: true,    // no white circle around the digit
-      // Balloon body is the ellipse cy=92 in a 200×240 sprite, so the
-      // visual center of the pink body is at sprite y=92 — i.e. 28 above
-      // the sprite's centerline. With sprite anchored at (x, y-16) and
-      // scaled 0.4, that point lands at scene y-27.2. -27 places the digit
-      // at the body's vertical center — exactly in the middle of the
-      // balloon.
+      // The balloon PNG is 443×899 (much taller than the old 200×240 SVG),
+      // and the red body fills the upper ~520 px — body centre sits at
+      // sprite-y ≈ 275. With the sprite anchored at (x, y-16) and scaled
+      // 0.35, that body centre lands at scene y-77 ((275 - 449.5)·0.35 =
+      // -61, plus -16). -77 places the digit at the body's vertical
+      // centre so it sits in the middle of the balloon, not near the top.
       //
-      // spriteScale 0.4 (was 0.6 default) per user feedback 2026-08-12:
-      // at 0.6 the 120-px-wide balloons overlapped their neighbours in the
-      // 200-px cellW row; 0.4 → 80-px balloons leave 120 px between centres
-      // so the four choices read as four separate balloons, not a wall of
-      // red. Hit target 100 stays a bit larger than the visible sprite so
-      // small fingers still tap reliably.
-      spriteScale: 0.4,
-      labelYOffset: -27,
+      // spriteScale 0.35 per user feedback 2026-08-13: 0.4 was still a
+      // touch too big and left the digit off-centre because the label
+      // offset above assumed the old 200×240 sprite. 0.35 → ~155 px
+      // visible width; 200 - 155 = 45 px gap between adjacent centres,
+      // and the hit target 100 stays a comfortable tap margin for small
+      // fingers.
+      spriteScale: 0.35,
+      labelYOffset: -77,
     }));
   });
 

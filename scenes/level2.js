@@ -141,10 +141,25 @@ function makeTenPairOptions(correctPair) {
 
 // Anchor slots for the persistent top equation "a + b + c = ?". Each addend
 // keeps its own color so the visible cells and the anchor agree.
-function anchorSlots(nums, sumSlot) {
+//
+// `reserve` pins slot 6 (the sum) to round.answer — always 2 digits
+// in L2 (ten + third ∈ [11, 19]). Without the reservation the row
+// re-centers on the step-2 reveal and every slot jumps; the merge
+// arrows snapping onto "10"'s slot center also drift a pixel or two.
+// Per user feedback 2026-08-12: "相同位置的元素,在每一步的位置好像
+// 不一样" — locked once at the widest lifetime content. Same pattern
+// as level4.js's anchorSlots (the only level that already had this
+// done correctly before the L1 audit). round.answer is always 2 digits
+// for L2's pool, so reserving to it covers both "?" (0.9 × size, the
+// box state) and the revealed 2-digit number (1.24 × size) — max() at
+// layout time keeps the row's total width and slot centers stable
+// across every render of the anchor. Addend slots (0/2/4) don't need
+// reserving — each addend is a single digit and operators are fixed.
+function anchorSlots(nums, sumSlot, reserveAnswer) {
   return {
     slots: [nums[0], "+", nums[1], "+", nums[2], "=", sumSlot],
     colors: [COLORS[0], undefined, COLORS[1], undefined, COLORS[2], undefined, undefined],
+    reserve: [null, null, null, null, null, null, reserveAnswer],
   };
 }
 
@@ -387,7 +402,7 @@ export default createRoundScene({
       // Persistent anchor directly under the cells. y=320 leaves a 24-px
       // gap below the cell row (cells end at y=246 with size=52) and a
       // 29-px gap above the sub-question at y=440.
-      ctx.setAnchorEquation(anchorSlots(round.nums, "?"), { y: 320 });
+      ctx.setAnchorEquation(anchorSlots(round.nums, "?", round.answer), { y: 320 });
 
       // The sub-question is deferred until phase 1 of the per-round
       // audio finishes — the kid hears the setup FIRST, and THEN sees
@@ -399,14 +414,24 @@ export default createRoundScene({
       const phase2Ids = buildL2Phase2MakeTenIds();
 
       // Sub-question slots + colors. Always "? + ? = 10" — the kid
-      // hunts for the pair.
+      // hunts for the pair. `subReserve` pins slot 0 and slot 2 to
+      // "10" so the "? + ? = 10" row doesn't reflow when the boxes
+      // reveal to pair digits (1 digit, max 9 — "□" at 0.9 × size
+      // would shrink to 0.62 × size, ~11.5 px left-shift at size 82
+      // without the reserve). Per user feedback 2026-08-12: lock the
+      // layout once at the widest content; step transitions are
+      // placeholder swaps only.
       const subSlots = ["?", "+", "?", "=", TEN];
       const subColors = [undefined, undefined, undefined, undefined, undefined];
+      const subReserve = ["10", null, "10", null, null];
 
       const firePhase2 = () => {
         // Show the step-1 sub-question NOW — the kid has heard the
         // setup and is being asked the actual question.
-        ctx.setEquation({ slots: subSlots, colors: subColors }, { y: 440, size: 82 });
+        ctx.setEquation(
+          { slots: subSlots, colors: subColors, reserve: subReserve },
+          { y: 440, size: 82 },
+        );
         // Play the question right after the equation appears.
         window.PandaAudio.playSequence(phase2Ids, 40, 100);
       };
@@ -421,7 +446,11 @@ export default createRoundScene({
       return {
         body,
         deferEquation: true,
-        equation: { slots: subSlots, colors: subColors },
+        // `reserve` mirrors firePhase2's — see that call's comment for
+        // why. Kept here too in case a future flip of deferEquation
+        // (or any other reader of `built.equation`) renders the row
+        // without going through firePhase2.
+        equation: { slots: subSlots, colors: subColors, reserve: subReserve },
         equationOpts: { y: 440, size: 82 },
         question: {
           // Kid picks the pair whose addends are in the triple. 4
@@ -440,6 +469,11 @@ export default createRoundScene({
           ctx.setEquation({
             slots: [pair[0], "+", pair[1], "=", TEN],
             colors: [COLORS[aIdx], undefined, COLORS[bIdx], undefined, ORANGE],
+            // `reserve` pins slot 0/2 to the same "10" width bucket
+            // the firePhase2 render laid out at, so the row doesn't
+            // reflow when "? + ?" reveals to "pair[0] + pair[1]" (1
+            // digit each, max 9).
+            reserve: subReserve,
           }, { y: 440, size: 82 });
         },
       };
@@ -485,7 +519,7 @@ export default createRoundScene({
       // Anchor directly under the cells (still "?" until step 2 is
       // answered). Same y=320 as step 1 so the goal sits in a
       // consistent spot across both steps.
-      ctx.setAnchorEquation(anchorSlots(round.nums, "?"), { y: 320 });
+      ctx.setAnchorEquation(anchorSlots(round.nums, "?", round.answer), { y: 320 });
 
       // Sub-question slots + colors — order mirrors the case.
       // tenOnLeft → "10 + third = ?"  ;  tenOnRight → "third + 10 = ?".
@@ -495,6 +529,14 @@ export default createRoundScene({
       const subColors = tenOnLeft
         ? [ORANGE, undefined, COLORS[thirdIdx], undefined, undefined]
         : [COLORS[thirdIdx], undefined, ORANGE, undefined, undefined];
+      // `subReserve` pins slot 4 ("?") to round.answer's width (always
+      // 2 digits in L2's pool: 10 + third ∈ [11, 19]). Without it, the
+      // step-2 reveal to round.answer widens slot 4 from 0.9 × size
+      // ("?" box) to 1.24 × size (2 digits), shifting every slot
+      // center leftward — including slot tenSlotIdx, which the merge
+      // arrows snap onto in postRender. Per user feedback 2026-08-12:
+      // lock the layout once; reveal = placeholder swap only.
+      const subReserve = [null, null, null, null, round.answer];
       // Slot index of "10" inside the sub-question (used in postRender
       // to align the merge arrows with the "10" position).
       const tenSlotIdx = tenOnLeft ? 0 : 2;
@@ -540,6 +582,7 @@ export default createRoundScene({
         equation: {
           slots: subSlots,
           colors: subColors,
+          reserve: subReserve,
         },
         equationOpts: { y: 540, size: 82 },
         question: {
@@ -560,7 +603,7 @@ export default createRoundScene({
         },
         onAdvance: () => {
           // Reveal the persistent anchor directly under the cells.
-          ctx.setAnchorEquation(anchorSlots(round.nums, round.answer), { y: 320 });
+          ctx.setAnchorEquation(anchorSlots(round.nums, round.answer, round.answer), { y: 320 });
           // Reveal the simplified sub-question (same mirrored order as
           // before reveal — only the "?" changes to the answer).
           ctx.setEquation({
@@ -570,6 +613,12 @@ export default createRoundScene({
             colors: tenOnLeft
               ? [ORANGE, undefined, COLORS[thirdIdx], undefined, INK]
               : [COLORS[thirdIdx], undefined, ORANGE, undefined, INK],
+            // `reserve` mirrors the step-2 setup's — slot 4 was already
+            // laid out at the 1.24 × size bucket ("?" reserved to the
+            // 2-digit answer), so revealing to round.answer (2 digits)
+            // sits in the same slot. tenSlotIdx stays anchored for the
+            // merge arrows re-snapped below.
+            reserve: subReserve,
           }, { y: 540, size: 82 });
           // Resnap the merge arrows to the new "10" x — the
           // sub-question node was just rebuilt, so slotCenters may

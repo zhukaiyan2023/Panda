@@ -199,6 +199,16 @@ export default function createRoundScene(config) {
         x: opts.x ?? LAYOUT.barX,
         y: opts.y ?? LAYOUT.equationY,
         size: opts.size ?? 96,
+        // boxMode must be forwarded explicitly — the reveal pass for
+        // step 1 (比一比 → "□" reveals to ">" / "<") passes slots that
+        // contain no "□" / "?", so the expression component's auto
+        // wantsBox check returns false. Without this, the reserve to
+        // "□" computes with boxMode=false and widths[1] shrinks from
+        // 0.9 × size to 0.62 × size, recentering the row and shifting
+        // round.a and round.b's centers. Per user feedback 2026-08-13:
+        // "选中正确答案之后，9和3的位置移动了，应该是 ◻ 只占了一个
+        // 位置，但是 > 或者 < 占位不一致."
+        boxMode: opts.boxMode,
       };
       if (eq.slots) {
         props.slots = eq.slots;
@@ -224,6 +234,13 @@ export default function createRoundScene(config) {
         x: opts.x ?? LAYOUT.barX,
         y: opts.y ?? 220,
         size: opts.size ?? 100,
+        // boxMode forwarded through — see setEquation's note on why
+        // this matters for step 1's compare reveal. Anchor reveals
+        // currently always pass slots containing "□", so the auto
+        // wantsBox path covers them today; pass it through for
+        // symmetry and to keep the call surface identical to
+        // setEquation.
+        boxMode: opts.boxMode,
       };
       if (eq.slots) {
         props.slots = eq.slots;

@@ -77,10 +77,27 @@ function choosePair(nums) {
 
 // Anchor slots for the persistent top equation "a + b + c = ?". Each addend
 // keeps its own color so the visible cells and the anchor agree.
+//
+// Also returns a `reserve` array that pins slot 6 (the sum) to the
+// WIDEST text it can ever hold in this level — "10" (2 digits, the
+// max sum in L1's a+b+c ≤ 10 pool). Per user feedback 2026-08-12:
+// "先计算每个数字占多大空间，符号占多大空间。这个就固定" — the
+// layout is calculated once at the widest possible content and
+// never reflows when the box reveals to a 1-digit answer (e.g.
+// "1+7+2=8") or a 2-digit answer ("1+7+2=10"). The math: an "□"
+// box is 0.9 × size, but "10" is 1.24 × size — without the
+// reserve, revealing to "10" would shift every slot to the right
+// and recenter the row. With the reserve, slot 6 is laid out at
+// the 1.24 × size bucket from the start, so the row's total width
+// and slot centers are stable across every render of the anchor.
+//
+// Addend slots (0/2/4) don't need reserving — each addend is a
+// single digit in L1's pool, and operators are fixed-width too.
 function anchorSlots(nums, sumSlot) {
   return {
     slots: [nums[0], "+", nums[1], "+", nums[2], "=", sumSlot],
     colors: [COLORS[0], undefined, COLORS[1], undefined, COLORS[2], undefined, undefined],
+    reserve: [null, null, null, null, null, null, "10"],
   };
 }
 
@@ -116,6 +133,30 @@ function simplifiedPreview(ctx, third, thirdIdx, mergeSlot = null, totalSlot = n
     undefined,                                // "="
     totalSlot != null ? INK : undefined,      // total: INK when revealed
   ];
+  // Per-slot width reservation — see components/expression.js. Pins
+  // the merge-slot (slot 0) and the total-slot (slot 4) to the widest
+  // possible content for this level so the row never reflows between
+  // renders. Without this:
+  //   * slot 0 ("□" → pairSum): shrinks from 0.9×size to 0.62×size.
+  //     Slot 0's center moves left by ~0.14 × size = 11.5 px at size 82,
+  //     and the merge-line V arrowheads redraw pointing at the new
+  //     pixel — the kid sees the V jump left when the pair sum
+  //     reveals.
+  //   * slot 4 ("□" → round.answer): grows from 0.9×size to either
+  //     0.62×size (1-digit answer) or 1.24×size (2-digit answer). On
+  //     the 2-digit case the whole row recenters, shifting every
+  //     slot's X.
+  // With reservation to "10" (the max possible content for both slots
+  // in L1's a+b+c ≤ 10 pool) every render lays out at the 1.24×size
+  // bucket and positions are locked. Per user feedback 2026-08-12:
+  // "先计算每个数字占多大空间,符号占多大空间。这个就固定" —
+  // once calculated at the widest content, the layout is fixed; step
+  // transitions are pure placeholder swaps.
+  //
+  // L1's max pair sum is 9 (1 digit) and max total is 10 (2 digits).
+  // Reserving both to "10" covers every reveal path with margin (the
+  // 1-digit reveal sits centered in a 2-digit slot — slightly more
+  // breathing room than ideal, but positions stay put).
   ctx.simplifiedPreview = expression(ctx.k, {
     slots,
     colors,
@@ -123,6 +164,7 @@ function simplifiedPreview(ctx, third, thirdIdx, mergeSlot = null, totalSlot = n
     y,  // step 1: y=520 (below anchor). Caller may override.
     size: 82,
     boxMode: true,
+    reserve: ["10", null, null, null, "10"],
   });
 }
 
@@ -540,10 +582,18 @@ export default createRoundScene({
 
       // Pair-sum equation slots — the actual pick. Appears after
       // phase 1 audio finishes (via firePhase2 → setEquation).
+      // `pairSumReserve` pins slot 4 to the widest possible content
+      // ("10", 2 digits) so the row never reflows when "□" reveals to
+      // pairSum (≤9 in L1's pool — a 1-digit shrink from 0.9×size to
+      // 0.62×size, ~11.5 px left-shift at size 82 without the
+      // reserve). Per user feedback 2026-08-12: lock the layout once
+      // at the widest content; step transitions are placeholder
+      // swaps only.
       const pairSumSlots = [pair[0], "+", pair[1], "=", "□"];
       const pairSumColors = [
         COLORS[aIdx], undefined, COLORS[bIdx], undefined, undefined,
       ];
+      const pairSumReserve = [null, null, null, null, "10"];
 
       // Pair-sum equation at y=680, size 82 (2026-08-12 — was 60, but the
       // user flagged the "6" / numbers as "看不清" and the row as
@@ -556,7 +606,7 @@ export default createRoundScene({
       // anchor first.
       const firePhase2 = () => {
         ctx.setEquation(
-          { slots: pairSumSlots, colors: pairSumColors },
+          { slots: pairSumSlots, colors: pairSumColors, reserve: pairSumReserve },
           { y: 680, size: 82 },
         );
         // Play the question right after the equation appears.
@@ -569,7 +619,13 @@ export default createRoundScene({
       return {
         body,
         deferEquation: true,
-        equation: { slots: pairSumSlots, colors: pairSumColors },
+        // `equation` and `equationOpts` are returned here for symmetry
+        // with non-deferred steps; buildStep would call setEquation
+        // with these if deferEquation were false. We pin `reserve`
+        // here too so a future flip of deferEquation (or a new
+        // caller of `built.equation`) won't accidentally drop the
+        // slot reservation and reintroduce the layout jump.
+        equation: { slots: pairSumSlots, colors: pairSumColors, reserve: pairSumReserve },
         equationOpts: { y: 680, size: 82 },
         postRender: (ctx) => {
           // Draw merge lines AFTER all equations/cells are in place so
@@ -584,10 +640,15 @@ export default createRoundScene({
         },
         onAdvance: () => {
           // Reveal pair sum: "1+7=□" → "1+7=<pairSum>" (answer in orange,
-          // matching the merge box's reveal color below).
+          // matching the merge box's reveal color below). `reserve`
+          // pins slot 4 to the widest possible content ("10") so the
+          // row's layout matches the firePhase2 render — slot 4 was
+          // already laid out at the 1.24×size bucket, so revealing to
+          // pairSum (≤9, 1 digit) sits centered in the same slot.
           ctx.setEquation({
             slots: [pair[0], "+", pair[1], "=", pairSum],
             colors: [COLORS[aIdx], undefined, COLORS[bIdx], undefined, ORANGE],
+            reserve: pairSumReserve,
           }, { y: 680, size: 82 });
           // Reveal merge box in preview: "□+2=□" → "<pairSum>+2=□".
           // Merge lines (and their V arrowheads at the merge box)

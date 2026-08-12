@@ -33,13 +33,14 @@ import {
 
 const ROUND_COUNT = 5;
 const ROUND_TYPES = ["make10", "makeSmall", "make10", "makeSmall", "make10"];
-// All single-digit pairs whose sum is > 10. Used by case 2 of the 3-number
-// addition (凑十法). The user ruled out pairs whose sum is ≤ 10 and any
-// pair with a non-single-digit addend.
-const PAIRS_GT10 = [
-  [2, 9], [3, 8], [3, 9], [4, 7], [4, 8], [4, 9],
-  [5, 6], [5, 7], [5, 8], [5, 9], [6, 7], [6, 8], [6, 9],
-  [7, 8], [7, 9], [8, 9],
+// Single-digit pairs whose sum is exactly 10 — 凑十法's "friends of 10".
+// Used by the make10 round type so the kid can apply the make-ten strategy:
+// the pair → 10, then 10 + decoy = total. Pairs are listed in both orders so
+// addends[0,1] come up small-then-big ~half the time and big-then-small the
+// rest, giving the equation visual variety without affecting the math.
+const PAIRS_EQ10 = [
+  [1, 9], [2, 8], [3, 7], [4, 6], [5, 5],
+  [9, 1], [8, 2], [7, 3], [6, 4],
 ];
 
 let roundIdx = 0;
@@ -100,16 +101,19 @@ function pickWrongs(correct, count, lo, hi, offsets) {
   return wrongs.slice(0, count);
 }
 
-// Case 2 (凑十法): one of the three addends is a single-digit pair that
-// sums to > 10, plus a 1-9 decoy. (User ruled out pairs ≤ 10 and any
-// non-single-digit addend.) Total in [12, 27]. Wrong answers in [9, 30]
-// (avoid 0 and 28+).
+// Case 2 (凑十法): two addends sum to exactly 10 (a friend-of-10 pair),
+// plus a 1-9 decoy. Total = 10 + decoy, in [11, 19]. Wrong answers in
+// [9, 21] (avoid 0 and 22+). The correct = 10 + decoy form is the make-ten
+// strategy itself — the resolved equation shows "10 + decoy = total" so
+// the kid sees how the strategy works.
 function buildMake10Round() {
-  const pair = PAIRS_GT10[Math.floor(Math.random() * PAIRS_GT10.length)];
+  const pair = PAIRS_EQ10[Math.floor(Math.random() * PAIRS_EQ10.length)];
   const decoy = 1 + Math.floor(Math.random() * 9);
-  const correct = pair[0] + pair[1] + decoy;
+  // pair always sums to 10 by construction; written as 10 + decoy to make
+  // the 凑十法 strategy visible at the call site.
+  const correct = 10 + decoy;
   const addends = [pair[0], pair[1], decoy];
-  const wrongs = pickWrongs(correct, 3, 9, 30, [-2, -1, 1, 2, 3]);
+  const wrongs = pickWrongs(correct, 3, 9, 21, [-2, -1, 1, 2, 3]);
   return {
     type: "make10",
     pair: [pair[0], pair[1]],
@@ -375,12 +379,15 @@ export default function scene(k) {
 
       k.wait(0.5, () => {
         if (round.type === "make10") {
-          // Resolved equation: show the simple sum. (The original "10 +
-          // decoy = total" trick is gone now that case-2 pairs sum to > 10,
-          // not exactly 10.)
+          // Resolved equation: collapse the pair into "10", keep the decoy,
+          // show the total. This is the 凑十法 strategy rendered as math —
+          // pair → 10, 10 + decoy = total. The kid sees their own
+          // strategy written out. Colors map "10" → SUCCESS (the pair's
+          // resolved value), decoy → ORANGE_DEEP (its original color),
+          // total → PINK.
           setEquation(
-            [round.addends[0], "+", round.addends[1], "+", round.addends[2], "=", round.correct],
-            [BLUE, undefined, SUCCESS, undefined, ORANGE_DEEP, undefined, PINK],
+            [10, "+", round.decoy, "=", round.correct],
+            [SUCCESS, undefined, ORANGE_DEEP, undefined, PINK],
           );
         } else {
           // makeSmall: just the resolved sum.
@@ -413,7 +420,6 @@ export default function scene(k) {
         // — see the `let hadWrongs` declaration above.
         hadWrongs,
       });
-      ctx.lastEncourageId = lastEncourageId;
       window.PandaAudio.playAfter("cloud-pair", chain, {
         gapMs: 200,
         seqGapMs: 200,
@@ -429,7 +435,7 @@ export default function scene(k) {
       });
 
       window.PandaAudio.playAfter(
-        ctx.lastEncourageId,
+        lastEncourageId,
         ["cloud-done"],
         { gapMs: 0, seqGapMs: 0 },
         () => {

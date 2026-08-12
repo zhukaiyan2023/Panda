@@ -485,6 +485,14 @@ function unlockAudio() {
 function drainNeedsUnlock() {
   for (const el of audioCache.values()) {
     if (!needsUnlock.has(el)) continue;
+    // Skip elements that are currently playing — they're already
+    // unlocked by the act of playing, AND a play→pause→currentTime=0
+    // cycle would interrupt any in-flight playback (e.g. a playAfter
+    // chain mid-cue). Without this guard, the pointerdown that follows
+    // a round-5 correct balloon tap resets lvl-done mid-playback and
+    // its `ended` event never fires — the chain hangs and the scene
+    // never advances to gamesPicker. Hit on a real iPad in 2026-08-13.
+    if (!el.paused) continue;
     const wasMuted = el.muted;
     el.muted = true;
     const p = el.play();

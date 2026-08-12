@@ -14,25 +14,25 @@ import { iconButton } from "../components/choice.js?v=20260812";
 import { INK, PAPER, FONT, YELLOW, ORANGE, DANGER } from "../components/theme.js?v=20260812";
 import sceneBg from "../components/sceneBg.js?v=20260812";
 
-const TIME_LIMIT = 45;     // seconds (was 30 — slower play matches slower cadence)
+const TIME_LIMIT = 75;     // seconds (5s dwell × 5 pairs needs a longer play window)
 const PAIRS_NEEDED = 5;
 const HOLE_COUNT = 6;
-// Spawn cadence (2026-08-12, rev 2): this is a MEMORY game, not a reflex
-// whack-a-mole. The kid has to read a number on one mole, hold it in
-// working memory, then scan for its complement-to-10. Industry guidance for
-// reflex whack-a-mole is 2–2.5s dwell for preschoolers; a memory variant
-// needs roughly 50% more time on each mole for the read+remember+scan
-// cycle. 3.5s dwell with 1.8s spawn keeps ~2 moles visible at once so the
-// kid always has options to pair, but each individual mole stays long
-// enough to be useful.
-const SPAWN_INTERVAL = 1.8; // seconds between mole spawns
-const HOLE_DWELL = 3.5;     // seconds a mole stays up before retreating
+// Spawn cadence (2026-08-12, rev 3): tuned for the 3–5 year-old memory
+// variant. The kid has to (1) read the number, (2) calculate its
+// complement to 10 in their head (e.g. "7, so I need 3"), (3) scan the
+// other holes, (4) tap the pair. Per the user on 2026-08-12, each step
+// costs the kid a real beat — the dwell is 5s flat, not 2.5s reflex-game
+// speed. Spawn interval 2.8s keeps ~1.8 moles visible at once so the kid
+// always has options to pair but isn't overwhelmed by a forest of moles.
+const SPAWN_INTERVAL = 2.8; // seconds between mole spawns
+const HOLE_DWELL = 5.0;     // seconds a mole stays up before retreating
 
 // mole.png is 579x728 (drawn at portrait scale for the panda-park hero
-// art). 0.3 gives a ~174x218 mole — clearly reads as a head-and-shoulders
-// popping out of the hole rather than a full-body prop dominating the
-// canvas, with comfortable padding to the 320-wide cells on either side.
-const MOLE_SCALE = 0.3;
+// art). 0.25 gives a ~145x182 mole. Combined with the dirt-mound-on-top
+// z-order fix below, only the head and shoulders of the mole poke above
+// the dirt, so the rendered footprint reads as "a mole popping out" rather
+// than "a full-body mole standing in front of a hole".
+const MOLE_SCALE = 0.25;
 
 function shuffle(arr) {
   const c = arr.slice();
@@ -115,50 +115,59 @@ export default function scene(k) {
     const x = gridX + col * cellW;
     const y = gridY + row * cellH;
 
-    // Dirt mound — wide rounded rectangle (no ellipse in this Kaplay build).
+    // Dirt mound — tall wide rounded rectangle. The 2026-08-12 z-order
+    // fix: rendered ON TOP of the mole (z 1 > mole's z 0) so the dirt
+    // covers the mole's lower body. The kid only sees the head and upper
+    // chest poking above the mound — reads as "popping out of a hole"
+    // instead of "full-body mole standing in front of a hole". The mound
+    // is also taller (120 vs the old 80) so it has enough vertical real
+    // estate to swallow a 182-tall mole sprite.
     k.add([
-      k.rect(240, 80, { radius: 40 }),
+      k.rect(240, 120, { radius: 40 }),
       k.color(74, 53, 32),
       k.pos(x, y + 80),
       k.anchor("center"),
+      k.z(1),
     ]);
-    // Hole — slightly darker rectangle behind the mound.
+    // Hole — slightly darker rectangle on top of the mound. Higher z than
+    // the mound so the dark "hole" reads as a depression, not paint.
     const hole = k.add([
       k.rect(200, 50, { radius: 25 }),
       k.color(36, 24, 16),
       k.pos(x, y + 80),
       k.anchor("center"),
+      k.z(2),
     ]);
 
     const mole = k.add([
       k.sprite("mole"),
-      k.pos(x, y + 30),     // half above hole, half below — reads as "popping out"
+      k.pos(x, y + 20),     // center just above hole center — head pokes above dirt
       k.anchor("center"),
       k.scale(MOLE_SCALE),
       k.opacity(0),
-      k.z(1),
+      k.z(0),
     ]);
 
     // Number badge — drawn over the mole sprite. The mole's eye sits ~28%
-    // from the sprite top; with MOLE_SCALE 0.3 and the mole centered at
-    // y+30, that lands the badge at y-17 so it reads "on" the eye instead
-    // of floating above the head.
+    // from the sprite top; with MOLE_SCALE 0.25 and the mole centered at
+    // y+20, that lands the badge at y-19 so it reads "on" the eye above
+    // the dirt mound line.
     const badge = k.add([
       k.circle(28),
       k.color(...YELLOW),
       k.outline(3, k.rgb(...INK)),
-      k.pos(x, y - 17),
+      k.pos(x, y - 19),
       k.anchor("center"),
       k.opacity(0),
-      k.z(2),
+      k.z(3),
     ]);
     const num = k.add([
       k.text("0", { size: 36, font: FONT }),
       k.color(...INK),
-      k.pos(x, y - 17),
+      k.pos(x, y - 19),
       k.anchor("center"),
       k.opacity(0),
-      k.z(3),
+      k.z(4),
     ]);
 
     holes.push({ x, y, mole, badge, num, occupied: false, value: null });
@@ -210,7 +219,7 @@ export default function scene(k) {
         return;
       }
       // Tiny bob.
-      hole.mole.pos.y = hole.y + 30 - Math.sin(t * 8) * 6;
+      hole.mole.pos.y = hole.y + 20 - Math.sin(t * 8) * 6;
     });
   }
 
