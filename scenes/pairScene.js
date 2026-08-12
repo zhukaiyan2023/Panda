@@ -97,7 +97,10 @@ export default function createPairScene(config) {
       },
     });
 
-    const totalSteps = Math.max(1, config.pairs(round.index).length);
+    // Pass round.candidates too: gameFeed.buildPairs needs the actual
+    // displayed digits to derive valid pairs. gameBoat.pairsFor only
+    // reads the index, so the second arg is ignored there.
+    const totalSteps = Math.max(1, config.pairs(round.index, round.candidates).length);
     const bar = stepBar(k, {
       labels: Array.from({ length: totalSteps + 1 }, (_, i) =>
         i === 0 ? "开始" : i === totalSteps ? "完成" : `第 ${i} 对`),

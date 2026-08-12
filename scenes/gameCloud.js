@@ -331,9 +331,16 @@ export default function scene(k) {
       x,
       y,
       size: 180,
-      // Cloud body is sprite-centered at y=128 (256×256 sprite); anchored
-      // at (x, y-16) scaled 0.6 the body lands at scene y-16. Pass that
-      // as the label offset so the digit sits in the middle of the cloud.
+      // cloud.png is 806×610 — the default 0.6 scale gave a 484-px bounding
+      // box that overlapped heavily at cellW 300 (2026-08-12 feedback). 0.4
+      // dropped to 322 px but the user said the cloud was still slightly big
+      // for the row (2026-08-12 follow-up). 0.32 → 258 px bounding box,
+      // leaving ~42 px between adjacent clouds so the four choices read as
+      // four separate choices, not a wall of white.
+      spriteScale: 0.32,
+      // Cloud body is sprite-centered; anchored at (x, y-16) the body lands
+      // at scene y-16. Pass that as the label offset so the digit sits in
+      // the middle of the cloud.
       labelYOffset: -16,
       hideFace: true,
       noLabelBg: true,

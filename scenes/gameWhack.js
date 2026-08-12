@@ -14,11 +14,25 @@ import { iconButton } from "../components/choice.js?v=20260812";
 import { INK, PAPER, FONT, YELLOW, ORANGE, DANGER } from "../components/theme.js?v=20260812";
 import sceneBg from "../components/sceneBg.js?v=20260812";
 
-const TIME_LIMIT = 30;     // seconds
+const TIME_LIMIT = 45;     // seconds (was 30 — slower play matches slower cadence)
 const PAIRS_NEEDED = 5;
 const HOLE_COUNT = 6;
-const SPAWN_INTERVAL = 1.4; // seconds between mole spawns
-const HOLE_DWELL = 1.4;     // seconds a mole stays up before retreating
+// Spawn cadence (2026-08-12, rev 2): this is a MEMORY game, not a reflex
+// whack-a-mole. The kid has to read a number on one mole, hold it in
+// working memory, then scan for its complement-to-10. Industry guidance for
+// reflex whack-a-mole is 2–2.5s dwell for preschoolers; a memory variant
+// needs roughly 50% more time on each mole for the read+remember+scan
+// cycle. 3.5s dwell with 1.8s spawn keeps ~2 moles visible at once so the
+// kid always has options to pair, but each individual mole stays long
+// enough to be useful.
+const SPAWN_INTERVAL = 1.8; // seconds between mole spawns
+const HOLE_DWELL = 3.5;     // seconds a mole stays up before retreating
+
+// mole.png is 579x728 (drawn at portrait scale for the panda-park hero
+// art). 0.3 gives a ~174x218 mole — clearly reads as a head-and-shoulders
+// popping out of the hole rather than a full-body prop dominating the
+// canvas, with comfortable padding to the 320-wide cells on either side.
+const MOLE_SCALE = 0.3;
 
 function shuffle(arr) {
   const c = arr.slice();
@@ -86,9 +100,14 @@ export default function scene(k) {
   // === Hole grid (3 cols × 2 rows) ===
   const COLS = 3;
   const cellW = 320;
-  const cellH = 280;
+  // The 2026-08-12 shift: gridY was 720 with cellH 280, which put row 1
+  // holes at y=1080 — past the bottom edge of the 1024-tall canvas, so the
+  // bottom row of holes was invisible. Tightening cellH and pulling gridY
+  // up to 480 lands row 0 holes near y=560 and row 1 near y=800, both
+  // comfortably inside the visible band (the title bar ends ~y=340).
+  const cellH = 240;
   const gridX = 748 - ((COLS - 1) * cellW) / 2;
-  const gridY = 720;
+  const gridY = 480;
   const holes = [];
   for (let i = 0; i < HOLE_COUNT; i++) {
     const col = i % COLS;
@@ -113,19 +132,22 @@ export default function scene(k) {
 
     const mole = k.add([
       k.sprite("mole"),
-      k.pos(x, y + 100),    // start below the hole
+      k.pos(x, y + 30),     // half above hole, half below — reads as "popping out"
       k.anchor("center"),
-      k.scale(0.7),
+      k.scale(MOLE_SCALE),
       k.opacity(0),
       k.z(1),
     ]);
 
-    // Number badge — drawn over the mole sprite.
+    // Number badge — drawn over the mole sprite. The mole's eye sits ~28%
+    // from the sprite top; with MOLE_SCALE 0.3 and the mole centered at
+    // y+30, that lands the badge at y-17 so it reads "on" the eye instead
+    // of floating above the head.
     const badge = k.add([
       k.circle(28),
       k.color(...YELLOW),
       k.outline(3, k.rgb(...INK)),
-      k.pos(x, y - 10),
+      k.pos(x, y - 17),
       k.anchor("center"),
       k.opacity(0),
       k.z(2),
@@ -133,7 +155,7 @@ export default function scene(k) {
     const num = k.add([
       k.text("0", { size: 36, font: FONT }),
       k.color(...INK),
-      k.pos(x, y - 10),
+      k.pos(x, y - 17),
       k.anchor("center"),
       k.opacity(0),
       k.z(3),
@@ -188,7 +210,7 @@ export default function scene(k) {
         return;
       }
       // Tiny bob.
-      hole.mole.pos.y = hole.y + 100 - Math.sin(t * 8) * 6;
+      hole.mole.pos.y = hole.y + 30 - Math.sin(t * 8) * 6;
     });
   }
 

@@ -150,16 +150,24 @@ function drawRound(k, ctx) {
       sprite: "balloon",
       x,
       y,
-      size: 130,
+      size: 100,
       hideFace: true,     // no card frame around the balloon
       noLabelBg: true,    // no white circle around the digit
       // Balloon body is the ellipse cy=92 in a 200×240 sprite, so the
-      // visual center of the pink body is at sprite y=92. With sprite
-      // anchored at (x, y-16) and scaled 0.6, that point lands at
-      // scene y-32.8. -33 places the digit at the body's vertical
-      // center — exactly in the middle of the balloon (per user
-      // feedback 2026-08-09).
-      labelYOffset: -33,
+      // visual center of the pink body is at sprite y=92 — i.e. 28 above
+      // the sprite's centerline. With sprite anchored at (x, y-16) and
+      // scaled 0.4, that point lands at scene y-27.2. -27 places the digit
+      // at the body's vertical center — exactly in the middle of the
+      // balloon.
+      //
+      // spriteScale 0.4 (was 0.6 default) per user feedback 2026-08-12:
+      // at 0.6 the 120-px-wide balloons overlapped their neighbours in the
+      // 200-px cellW row; 0.4 → 80-px balloons leave 120 px between centres
+      // so the four choices read as four separate balloons, not a wall of
+      // red. Hit target 100 stays a bit larger than the visible sprite so
+      // small fingers still tap reliably.
+      spriteScale: 0.4,
+      labelYOffset: -27,
     }));
   });
 

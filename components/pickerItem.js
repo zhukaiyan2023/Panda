@@ -269,9 +269,11 @@ export default function item(parent, opts) {
         // sprite so every disabled boat looks the same — the kid doesn't
         // see a "golden selected but faded" inconsistency mid-round.
         // Snap the lift back to 0 too: a disabled boat should sit on the
-        // row baseline, not hover.
-        spriteNode.hidden = false;
-        selectedSpriteNode.hidden = true;
+        // row baseline, not hover. Opacity (not .hidden) — see the long
+        // comment in the sprite-swap creation block above for the
+        // 2026-08-12 why .hidden was unreliable.
+        spriteNode.opacity = 1;
+        selectedSpriteNode.opacity = 0;
         if (selectedLift > 0) root.pos.y = 0;
       } else {
         ring.hidden = on || !ring.userVisible;
@@ -298,8 +300,10 @@ export default function item(parent, opts) {
         // sprite itself, plus a small lift (see below) so the picked boat
         // physically rises above its neighbors. The kid sees "this one
         // is up, this one is picked" instead of just a colour swap.
-        spriteNode.hidden = true;
-        selectedSpriteNode.hidden = false;
+        // Opacity (not .hidden) — see the long comment at the sprite
+        // creation site for the 2026-08-12 reason.
+        spriteNode.opacity = 0;
+        selectedSpriteNode.opacity = 1;
         if (selectedLift > 0) {
           k.tween(root.pos.y, -selectedLift, 0.15, (v) => { root.pos.y = v; });
         }
@@ -314,8 +318,8 @@ export default function item(parent, opts) {
       if (useSpriteSwap) {
         // Swap back: regular visible, selected hidden, and tween the
         // lift back to 0 so the boat returns to its row baseline.
-        spriteNode.hidden = false;
-        selectedSpriteNode.hidden = true;
+        spriteNode.opacity = 1;
+        selectedSpriteNode.opacity = 0;
         if (selectedLift > 0) {
           k.tween(root.pos.y, 0, 0.15, (v) => { root.pos.y = v; });
         }
