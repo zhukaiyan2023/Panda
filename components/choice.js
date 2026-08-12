@@ -4,7 +4,7 @@
 // an enabled/disabled state, and a click handler. Disabled buttons render
 // dimmed to indicate they have been locked out (e.g. wrong answer).
 
-import { INK, CARD, DISABLED_BG, DISABLED_INK, ORANGE, FONT } from "./theme.js";
+import { INK, CARD, DISABLED_BG, DISABLED_INK, ORANGE, FONT } from "./theme.js?v=20260812";
 
 // area() falls back to the object's own renderArea(), which only shape
 // components (rect/circle/sprite/text) provide. The shape here lives on a child,

@@ -22,13 +22,14 @@
 // L2 shows a chain (a+?=10, then need+rest=answer). Buttons stay visible at
 // every step — a child shouldn't have to wait for buttons to re-appear.
 
-import expression from "../components/expression.js";
-import stepBar from "../components/stepBar.js";
-import panda from "../components/panda.js";
-import choice, { iconButton } from "../components/choice.js";
-import { INK, PAPER, FONT } from "../components/theme.js";
-import { pickCheerCue, pickWrongCue } from "../audio/praise.js";
-import { celebrate } from "../components/celebration.js";
+import expression from "../components/expression.js?v=20260812";
+import stepBar from "../components/stepBar.js?v=20260812";
+import panda from "../components/panda.js?v=20260812";
+import choice, { iconButton } from "../components/choice.js?v=20260812";
+import { INK, PAPER, FONT } from "../components/theme.js?v=20260812";
+import sceneBg from "../components/sceneBg.js?v=20260812";
+import { pickCheerCue, pickWrongCue } from "../audio/praise.js?v=20260812";
+import { celebrate } from "../components/celebration.js?v=20260812";
 
 // Long enough for a slow voice to land a one-word prompt and the child to
 // look at the buttons before the timer expires. The verifier flips a global
@@ -125,7 +126,7 @@ export default function createRoundScene(config) {
   function drawRound(k, round, ri, totalRounds) {
     const state = { step: 1, locked: new Set(), buttons: [], body: null };
 
-    k.add([k.rect(k.width(), k.height()), k.color(...PAPER), k.z(-10)]);
+    sceneBg(k, "bg-meadow");
 
     iconButton(k, {
       label: "←",

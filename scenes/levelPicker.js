@@ -8,10 +8,12 @@
 // The emoji lock and star are replaced by the SVG sprites in assets/art/, and
 // the panda now actually appears on the screen the game is named after.
 
-import panda from "../components/panda.js";
+import panda from "../components/panda.js?v=20260812";
+import { card } from "../components/card.js?v=20260812";
+import sceneBg from "../components/sceneBg.js?v=20260812";
 import {
-  INK, PAPER, CARD, ORANGE, YELLOW, BLUE, PURPLE, FONT,
-} from "../components/theme.js";
+  INK, CARD, ORANGE, YELLOW, BLUE, PURPLE, FONT,
+} from "../components/theme.js?v=20260812";
 
 const LOCKED_BG = [220, 213, 230];
 const LOCKED_INK = [150, 140, 170];
@@ -49,30 +51,17 @@ function drawCard(k, parent, level, unlocked, dailyLocked, cardW = 320) {
   const { cardX: x, cardY: y } = level;
 
   const accent = CARD_ACCENT[level.id] || ORANGE;
-
-  parent.add([
-    k.rect(w, h, { radius: 28 }),
-    k.color(...INK),
-    k.opacity(0.15),
-    k.pos(x, y + 10),
-    k.anchor("center"),
-  ]);
-
-  const card = parent.add([
-    k.rect(w, h, { radius: 28 }),
-    k.color(...(unlocked ? CARD : LOCKED_BG)),
-    k.outline(5, k.rgb(...INK)),
-    k.pos(x, y),
-    k.anchor("center"),
-    k.area(),
-  ]);
+  const face = card(parent, k, {
+    x, y, w, h,
+    fill: unlocked ? CARD : LOCKED_BG,
+  });
 
   const titleColor = unlocked ? INK : LOCKED_INK;
 
   // A colored band behind the badge gives each level its own identity at a
   // glance, which matters more than the words to a pre-reader.
   if (unlocked) {
-    card.add([
+    face.add([
       k.rect(w - 10, 96, { radius: 24 }),
       k.color(...accent),
       k.opacity(0.28),
@@ -81,9 +70,9 @@ function drawCard(k, parent, level, unlocked, dailyLocked, cardW = 320) {
     ]);
   }
 
-  const badge = sprite(card, k, `badge-${level.id}`, { x: 0, y: -h / 2 + 62, size: 78 });
+  const badge = sprite(face, k, `badge-${level.id}`, { x: 0, y: -h / 2 + 62, size: 78 });
   if (!badge) {
-    card.add([
+    face.add([
       k.text(`第 ${level.id} 关`, { size: 36, font: FONT }),
       k.color(...titleColor),
       k.pos(0, -h / 2 + 62),
@@ -91,7 +80,7 @@ function drawCard(k, parent, level, unlocked, dailyLocked, cardW = 320) {
     ]);
   }
 
-  card.add([
+  face.add([
     k.text(SHORT_TITLES[level.id] || level.title, { size: 40, font: FONT }),
     k.color(...titleColor),
     k.pos(0, 10),
@@ -99,18 +88,18 @@ function drawCard(k, parent, level, unlocked, dailyLocked, cardW = 320) {
   ]);
 
   if (unlocked && !dailyLocked) {
-    card.add([
+    face.add([
       k.text("▶", { size: 56, font: FONT }),
       k.color(...accent),
       k.pos(0, h / 2 - 62),
       k.anchor("center"),
     ]);
-  } else if (!sprite(card, k, "lock", { x: 0, y: h / 2 - 62, size: 72 })) {
+  } else if (!sprite(face, k, "lock", { x: 0, y: h / 2 - 62, size: 72 })) {
     // Both truly-locked and daily-locked fall through here. They
     // share the same greyed visual so the kid just sees "not now".
     // The text differs ("还没解锁" vs "今天练够啦") so an adult
     // notices the distinction; a pre-reader doesn't need to.
-    card.add([
+    face.add([
       k.text(dailyLocked ? "今天练够啦" : "还没解锁", { size: 32, font: FONT }),
       k.color(...titleColor),
       k.pos(0, h / 2 - 62),
@@ -142,14 +131,14 @@ function drawCard(k, parent, level, unlocked, dailyLocked, cardW = 320) {
   };
   // Kaplay is configured with touchToMouse, so onClick covers both mouse and
   // touch input without double-firing on iPad Safari.
-  card.onClick(onPick);
+  face.onClick(onPick);
 }
 
 export default function levelPickerScene(k) {
   const levels = window.PandaLevels?.levels || [];
   const save = window.PandaSave?.load() || { unlockedLevel: 1, starsByLevel: {} };
 
-  k.add([k.rect(k.width(), k.height()), k.color(...PAPER), k.z(-10)]);
+  sceneBg(k, "bg-meadow");
 
   // Bamboo framing the edges, kept well outside the card row.
   [90, k.width() - 90].forEach((bx, i) => {
@@ -173,11 +162,28 @@ export default function levelPickerScene(k) {
     k.anchor("center"),
   ]);
 
-  // 小游戏入口已关闭 (2026-08-10). 之前这里有一个 "小游戏" tab 把
-  // 玩家送到 gamesPicker; 用户要求先把游戏入口关掉, 所以整段 (rect +
-  // text + onClick → k.go("gamesPicker")) 都注释掉了. 要重新打开
-  // 游戏入口时, 把这段代码还原即可 — gamesPicker scene 本身还在,
-  // 没有动过.
+  // "小游戏" tab below the title (not at y=92, where it would overlap the
+  // title). Mirrors the tab row in gamesPicker so the two screens feel
+  // symmetric. Was closed off on 2026-08-10 and reopened on 2026-08-12.
+  // k.go is wrapped in main.js to stopAllAudio first, so tapping this while
+  // a cue is still speaking can't stack two voices.
+  const gamesTab = k.add([
+    k.rect(200, 70, { radius: 22 }),
+    k.color(...CARD),
+    k.outline(4, k.rgb(...INK)),
+    k.pos(k.width() - 200, 200),
+    k.anchor("center"),
+    k.area(),
+  ]);
+  k.add([
+    k.text("小游戏", { size: 32, font: FONT }),
+    k.color(...INK),
+    k.pos(k.width() - 200, 200),
+    k.anchor("center"),
+  ]);
+  gamesTab.onClick(() => {
+    k.go("gamesPicker");
+  });
 
   k.add([
     k.text("选一关开始吧", { size: 32, font: FONT }),

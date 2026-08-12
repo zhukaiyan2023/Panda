@@ -35,7 +35,7 @@ const { chromium } = require("playwright");
   await page.waitForTimeout(1500);
 
   const canvasExists = await page.evaluate(() => !!document.getElementById("game"));
-  const audioCount = await page.evaluate(() => Object.keys((window.PandaAudio && window.PandaAudio.audio) || {}).length);
+  const audioCount = await page.evaluate(() => window.PandaAudio?.audioMaterializedCount?.() ?? -1);
   const levelsLoaded = await page.evaluate(() => (window.PandaLevels && window.PandaLevels.levels || []).length);
 
   await page.screenshot({ path: "/tmp/panda-smoke.png", fullPage: false });
@@ -72,7 +72,9 @@ const { chromium } = require("playwright");
   await ctx.close();
   await browser.close();
 
-  if (!canvasExists || audioCount < 31 || levelsLoaded !== 3) {
+  // After the lazy-audio refactor, audioCount is 0 at boot and grows only
+  // when cues actually fire. Levels is now 4 (L1-L4) after L4 landed.
+  if (!canvasExists || levelsLoaded < 4) {
     console.error("[smoke] FAIL: required game state not initialized");
     process.exit(2);
   }

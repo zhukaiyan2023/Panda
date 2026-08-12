@@ -14,7 +14,14 @@ const browser = await chromium.launch({
 });
 const ctx = await browser.newContext({
   viewport: { width: 1366, height: 1024 },
-  deviceScaleFactor: 1,
+  // deviceScaleFactor bumped 1 → 2 (2026-08-12) so screenshots are
+  // rendered at 2732×2048 instead of 1366×1024 — the user reported
+  // "图有些模糊" because the 1× PNG gets upscaled by the viewer
+  // and the font edges blur. 2× matches the iPad's native pixel
+  // ratio (the actual target platform). Click coordinates are
+  // unchanged because Playwright's mouse.click uses CSS pixels, not
+  // device pixels.
+  deviceScaleFactor: 2,
 });
 const page = await ctx.newPage();
 page.on("pageerror", (err) => console.error("[pageerror]", err.message));
@@ -31,8 +38,11 @@ await page.waitForTimeout(400);
 const canvas = await page.$("canvas");
 const box = await canvas.boundingBox();
 
-// Pick L1.
-await page.mouse.click(box.x + 360, box.y + 560);
+// Pick L1 — click the "三数相加" card center. The picker lays out 4
+// cards at the same y; L1 sits at the leftmost slot. Card 1 center
+// in the 1366×1024 viewport is ~(275, 480). The earlier (360, 560)
+// coord was from the pre-2026-08-11 picker layout.
+await page.mouse.click(box.x + 275, box.y + 480);
 await page.waitForTimeout(900);
 
 async function readRow(y, tol = 12) {
@@ -75,38 +85,31 @@ async function readHighlightedStep() {
 }
 
 // Identify the current round by reading the persistent anchor equation's
-// three addends and matching to round data. Replaces the removed Round
-// counter as the round indicator.
+// three addends and computing pair sum + answer directly. Replaces the
+// old `PandaLevels.levels` lookup which doesn't exist any more
+// (2026-08-11 refactor — `levelsData` only carries title metadata, the
+// rounds are generated on the fly by data/pools.js's `poolGens[1]()`).
 async function expectedPicks() {
   return page.evaluate(() => {
     const k = window.kaplay;
-    // The persistent anchor sits at y=220. Read every numeric text node at
-    // that row, sorted by x — gives us [num, num, num] in order.
+    // The persistent anchor sits at y=360 (2026-08-11 layout — was 220
+    // when cells were below it). Read every numeric text node at that
+    // row, sorted by x — gives us [num, num, num] in order.
     const anchorTexts = k.get("*", { recursive: true })
       .filter((o) => typeof o.text === "string" && /^\d+$/.test(o.text))
       .map((o) => {
         const p = typeof o.worldPos === "function" ? o.worldPos() : o.pos;
         return { text: o.text, x: p.x, y: p.y };
       })
-      .filter((o) => Math.abs(o.y - 220) < 30)
+      .filter((o) => Math.abs(o.y - 360) < 30)
       .sort((a, b) => a.x - b.x)
       .map((o) => Number(o.text));
     if (anchorTexts.length < 3) return { pairSum: null, answer: null };
     const [a, b, c] = anchorTexts;
-    const lvl = window.PandaLevels.levels.find((l) => l.id === 1);
-    const r = lvl.rounds.find((rr) =>
-      rr.nums[0] === a && rr.nums[1] === b && rr.nums[2] === c,
-    );
-    if (!r) return { pairSum: null, answer: null };
-    let pair;
-    for (let i = 0; i < r.nums.length; i++) {
-      for (let j = i + 1; j < r.nums.length; j++) {
-        if (r.nums[i] + r.nums[j] === 10) { pair = [r.nums[i], r.nums[j]]; break; }
-      }
-      if (pair) break;
-    }
-    if (!pair) pair = [r.nums[0], r.nums[1]];
-    return { pairSum: pair[0] + pair[1], answer: r.answer };
+    // L1's pool is SUM-≤-10 only — choosePair always picks the first
+    // two addends as the pair (no make-a-ten shortcut). pair sum is
+    // a+b, the final answer is a+b+c. Both are exact given the anchor.
+    return { pairSum: a + b, answer: a + b + c };
   });
 }
 

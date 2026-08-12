@@ -11,12 +11,13 @@
 // protocol. The chrome (header, icon buttons, step bar, panda, save) is
 // copied from pairScene; if a sixth pair-style game appears, factor it out.
 
-import item from "../components/pickerItem.js";
-import stepBar from "../components/stepBar.js";
-import panda from "../components/panda.js";
-import expression from "../components/expression.js";
-import { iconButton } from "../components/choice.js";
-import { INK, PAPER, FONT, PINK } from "../components/theme.js";
+import item from "../components/pickerItem.js?v=20260812";
+import stepBar from "../components/stepBar.js?v=20260812";
+import panda from "../components/panda.js?v=20260812";
+import expression from "../components/expression.js?v=20260812";
+import { iconButton } from "../components/choice.js?v=20260812";
+import { INK, PAPER, FONT, PINK } from "../components/theme.js?v=20260812";
+import sceneBg from "../components/sceneBg.js?v=20260812";
 
 const ROUND_COUNT = 5;
 // Each round uses a different target N (≤ 10) so the kid practices the
@@ -86,7 +87,7 @@ function saveProgress(levelId) {
 function drawRound(k, ctx) {
   const { a, N, candidates, correct } = ctx.roundData;
 
-  k.add([k.rect(k.width(), k.height()), k.color(...PAPER), k.z(-10)]);
+  sceneBg(k, "bg-meadow");
 
   iconButton(k, {
     label: "←", x: 84, y: 92, w: 96, h: 72, fontSize: 44,
@@ -136,9 +137,9 @@ function drawRound(k, ctx) {
   // pink body (not in a separate white circle). Matches
   // panda-park/bounce.html: balloon-shape with a chunky white num inside.
   const cols = 4;
-  const cellW = 240;
+  const cellW = 200;
   const gridX = 748 - ((cols - 1) * cellW) / 2;
-  const gridY = 720;
+  const gridY = 700;
   const items = [];
   candidates.forEach((v, i) => {
     const col = i % cols;
@@ -149,7 +150,7 @@ function drawRound(k, ctx) {
       sprite: "balloon",
       x,
       y,
-      size: 170,
+      size: 130,
       hideFace: true,     // no card frame around the balloon
       noLabelBg: true,    // no white circle around the digit
       // Balloon body is the ellipse cy=92 in a 200×240 sprite, so the

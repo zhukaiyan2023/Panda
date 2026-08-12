@@ -19,8 +19,26 @@
 //   rows:   1 (top row only, for L1) or 2 (full frame, default).
 //   cell:   size of each square in px. Defaults to 64.
 //   gap:    spacing between cells. Defaults to 8.
+//   dot:    counter sprite for filled cells — "blue" | "yellow" | "pink" |
+//           "purple" | "orange". Defaults to "orange".
+//
+// Rendering: each cell is an illustrated hollow slot (the `cell-frame` sprite)
+// with a glossy counter (`dot-*`) shown inside when filled. The frame stays a
+// grid of independent cells rather than one baked image because the whole point
+// is that cells fill one at a time as the child counts.
+//
+// If the art fails to load, the cells fall back to the original rounded-rect
+// drawing so the arithmetic still works — art is decoration, not function.
 
-import { INK, CELL_FILL, CELL_FILL_HI, CELL_EMPTY, FONT } from "./theme.js";
+import { INK, CELL_FILL, CELL_FILL_HI, CELL_EMPTY, FONT } from "./theme.js?v=20260812";
+
+const DOT_SPRITE = {
+  blue: "dot-blue",
+  yellow: "dot-yellow",
+  pink: "dot-pink",
+  purple: "dot-purple",
+  orange: "dot-orange",
+};
 
 export default function tenFrame(parent, value, opts = {}) {
   const k = window.kaplay;
@@ -29,6 +47,9 @@ export default function tenFrame(parent, value, opts = {}) {
   const gap = opts.gap ?? 8;
   const cols = 5;
   const showLabel = opts.showLabel ?? true;
+  const dotSprite = DOT_SPRITE[opts.dot] ?? DOT_SPRITE.orange;
+
+  const hasArt = Boolean(k.getSprite("cell-frame") && k.getSprite(dotSprite));
 
   const clamp = (n) => Math.max(0, Math.min(rows * cols, n | 0));
   let fillCount = clamp(value);
@@ -45,6 +66,26 @@ export default function tenFrame(parent, value, opts = {}) {
     for (let c = 0; c < cols; c++) {
       const cx = startX + c * (cell + gap);
       const cy = startY + r * (cell + gap);
+
+      if (hasArt) {
+        root.add([
+          k.sprite("cell-frame", { width: cell, height: cell }),
+          k.pos(cx, cy),
+          k.anchor("center"),
+        ]);
+        // The counter sits inside the slot and is simply hidden while empty,
+        // so filling a cell is an opacity flip rather than a rebuild.
+        const dot = root.add([
+          k.sprite(dotSprite, { width: cell * 0.72, height: cell * 0.72 }),
+          k.pos(cx, cy),
+          k.anchor("center"),
+          k.opacity(0),
+          k.z((opts.z ?? 0) + 1),
+        ]);
+        cells.push({ dot });
+        continue;
+      }
+
       const box = root.add([
         k.rect(cell, cell, { radius: 12 }),
         k.color(...CELL_EMPTY),
@@ -74,8 +115,12 @@ export default function tenFrame(parent, value, opts = {}) {
   ]);
 
   function render() {
-    cells.forEach(({ box, highlight }, i) => {
+    cells.forEach(({ box, highlight, dot }, i) => {
       const filled = i < fillCount;
+      if (dot) {
+        dot.opacity = filled ? 1 : 0;
+        return;
+      }
       box.color = k.rgb(...(filled ? CELL_FILL : CELL_EMPTY));
       highlight.opacity = filled ? 1 : 0;
     });

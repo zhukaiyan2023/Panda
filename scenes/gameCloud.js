@@ -20,15 +20,16 @@
 // Wrong taps shake + grey out (kid can keep trying). Correct taps
 // celebrate the cloud, resolve the equation, and end the round.
 
-import item from "../components/pickerItem.js";
-import panda from "../components/panda.js";
-import expression from "../components/expression.js";
-import { iconButton } from "../components/choice.js";
-import { pickCheerCue, pickWrongCue } from "../audio/praise.js";
-import { celebrate } from "../components/celebration.js";
+import item from "../components/pickerItem.js?v=20260812";
+import panda from "../components/panda.js?v=20260812";
+import expression from "../components/expression.js?v=20260812";
+import sceneBg from "../components/sceneBg.js?v=20260812";
+import { iconButton } from "../components/choice.js?v=20260812";
+import { pickCheerCue, pickWrongCue } from "../audio/praise.js?v=20260812";
+import { celebrate } from "../components/celebration.js?v=20260812";
 import {
-  INK, PAPER, FONT, ORANGE, ORANGE_DEEP, PINK, BLUE, SUCCESS, YELLOW,
-} from "../components/theme.js";
+  INK, FONT, ORANGE, ORANGE_DEEP, PINK, BLUE, SUCCESS, YELLOW,
+} from "../components/theme.js?v=20260812";
 
 const ROUND_COUNT = 5;
 const ROUND_TYPES = ["make10", "makeSmall", "make10", "makeSmall", "make10"];
@@ -238,7 +239,7 @@ export default function scene(k) {
   const round = buildRound(roundIdx);
 
   // === Background ===
-  k.add([k.rect(k.width(), k.height()), k.color(...PAPER), k.z(-10)]);
+  sceneBg(k, "bg-meadow");
 
   // === HUD (back + round pill) ==========================================
   iconButton(k, {

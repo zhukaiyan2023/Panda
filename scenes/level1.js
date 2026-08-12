@@ -53,10 +53,11 @@
 // correct pick only fills the preview's first □ and the pair-sum
 // equation — the anchor still asks "□".
 
-import { INK, FONT, NUM_BLUE, NUM_YELLOW, NUM_PINK, ORANGE } from "../components/theme.js";
-import expression from "../components/expression.js";
-import createRoundScene, { LAYOUT, options } from "./roundScene.js";
-import { poolGens } from "../data/pools.js";
+import { INK, FONT, NUM_BLUE, NUM_YELLOW, NUM_PINK, ORANGE } from "../components/theme.js?v=20260812";
+import expression from "../components/expression.js?v=20260812";
+import drawLink from "../components/drawLink.js?v=20260812";
+import createRoundScene, { LAYOUT, options } from "./roundScene.js?v=20260812";
+import { poolGens } from "../data/pools.js?v=20260812";
 
 const COLORS = [NUM_BLUE, NUM_YELLOW, NUM_PINK];
 
@@ -262,21 +263,6 @@ function mergedRow(ctx, nums, opts = {}) {
 // of the merge-line visualization in step 2 below). Lines added to
 // `parent` so they inherit its destroy() chain — roundScene's
 // clearBody() teardown cascades through ctx.arrowsRoot for the cleanup.
-function drawLink(k, parent, from, to, color, thickness = 8) {
-  const dx = to.x - from.x;
-  const dy = to.y - from.y;
-  const len = Math.sqrt(dx * dx + dy * dy);
-  // atan2 returns radians; Kaplay's k.rotate takes degrees (CCW positive).
-  const angleDeg = Math.atan2(dy, dx) * 180 / Math.PI;
-  return parent.add([
-    k.pos(from.x, from.y),
-    k.rotate(angleDeg),
-    k.rect(len, thickness),
-    k.color(...color),
-    k.opacity(0.6),
-    k.anchor("left"),
-  ]);
-}
 
 // Draws L1's merge lines: two arrows from the anchor's first two
 // addends (slot 0 = a, slot 2 = b) DOWN to the preview's merge box
@@ -559,10 +545,19 @@ export default createRoundScene({
         COLORS[aIdx], undefined, COLORS[bIdx], undefined, undefined,
       ];
 
+      // Pair-sum equation at y=680, size 82 (2026-08-12 — was 60, but the
+      // user flagged the "6" / numbers as "看不清" and the row as
+      // "不协调" against the size-82 simplified preview above it). At
+      // 60 the digits rendered at ~37 px tall — readable but cramped,
+      // and visually out-of-scale with the 82 px preview directly
+      // above. 82 matches the preview's size so the two rows read as
+      // one consistent rhythm; the pair-sum eq is still 8 px smaller
+      // than the size-90 anchor above so the eye still lands on the
+      // anchor first.
       const firePhase2 = () => {
         ctx.setEquation(
           { slots: pairSumSlots, colors: pairSumColors },
-          { y: 680, size: 60 },
+          { y: 680, size: 82 },
         );
         // Play the question right after the equation appears.
         window.PandaAudio.playSequence(phase2Ids, 40, 100);
@@ -575,7 +570,7 @@ export default createRoundScene({
         body,
         deferEquation: true,
         equation: { slots: pairSumSlots, colors: pairSumColors },
-        equationOpts: { y: 680, size: 60 },
+        equationOpts: { y: 680, size: 82 },
         postRender: (ctx) => {
           // Draw merge lines AFTER all equations/cells are in place so
           // they render on top. Idempotent — destroys any prior arrows
@@ -593,7 +588,7 @@ export default createRoundScene({
           ctx.setEquation({
             slots: [pair[0], "+", pair[1], "=", pairSum],
             colors: [COLORS[aIdx], undefined, COLORS[bIdx], undefined, ORANGE],
-          }, { y: 680, size: 60 });
+          }, { y: 680, size: 82 });
           // Reveal merge box in preview: "□+2=□" → "<pairSum>+2=□".
           // Merge lines (and their V arrowheads at the merge box)
           // stay anchored — they don't move. The line's TARGET sits

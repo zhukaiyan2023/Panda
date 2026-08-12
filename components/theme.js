@@ -16,7 +16,7 @@ export const ORANGE_DEEP = [217, 106, 31]; // --c-orange-deep
 export const SUCCESS = [108, 194, 138]; // --c-success
 export const DANGER = [225, 107, 107]; // --c-danger
 export const PINK = [255, 143, 171]; // --c-pink
-export const YELLOW = [255, 209, 102]; // --c-yellow
+export const YELLOW = [205, 165, 40]; // --c-yellow
 export const BLUE = [124, 199, 255]; // --c-blue
 export const PURPLE = [155, 140, 255]; // --c-purple
 
@@ -28,7 +28,20 @@ export const DISABLED_INK = [170, 163, 189];
 // problem. Each addend gets a clearly different color so the child can see
 // "these are three different things being added together".
 export const NUM_BLUE  = [124, 199, 255]; // --c-blue
-export const NUM_YELLOW = [255, 209, 102]; // --c-yellow
+// Yellow evolution (2026-08-12):
+//   [255, 209, 102] — too pale, bled into PAPER ("看不清").
+//   [204, 130, 30]  — readable but read as "dark gold / amber",
+//                     not yellow ("颜色是不是正确的" — user
+//                     described it as 深金色).
+//   [205, 165, 40]  — current. Pushes G up so it reads clearly as
+//                     YELLOW (golden yellow, not orange-brown)
+//                     while keeping enough luminance contrast
+//                     against PAPER (~2.7, plenty for a 3-6 yo).
+//                     Other addend colors (NUM_BLUE, NUM_PINK) keep
+//                     their pastel hue — their warmer/cooler
+//                     difference to PAPER gave them enough
+//                     contrast already.
+export const NUM_YELLOW = [205, 165, 40]; // --c-yellow
 export const NUM_PINK  = [255, 143, 171]; // --c-pink
 export const NUM_PURPLE = [155, 140, 255]; // --c-purple
 export const ACCENT = [255, 138, 61]; // --c-orange-deep

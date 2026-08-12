@@ -2,17 +2,14 @@
 //
 // Six boats float on a river. Five rounds; each round picks a fresh
 // friends-of-10 pair + four non-conflicting distractors. The player taps two
-// boats; if they sum to 10, the two boats bounce, sparkles burst around the
-// picked boats, a "过河啦！" header bounces in, and the panda cheers — four
-// small visual beats so the kid feels rewarded, not just told they won.
-//
-// The digit on each boat floats above the sprite (see pickerItem.js
-// labelPosition: "above") so the number reads against sky instead of being
-// swallowed by the brown hull.
+// boats; if they sum to 10, the two boats disable (fade out) and the panda
+// cheers. The previous "bounce + sparkles + 过河啦! header + equation" stack
+// was removed on 2026-08-12 — user feedback was that the matching animation
+// was too noisy and the selected boat looked ugly. The selection indicator
+// is now a whole-sprite swap (regular boat ↔ golden-sail + heart boat).
 
-import createPairScene, { shuffle } from "./pairScene.js";
-import item from "../components/pickerItem.js";
-import { INK, FONT, ORANGE } from "../components/theme.js";
+import createPairScene, { shuffle } from "./pairScene.js?v=20260812";
+import item from "../components/pickerItem.js?v=20260812";
 
 const TARGET = 10;
 
@@ -68,23 +65,28 @@ function body(ctx) {
   const { k, round } = ctx;
   const values = round.candidates;
 
-  // 6 boats in a 3×2 grid. Numbers sit above the boat, not on the hull —
-  // kid sees boat+sail against the water and the digit floating over it.
+  // 6 boats in a 3×2 grid. The new shorter boat SVG (200-tall viewbox,
+  // 256x200) replaces the original 256-tall one — 2026-08-12 user feedback
+  // was that the previous boats were too tall and the rows felt cramped.
   //
-  // Sizing/spacing (per user feedback 2026-08-09: previous boats still felt
-  // too big, and the row-2 number label was clipping into the row-1 face).
-  //   size 180 → 160     (smaller face, slightly more breathing room)
-  //   spriteScale 0.45 → 0.4  (boat sprite inside the face)
-  //   gridY 700 → 580    (move boats up; leaves room for the prompt above
-  //                       and the bottom edge for the panda)
-  //   cellH 220 → 260    (gap between row-1 face bottom and row-2 label top
-  //                       = (580+260) − 140 − 40 − (580+80) = 0 — they
-  //                       touch but don't overlap)
+  //   spriteScale 0.4 → 0.42  (slight bump — shorter SVG means each pixel
+  //                            of width is now more boat-body than empty
+  //                            mast, so a small scale-up keeps the boat
+  //                            reading at the same visual size as before)
+  //   cellH 260 → 220         (tighter vertical pitch; new boats leave a
+  //                            visible ~150 px gap between rows instead of
+  //                            the old row 1 label touching row 0 hull)
+  //   gridY 580 → 540          (lift the grid a touch; prompt at y=310
+  //                            now has more breathing room above row 0)
+  //
+  // labelYOffset stays at -60 — the new flag top sits ~50 px above the
+  // item center, so the number circle (radius 40) clears the flag by ~10 px
+  // and the digit reads against sky, not the mast.
   const cols = 3;
   const cellW = 320;
-  const cellH = 260;
+  const cellH = 220;
   const gridX = 748 - ((cols - 1) * cellW) / 2;
-  const gridY = 580;
+  const gridY = 540;
   const items = [];
   values.forEach((v, i) => {
     const col = i % cols;
@@ -94,18 +96,30 @@ function body(ctx) {
     items.push(item(k, {
       value: v,
       sprite: "boat",
+      // selectedSprite swaps the visible whole-boat sprite on highlight()
+      // and swaps back on unhighlight(). The pulsing orange ring is
+      // skipped in this mode (see pickerItem.js useSpriteSwap) — the
+      // 2026-08-12 feedback was that the ring was ugly.
+      selectedSprite: "boat-sel",
+      // selectedLift raises the picked boat 20 px above the row so the
+      // kid sees "this one is up, this one is picked" in addition to the
+      // golden-sail sprite swap. 2026-08-12 follow-up: the sprite swap
+      // alone wasn't obvious enough at the smaller (200-tall) sprite size.
+      selectedLift: 20,
       x,
       y,
       size: 160,
-      spriteScale: 0.4,    // tighter than default 0.6 — boats felt crowded
-      // Number sits just above the boat's flag/mast (sprite top is at
-      // y-67, so y-60 places the number circle 7px above the flag —
-      // matches the "top: -8px" pattern from panda-park/boat.html).
-      // Earlier we used labelPosition: "above" which put the number at
-      // y-140 (way above the boat) — the kid saw the digit floating in
-      // empty sky with the boat far below it. -60 keeps the digit on
-      // the boat.
-      labelYOffset: -60,
+      spriteScale: 0.42,
+      // labelYOffset -85 + labelPosition "above" — the new shorter
+      // 200-tall boat has the flag at scene y≈-46; the white circle
+      // around the digit has radius 40, so a -60 offset put the circle
+      // bottom at y=-20 and covered the top of the sail. -85 lifts the
+      // circle bottom to y=-45, leaving a 1-px gap above the flag so
+      // the full boat (flag + sail + hull) stays visible. "above" also
+      // extends the hit area 80 px above the face so the kid can still
+      // tap the digit without the click landing on empty sky.
+      labelPosition: "above",
+      labelYOffset: -85,
       hideFace: true,      // no card frame around the boat (matches
                            // panda-park/boat.html — the boat sits on the
                            // water, the digit floats above it)
@@ -124,96 +138,17 @@ export default createPairScene({
   pairs: pairsFor,
   prompt: () => "选两艘小船，让它们加起来是十。",
   body,
-  // On a correct pair: the two boats bounce, sparkles burst around them,
-  // a big "过河啦！" header bounces in, and the equation appears. Four beats
-  // of feedback so the kid feels rewarded rather than told.
+  // On a correct pair, the boats themselves are already disabled by
+  // pairScene's tryPair (setDisabled(true) on each — they fade to 35%
+  // opacity). No matching animation here on purpose: 2026-08-12 user
+  // feedback was that the previous "bounce + sparkles + 过河啦! header
+  // + equation" stack was too noisy and felt "效果太差了". The pairScene
+  // also skips its celebrate() fireworks for this game (noCelebrate: true
+  // below), so the only positive feedback is the cheer audio + the boats
+  // fading out + the panda switching to its cheer pose.
+  noCelebrate: true,
   onCorrect(ctx, a, b) {
-    const k = ctx.k;
-
-    // 1. The two correct boats bounce — quick 1 → 1.3 → 1 scale pulse so the
-    // kid visually sees "those are the ones I picked, and they did the thing."
-    const correct = ctx.items.filter((it) => it.value === a || it.value === b);
-    correct.forEach((it, i) => {
-      k.wait(i * 0.08, () => {
-        const root = it.node;
-        root.scale = k.vec2(1, 1);
-        k.tween(1, 1.3, 0.12, (v) => { root.scale = k.vec2(v, v); });
-        k.wait(0.12, () => {
-          k.tween(1.3, 1, 0.18, (v) => { root.scale = k.vec2(v, v); });
-        });
-      });
-    });
-
-    // 2. Sparkles burst around each of the two correct boats. We add ✨
-    // glyphs at random offsets, fade them in/out with random delays so they
-    // don't all fire on the same frame. Anchored to descriptor.x/y (root.pos
-    // is always (0, 0); the boat's world coords live on the descriptor).
-    correct.forEach((it) => {
-      const cx = it.x;
-      const cy = it.y;
-      for (let s = 0; s < 6; s++) {
-        const sparkle = k.add([
-          k.text("✨", { size: 36 }),
-          k.color(...ORANGE),
-          k.pos(
-            cx + (Math.random() - 0.5) * 140,
-            cy + (Math.random() - 0.5) * 140,
-          ),
-          k.anchor("center"),
-          k.opacity(0),
-          k.z(5),
-        ]);
-        const delay = 0.2 + Math.random() * 0.4;
-        k.wait(delay, () => {
-          k.tween(0, 1, 0.2, (v) => { sparkle.opacity = v; });
-          k.wait(0.5, () => {
-            k.tween(1, 0, 0.3, (v) => { sparkle.opacity = v; });
-          });
-        });
-      }
-    });
-
-    // 3. Big "过河啦！" header bounces in above the boats. Scale starts small
-    // (0.5), springs up past 1, settles back to 1 — the classic "appearing"
-    // beat that kids react to. Lives in the gap between the prompt (y≈310)
-    // and the top-row boat labels (y≈550).
-    const celebrate = k.add([
-      k.text("过河啦！", { size: 88, font: FONT }),
-      k.color(...ORANGE),
-      k.outline(4, k.rgb(...INK)),
-      k.pos(748, 400),
-      k.anchor("center"),
-      k.opacity(0),
-      k.scale(0.5),
-      k.z(10),
-    ]);
-    k.wait(0.35, () => {
-      k.tween(0, 1, 0.25, (v) => { celebrate.opacity = v; });
-      k.tween(0.5, 1.25, 0.35, (v) => {
-        celebrate.scale = k.vec2(v, v);
-      });
-      k.wait(0.35, () => {
-        k.tween(1.25, 1, 0.15, (v) => {
-          celebrate.scale = k.vec2(v, v);
-        });
-      });
-    });
-
-    // 4. Equation fades in below the celebrate text, in the empty band
-    // between the celebration and the top-row boat labels.
-    const reward = k.add([
-      k.text(`${a} + ${b} = ${a + b}！`, { size: 64, font: FONT }),
-      k.color(...INK),
-      k.pos(748, 500),
-      k.anchor("center"),
-      k.opacity(0),
-    ]);
-    k.wait(0.6, () => {
-      k.tween(0, 1, 0.3, (v) => { reward.opacity = v; });
-    });
-
     window.PandaAudio.playCue("boat-pair");
-    return reward;
   },
   roundEndCue: () => null,
   replayCue: () => null,

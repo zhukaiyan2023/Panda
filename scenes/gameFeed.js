@@ -6,9 +6,9 @@
 // and the equation text replaces itself (no stacking). After 3 pairs the
 // panda is "full" and the round ends.
 
-import createPairScene, { shuffle } from "./pairScene.js";
-import item from "../components/pickerItem.js";
-import { INK, FONT, ORANGE } from "../components/theme.js";
+import createPairScene, { shuffle } from "./pairScene.js?v=20260812";
+import item from "../components/pickerItem.js?v=20260812";
+import { INK, FONT, ORANGE } from "../components/theme.js?v=20260812";
 
 const TARGET = 10;
 const ROUND_COUNT = 3;

@@ -39,10 +39,10 @@
 // (alongside the sub-question's "?"). Step 1's correct pick only fills
 // the sub-question's "?" — the anchor still asks "?".
 
-import { INK, FONT, NUM_BLUE, NUM_YELLOW, NUM_PINK, ORANGE } from "../components/theme.js";
-import expression from "../components/expression.js";
-import createRoundScene, { LAYOUT, options } from "./roundScene.js";
-import { poolGens } from "../data/pools.js";
+import { INK, FONT, NUM_BLUE, NUM_YELLOW, NUM_PINK, ORANGE } from "../components/theme.js?v=20260812";
+import expression from "../components/expression.js?v=20260812";
+import createRoundScene, { LAYOUT, options } from "./roundScene.js?v=20260812";
+import { poolGens } from "../data/pools.js?v=20260812";
 
 const COLORS = [NUM_BLUE, NUM_YELLOW, NUM_PINK];
 const TEN = 10;

@@ -100,7 +100,7 @@ if (!Number.isFinite(VOICE_TYPE) || VOICE_TYPE <= 0) {
   process.exit(2);
 }
 
-const CUES = (await import("./cues.cjs")).default;
+const CUES = (await import("./cue-manifest.mjs")).buildManifest();
 const OUT_DIR = path.join(ROOT, "assets", "audio");
 fs.mkdirSync(OUT_DIR, { recursive: true });
 

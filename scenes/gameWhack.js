@@ -8,10 +8,11 @@
 // This is the only timed game in the collection. It uses a different chrome
 // (timer pill instead of step bar) and a fresh scene rather than pairScene.
 
-import stepBar from "../components/stepBar.js";
-import panda from "../components/panda.js";
-import { iconButton } from "../components/choice.js";
-import { INK, PAPER, FONT, YELLOW, ORANGE, DANGER } from "../components/theme.js";
+import stepBar from "../components/stepBar.js?v=20260812";
+import panda from "../components/panda.js?v=20260812";
+import { iconButton } from "../components/choice.js?v=20260812";
+import { INK, PAPER, FONT, YELLOW, ORANGE, DANGER } from "../components/theme.js?v=20260812";
+import sceneBg from "../components/sceneBg.js?v=20260812";
 
 const TIME_LIMIT = 30;     // seconds
 const PAIRS_NEEDED = 5;
@@ -45,7 +46,7 @@ export default function scene(k) {
   window.PandaAudio.playCue("whack-intro");
 
   // === Header chrome ===
-  k.add([k.rect(k.width(), k.height()), k.color(...PAPER), k.z(-10)]);
+  sceneBg(k, "bg-meadow");
 
   iconButton(k, {
     label: "←", x: 84, y: 92, w: 96, h: 72, fontSize: 44,

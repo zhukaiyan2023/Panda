@@ -11,7 +11,7 @@
 // removes it. A small child can tap one of these reliably even when several
 // are on screen at once.
 
-import { INK, CARD, ORANGE, FONT } from "./theme.js";
+import { INK, CARD, ORANGE, FONT } from "./theme.js?v=20260812";
 
 const SIZE = 180;        // hit-target and face size
 const SPRITE_SCALE = 0.6; // default: shrinks the prop sprite inside the button
@@ -35,6 +35,18 @@ function hitShape(k, x, y, w, h, labelAbove) {
 //   value    the number this item carries (used by pairScene to compute sums)
 //   sprite   optional sprite name (e.g. "boat", "cloud", "mole", "balloon", "bubble")
 //            — when missing, the item renders as a plain numbered card
+//   selectedSprite optional second sprite name. When set, highlight() swaps
+//            the visible sprite to `selectedSprite` and unhighlight() swaps
+//            back. The pulsing orange ring is skipped — the sprite swap is
+//            the selection indicator. Used by the boat scene (2026-08-12),
+//            where the kid found the pulsing ring "ugly" and we now switch
+//            between two whole boat sprites (white-sail / golden-sail).
+//   selectedLift   optional pixels to lift the whole item (root.pos.y
+//            decreases by this much) on highlight(), and tween back on
+//            unhighlight(). The lift is a clear "this one is up, this one
+//            is picked" beat that pairs with the sprite swap. Default 0
+//            (no lift; only the sprite changes). Boat uses 20 (2026-08-12
+//            follow-up: the sprite-swap alone wasn't obvious enough).
 //   x, y     center position on the canvas
 //   fillColor   [r,g,b] override for the card face, default CARD
 //   size     override for the face hit-target (square)
@@ -74,6 +86,8 @@ export default function item(parent, opts) {
   const k = window.kaplay;
   const value = opts.value;
   const spriteName = opts.sprite;
+  const selectedSpriteName = opts.selectedSprite;
+  const selectedLift = opts.selectedLift ?? 0;
   const x = opts.x;
   const y = opts.y;
   const w = opts.size ?? SIZE;
@@ -148,8 +162,43 @@ export default function item(parent, opts) {
   ]);
 
   // Optional sprite prop behind the number — boats, clouds, balloons.
-  if (hasSprite) {
-    root.add([
+  // When `selectedSprite` is provided, two sprite nodes are created at the
+  // same position; the regular one is visible by default, the selected one
+  // is shown by highlight() and hidden by unhighlight(). The pulsing orange
+  // ring is skipped in that mode (useSpriteSwap is the new selection
+  // indicator). Capturing the node refs is required so we can flip their
+  // visibility in highlight()/unhighlight().
+  let spriteNode = null;
+  let selectedSpriteNode = null;
+  const useSpriteSwap = !!(hasSprite && selectedSpriteName && k.getSprite(selectedSpriteName));
+  if (useSpriteSwap) {
+    // Two sprite nodes at the same spot. The selected one starts at
+    // opacity 0 so it never paints on top of the regular sprite until
+    // highlight() is called. We use opacity (not .hidden = true) because
+    // 2026-08-12 the user reported seeing a half-mixed state at the
+    // start of the round — top row looked like the selected sprite even
+    // though no one had tapped anything. .hidden appears to be unreliable
+    // when the two sprites share z and are added back-to-back to the
+    // same parent; the renderer can paint the "hidden" one on top before
+    // the property settles. Opacity is a guaranteed render-time skip.
+    spriteNode = root.add([
+      k.sprite(spriteName),
+      k.pos(x, y - 16),
+      k.anchor("center"),
+      k.scale(spriteScale),
+      k.opacity(1),
+      k.z(1),
+    ]);
+    selectedSpriteNode = root.add([
+      k.sprite(selectedSpriteName),
+      k.pos(x, y - 16),
+      k.anchor("center"),
+      k.scale(spriteScale),
+      k.opacity(0),
+      k.z(1),
+    ]);
+  } else if (hasSprite) {
+    spriteNode = root.add([
       k.sprite(spriteName),
       k.pos(x, y - 16),
       k.anchor("center"),
@@ -215,7 +264,18 @@ export default function item(parent, opts) {
       label.opacity = on ? 0.35 : 1;
       if (labelBg) labelBg.opacity = on ? 0.35 : 1;
       if (labelStroke) labelStroke.opacity = on ? 0.2 : 0.55;
-      ring.hidden = on || !ring.userVisible;
+      if (useSpriteSwap) {
+        // Disabled = "done, faded out". Force the regular (unselected)
+        // sprite so every disabled boat looks the same — the kid doesn't
+        // see a "golden selected but faded" inconsistency mid-round.
+        // Snap the lift back to 0 too: a disabled boat should sit on the
+        // row baseline, not hover.
+        spriteNode.hidden = false;
+        selectedSpriteNode.hidden = true;
+        if (selectedLift > 0) root.pos.y = 0;
+      } else {
+        ring.hidden = on || !ring.userVisible;
+      }
     },
     shake() {
       // Quick horizontal jitter; 0.35s total. Doesn't lock the item so the
@@ -232,12 +292,35 @@ export default function item(parent, opts) {
       });
     },
     highlight() {
+      if (useSpriteSwap) {
+        // Whole-sprite swap: hide the regular boat, show the golden-sail
+        // "picked" boat. No ring, no pulse — the visual change is the
+        // sprite itself, plus a small lift (see below) so the picked boat
+        // physically rises above its neighbors. The kid sees "this one
+        // is up, this one is picked" instead of just a colour swap.
+        spriteNode.hidden = true;
+        selectedSpriteNode.hidden = false;
+        if (selectedLift > 0) {
+          k.tween(root.pos.y, -selectedLift, 0.15, (v) => { root.pos.y = v; });
+        }
+        return;
+      }
       ring.userVisible = true;
       ring.hidden = disabled;
       pulseStart = k.time();
       pulsing = true;
     },
     unhighlight() {
+      if (useSpriteSwap) {
+        // Swap back: regular visible, selected hidden, and tween the
+        // lift back to 0 so the boat returns to its row baseline.
+        spriteNode.hidden = false;
+        selectedSpriteNode.hidden = true;
+        if (selectedLift > 0) {
+          k.tween(root.pos.y, 0, 0.15, (v) => { root.pos.y = v; });
+        }
+        return;
+      }
       ring.userVisible = false;
       ring.hidden = true;
       pulsing = false;

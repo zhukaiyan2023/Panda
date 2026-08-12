@@ -9,10 +9,11 @@
 // same tab pill style — so a child can predict where "Math" went when they
 // want it back.
 
-import panda from "../components/panda.js";
+import panda from "../components/panda.js?v=20260812";
+import sceneBg from "../components/sceneBg.js?v=20260812";
 import {
-  INK, PAPER, CARD, ORANGE, YELLOW, BLUE, PURPLE, PINK, FONT,
-} from "../components/theme.js";
+  INK, CARD, ORANGE, YELLOW, BLUE, PURPLE, PINK, FONT,
+} from "../components/theme.js?v=20260812";
 
 const LOCKED_BG = [220, 213, 230];
 const LOCKED_INK = [150, 140, 170];
@@ -125,7 +126,7 @@ function drawCard(k, parent, game, unlocked) {
 export default function gamesPickerScene(k) {
   const save = window.PandaSave?.load() || { unlockedGame: 1, starsByGame: {} };
 
-  k.add([k.rect(k.width(), k.height()), k.color(...PAPER), k.z(-10)]);
+  sceneBg(k, "bg-meadow");
 
   // Tabs at the top.
   drawTab(k, k, "学数学", 600, 200, 200, 70, false);
@@ -177,7 +178,7 @@ export default function gamesPickerScene(k) {
         cardX: k.width() / 2 - totalSpan / 2 + i * stride,
         cardY: baseY,
       },
-      g.id <= save.unlockedGame,
+      true,
     );
   });
 

@@ -22,15 +22,22 @@
 //                                   to onCorrect / onWrong as ctx.body
 //   onCorrect(ctx, a, b)         — animation + state mutation for a correct pick
 //   onWrong(ctx, a, b)           — feedback for a wrong pick (defaults: shake only)
+//   noCelebrate    boolean       — skip celebrate() fireworks on correct pick.
+//                                   Boat uses this (2026-08-12): the kid said
+//                                   the matching animation was too noisy, so
+//                                   boat opts out of the shared burst/star
+//                                   celebration chain. The cheer audio and
+//                                   the disabled (faded) items still play.
 //   roundEndCue(r) string        — audio cue when this round finishes
 //   replayCue(r, step) string    — audio cue when the player taps replay
 
-import stepBar from "../components/stepBar.js";
-import panda from "../components/panda.js";
-import { iconButton } from "../components/choice.js";
-import { INK, PAPER, FONT } from "../components/theme.js";
-import { pickCheerCue, pickWrongCue } from "../audio/praise.js";
-import { celebrate } from "../components/celebration.js";
+import stepBar from "../components/stepBar.js?v=20260812";
+import panda from "../components/panda.js?v=20260812";
+import { iconButton } from "../components/choice.js?v=20260812";
+import { INK, PAPER, FONT } from "../components/theme.js?v=20260812";
+import sceneBg from "../components/sceneBg.js?v=20260812";
+import { pickCheerCue, pickWrongCue } from "../audio/praise.js?v=20260812";
+import { celebrate } from "../components/celebration.js?v=20260812";
 
 // Picks that happen during one round share the same step bar. Each correct
 // pick moves the bar forward; the round is complete when step === roundSteps.
@@ -78,7 +85,7 @@ export default function createPairScene(config) {
     };
 
     // Header band, icon buttons, and panda — same chrome as the math levels.
-    k.add([k.rect(k.width(), k.height()), k.color(...PAPER), k.z(-10)]);
+    sceneBg(k, "bg-meadow");
 
     iconButton(k, {
       label: "←",
@@ -177,17 +184,21 @@ export default function createPairScene(config) {
         buddy.setMood("cheer", { silent: true });
         // Visual celebration at the midpoint of the two picked items
         // so the burst lands between the boat/cloud/bubble the kid
-        // just matched, not at a random spot.
-        const aNode = ctx.items[aIdx].node;
-        const bNode = ctx.items[bIdx].node;
-        const mx = (aNode.pos.x + bNode.pos.x) / 2;
-        const my = (aNode.pos.y + bNode.pos.y) / 2;
-        celebrate(k, {
-          tier,
-          anchor: { x: mx, y: my },
-          pandaBody: buddy?.body,
-          pandaBaseSize: 180,
-        });
+        // just matched, not at a random spot. Skipped when the game
+        // opts out via noCelebrate: true (boat, 2026-08-12 — the
+        // shared burst/fireworks were too noisy for that scene).
+        if (!config.noCelebrate) {
+          const aNode = ctx.items[aIdx].node;
+          const bNode = ctx.items[bIdx].node;
+          const mx = (aNode.pos.x + bNode.pos.x) / 2;
+          const my = (aNode.pos.y + bNode.pos.y) / 2;
+          celebrate(k, {
+            tier,
+            anchor: { x: mx, y: my },
+            pandaBody: buddy?.body,
+            pandaBaseSize: 180,
+          });
+        }
 
         if (isRoundComplete) {
           state.done = true;

@@ -49,13 +49,13 @@
 //                      and sub1 both reveal at once: "a + b = answer"
 //                      and "big + friend + rest = answer".
 
-import tenFrame from "../components/tenFrame.js";
-import expression from "../components/expression.js";
-import createRoundScene, { LAYOUT, options } from "./roundScene.js";
-import { poolGens } from "../data/pools.js";
+import tenFrame from "../components/tenFrame.js?v=20260812";
+import expression from "../components/expression.js?v=20260812";
+import createRoundScene, { LAYOUT, options } from "./roundScene.js?v=20260812";
+import { poolGens } from "../data/pools.js?v=20260812";
 import {
   INK, FONT, YELLOW, BLUE, PINK, PURPLE, ORANGE,
-} from "../components/theme.js";
+} from "../components/theme.js?v=20260812";
 
 const TEN = 10;
 const COL_BIG = BLUE;

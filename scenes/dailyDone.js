@@ -11,12 +11,13 @@
 // in the upper-left, centered card with the message, single button
 // at the bottom.
 
-import panda from "../components/panda.js";
-import { INK, PAPER, FONT, ORANGE } from "../components/theme.js";
+import panda from "../components/panda.js?v=20260812";
+import { INK, PAPER, FONT, ORANGE } from "../components/theme.js?v=20260812";
+import sceneBg from "../components/sceneBg.js?v=20260812";
 
 export default function dailyDoneScene(k) {
   // Background.
-  k.add([k.rect(k.width(), k.height()), k.color(...PAPER), k.z(-10)]);
+  sceneBg(k, "bg-bamboo-grove");
 
   // Panda buddy at the same position as the picker (kept from
   // there so the visual is familiar — same panda, same room).
