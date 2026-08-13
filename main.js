@@ -366,8 +366,7 @@ const CUE_IDS = [
   "n-7", "n-8", "n-9", "n-10", "n-11", "n-12",
   "n-13", "n-14", "n-15", "n-16", "n-17", "n-18",
   "n-19", "panda-cheer-1", "panda-cheer-2", "panda-praise-1", "panda-praise-2", "panda-praise-3",
-  "q-equals", "q-plus", "q-what-is", "whack-done", "whack-intro", "whack-start",
-  "whack-tick", "whack-timeup"
+  "q-equals", "q-plus", "q-what-is"
 ];
 
 // Lazy audio pool. With ~2000 pool-driven composite cues, eager
@@ -941,11 +940,7 @@ const SPRITES = [
   "star", "lock",
   "badge-1", "badge-2", "badge-3", "badge-4",
   // panda-park migrated game props
-  "boat", "boat-sel", "cloud", "mole", "balloon", "bubble",
-  // whack-a-mole grass retheme (2026-08-13): three hole variants + the
-  // grass-ground tile behind the hole grid. mole.png was also regenerated
-  // to drop the brown dirt baked into the old sprite.
-  "mole-hole-1", "mole-hole-2", "mole-hole-3", "grass-ground",
+  "boat", "boat-sel", "cloud", "mole", "balloon", "bubble", "bubble-sel",
   // ten-frame: a hollow slot plus interchangeable counters, so the frame can
   // still fill one cell at a time
   "cell-frame",
@@ -963,10 +958,7 @@ const SPRITES = [
 // (2026-08-12: top row of the boat grid was the cached old tan-sail
 // boat.png while the bottom row got the new white-sail version, because
 // the JS imports were cache-busted but the sprite URLs weren't).
-//
-// 2026-08-13 bump: mole.png regenerated (no baked dirt) + four new
-// sprites for the whack grass retheme (mole-hole-{1,2,3}, grass-ground).
-const ART_VERSION = "20260813";
+const ART_VERSION = "20260812";
 
 function loadArt() {
   return Promise.all(
@@ -1057,7 +1049,6 @@ watchOrientation();
     { default: gameBounce },
     { default: gameCloud },
     { default: gameFeed },
-    { default: gameWhack },
   ] = await Promise.all([
     import("./scenes/levelPicker.js?v=20260812"),
     import("./scenes/gamesPicker.js?v=20260812"),
@@ -1069,8 +1060,7 @@ watchOrientation();
     import("./scenes/gameBoat.js?v=20260812"),
     import("./scenes/gameBounce.js?v=20260812"),
     import("./scenes/gameCloud.js?v=20260812"),
-    import("./scenes/gameFeed.js?v=20260813"),
-    import("./scenes/gameWhack.js?v=20260813"),
+    import("./scenes/gameFeed.js?v=20260814"),
   ]);
 
   // Sprites must be resolved before the first scene runs: scenes decide at build
@@ -1089,7 +1079,6 @@ watchOrientation();
   k.scene("gameBounce", () => gameBounce(k));
   k.scene("gameCloud",  () => gameCloud(k));
   k.scene("gameFeed",   () => gameFeed(k));
-  k.scene("gameWhack",  () => gameWhack(k));
 
   k.go("levelPicker");
 })();

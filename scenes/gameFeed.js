@@ -151,16 +151,20 @@ function body(ctx) {
       noLabelBgTextColor: [40, 40, 40],
       noLabelBgStrokeColor: [255, 255, 255],
       // Selection visual for bubbles (user feedback 2026-08-13:
-      // "选中的效果太差了"). The bubble sprite is mostly inside the
-      // orange ring (ring 142 vs sprite ~118), so the ring alone reads
-      // as a thin outline. Add scale + lift on top so a tapped bubble
-      // visibly pops forward off the row — the same "this one is up,
-      // this one is picked" beat gameBoat uses with selectedSprite +
-      // selectedLift. scale is on the sprite node only (the hit
-      // target stays put so a bigger tap zone doesn't sneak past the
-      // orange ring).
-      selectedScale: 1.18,
-      selectedLift: 18,
+      // "选中太丑了，效果太差"). The first pass tried the orange ring
+      // + scale-up + lift combo (matching gameBoat's golden-sail pattern
+      // in spirit) but the ring is a hard-edged rounded rect that
+      // doesn't fit a circular bubble, and the kid reads the
+      // unselected vs selected state as "barely different". Swap to a
+      // dedicated golden bubble sprite (bubble-sel) — same shape but
+      // glowing yellow with a halo aura and sparkles, so the two states
+      // read as obviously different "quiet bubble" vs "this one is
+      // up". selectedLift 22 lifts the bubble 22 px off the row so it
+      // also physically rises above its neighbors, like gameBoat's
+      // selectedLift. The orange ring is auto-skipped in
+      // useSpriteSwap mode (see pickerItem.js), so we don't fight it.
+      selectedSprite: "bubble-sel",
+      selectedLift: 22,
     }));
   });
   ctx.items = items;
