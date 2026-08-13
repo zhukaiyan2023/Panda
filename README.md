@@ -62,10 +62,10 @@ level means writing a config, not copying a scene.
 
 ### Panda-park games
 
-A second tab — "Games" — opens five pair-finding activities ported from
+A second tab — "Games" — opens four pair-finding activities ported from
 [panda-park](https://example.com). Each is a thin wrapper around either
-`scenes/pairScene.js` (Boat, Cloud, Feed) or a self-contained scene (Bounce,
-Whack). The five games all teach the same "make 10" idea but with different
+`scenes/pairScene.js` (Boat, Cloud, Feed) or a self-contained scene (Bounce).
+The four games all teach the same "make 10" idea but with different
 constraints, so a child who finds Level 2's 4-button question too easy can
 move to a more physical / time-pressured version of the same content:
 
@@ -75,9 +75,8 @@ move to a more physical / time-pressured version of the same content:
 | Bounce | 4 balloons, pop the one that completes 10 | Single pick |
 | Cloud | 6 clouds, find 2–3 pairs in a round | Multi-pair per round |
 | Feed | 3/5/7 bubbles, panda eats any valid pair | Multi-pair, escalating size |
-| Whack | 75-second timer, 6 grass-mound holes, find 5 pairs | Time-attack |
 
-All five games save progress under `unlockedGame` / `starsByGame` (separate
+All four games save progress under `unlockedGame` / `starsByGame` (separate
 from the math track). The math and games tracks unlock independently so a
 child can play either path first.
 
@@ -134,8 +133,7 @@ so a child who answered 5 was told they were wrong.
 
 `tools/verify-games.mjs` boots every panda-park game, finds a valid pair (or
 the single correct balloon), clicks it, and asserts that the round progressed
-without console errors. Whack is the only timed game and is verified by timer
-presence rather than a complete playthrough.
+without console errors.
 
 ---
 

@@ -153,7 +153,7 @@ export default function createPairScene(config) {
       // target across rounds (e.g. dynamic-target gameFeed) can set
       // round.target on the round object inside body(); pairScene
       // honours that over config.target. Configs that keep one fixed
-      // target (boat/bounce/cloud/whack) never touch round.target, so
+      // target (boat/bounce/cloud) never touch round.target, so
       // `ctx.round.target ?? config.target` falls through to the
       // session-wide config value.
       const target = ctx.round.target ?? config.target;

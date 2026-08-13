@@ -1,6 +1,6 @@
 // scenes/gamesPicker.js — panda-park games tab.
 //
-// Five large cards: Boat, Bounce, Cloud, Feed, Whack. Locked games show a
+// Four large cards: Boat, Bounce, Cloud, Feed. Locked games show a
 // lock badge; unlocked games play their intro cue and enter the scene on tap.
 // Stars are tracked separately under save.starsByGame so the math and games
 // tracks are independent.

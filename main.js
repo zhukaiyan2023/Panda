@@ -940,7 +940,7 @@ const SPRITES = [
   "star", "lock",
   "badge-1", "badge-2", "badge-3", "badge-4",
   // panda-park migrated game props
-  "boat", "boat-sel", "cloud", "mole", "balloon", "bubble", "bubble-sel",
+  "boat", "boat-sel", "cloud", "balloon", "bubble", "bubble-sel",
   // ten-frame: a hollow slot plus interchangeable counters, so the frame can
   // still fill one cell at a time
   "cell-frame",

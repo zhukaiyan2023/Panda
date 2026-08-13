@@ -43,10 +43,10 @@ await page.waitForTimeout(900);
 await page.screenshot({ path: `${OUT}/games-picker.png` });
 console.log("[screenshot] captured games picker");
 
-// Now click the 气球 (balloon) card. With 5 cards centered on x=683 and
-// stride 240, the cards are at x = 683 + (i - 2) * 240 →
-//   小船(i=0): 203, 气球(i=1): 443, 云朵(i=2): 683, 喂食(i=3): 923, 打地鼠(i=4): 1163
-await page.mouse.click(box.x + 443, box.y + 600);
+// Now click the 气球 (balloon) card. With 4 cards centered on x=683 and
+// stride 240, the cards are at x = 683 + (i - 1.5) * 240 →
+//   小船(i=0): 323, 气球(i=1): 563, 云朵(i=2): 803, 喂食(i=3): 1043
+await page.mouse.click(box.x + 563, box.y + 600);
 await page.waitForTimeout(900);
 
 await page.screenshot({ path: `${OUT}/bounce-after.png` });

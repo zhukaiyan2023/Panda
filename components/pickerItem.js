@@ -33,7 +33,7 @@ function hitShape(k, x, y, w, h, labelAbove) {
 //
 //   parent   Kaplay scene root (k)
 //   value    the number this item carries (used by pairScene to compute sums)
-//   sprite   optional sprite name (e.g. "boat", "cloud", "mole", "balloon", "bubble")
+//   sprite   optional sprite name (e.g. "boat", "cloud", "balloon", "bubble")
 //            — when missing, the item renders as a plain numbered card
 //   selectedSprite optional second sprite name. When set, highlight() swaps
 //            the visible sprite to `selectedSprite` and unhighlight() swaps

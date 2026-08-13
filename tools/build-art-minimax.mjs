@@ -52,7 +52,7 @@ const STYLE = [
 // decorative frame unless told not to; both survive the cutout as grey blobs.
 //
 // The backdrop is a chroma-key color rather than white. White fails for pale
-// subjects — a white cloud or a pink mole on white has no edge for the flood
+// subjects — a white cloud or pink balloon on white has no edge for the flood
 // fill to stop at, so the fill eats straight through the character. A backdrop
 // far from every color in the subject gives the fill a hard boundary. Green is
 // the default; green subjects (bamboo, leaf) use magenta instead.
@@ -103,12 +103,6 @@ export const ART = [
     prompt: "a cute fluffy white cartoon cloud with a happy smiling face, rosy cheeks and tiny closed eyes",
     ratio: "1:1",
     tolerance: 70,
-  },
-  {
-    name: "mole",
-    prompt: "a cute chubby brown cartoon mole with dark brown fur, a big pink nose and two little white buck teeth, smiling cheerfully, head and shoulders only",
-    ratio: "1:1",
-    tolerance: 110,
   },
   {
     name: "balloon",

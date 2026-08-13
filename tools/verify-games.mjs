@@ -13,7 +13,7 @@
 //   * confirm the round progressed (new text node appeared below the prompt)
 //
 // Bounce is the only single-pick game; the harness clicks the unique correct
-// value once. Whack is timed; the harness gives it 35s and only asserts it
+// value once. (Whack used to be timed; removed 2026-08-13.)
 // booted without console errors (the time-pressure mechanic doesn't lend
 // itself to mechanical "complete one round" verification).
 

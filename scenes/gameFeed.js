@@ -179,8 +179,8 @@ function body(ctx) {
   // Score pill — small, top-right, tucked into the step-bar area so it
   // doesn't crowd the equation or the bubbles. Previously it sat at
   // (540, 460) and overlapped the equation; the top-right corner mirrors
-  // the pair-scene chrome (timer/counter pills on whack live there too)
-  // so the chrome stays consistent across the games.
+  // the pair-scene chrome so the chrome stays consistent across the
+  // games.
   k.add([
     k.rect(160, 56, { radius: 28 }),
     k.color(...ORANGE),
