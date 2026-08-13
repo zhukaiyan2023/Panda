@@ -255,10 +255,19 @@ export default createPairScene({
       // handler — overwriting it would kill the bob for the rest of
       // the scene). The tween drives a 0..1 "phase" and we map it to
       // the lunge / chew / return path inside the callback.
+      // Capture the panda ref locally so the tween doesn't dereference
+      // ctx.pandaNode after the scene transitions and the panda root
+      // is destroyed — without this guard, the orphan tween keeps
+      // poking the dead panda's pos every frame for the rest of its
+      // 0.42s lifetime, and after round 1 + round 2's worth of these
+      // the renderer state is inconsistent enough to hang the JS
+      // thread on the third transition (user report: "喂食卡死").
+      const pandaNode = ctx.pandaNode;
       const totalDur = 0.42;
       ctx.k.tween(0, 1, totalDur, (v) => {
         // Phase map: 0..0.14 lunge (ease-out), 0.14..0.57 chew wiggle,
         // 0.57..1.0 ease-in return.
+        if (!pandaNode.parent) return;
         let x, y;
         if (v < 0.14) {
           const f = v / 0.14;
@@ -277,37 +286,35 @@ export default createPairScene({
           x = midX + (startX - midX) * ease;
           y = midY + (startY - midY) * ease;
         }
-        ctx.pandaNode.pos.x = x;
-        ctx.pandaNode.pos.y = y;
+        pandaNode.pos.x = x;
+        pandaNode.pos.y = y;
       });
     }
 
     // Eat animation: scale the two picked bubbles to 0 + fade out, with
-    // a small offset between them so they don't vanish in lockstep. Run
-    // both tweens in parallel (no k.wait gate) so nothing is left queued
-    // after the scene transitions — the previous wait+onUpdate pattern
-    // left an orphan handler poking a destroyed node every frame, which
-    // was the source of the "stuck after round 2" freeze.
-    const eatAnim = (it, delay) => {
-      if (!it || !it.node) return;
-      // Drive scale 1 → 0 over `dur` with an initial `delay` so the two
-      // bubbles pop sequentially rather than in lockstep. We bake the
-      // delay into the eased curve directly instead of using k.wait —
-      // a k.wait gate would schedule a callback that might fire after
-      // the scene is destroyed and re-attach an animation to a dead
-      // node.
-      const dur = 0.5;
-      ctx.k.tween(0, 1, dur + delay, (v) => {
-        if (!it.node || it.node.exists === false) return;
-        if (v < delay / (dur + delay)) return;          // pre-delay hold
-        const t = (v - delay / (dur + delay)) / (dur / (dur + delay));
-        const s = Math.max(0, 1 - t);
-        it.node.scale = ctx.k.vec2(s, s);
-        it.node.opacity = Math.max(0, 1 - t);
+    // a small offset between them so they don't vanish in lockstep.
+    if (!window.__trace_no_eat) {
+      [itemA, itemB].forEach((it, i) => {
+        if (!it) return;
+        console.log(`[gameFeed] eat anim scheduled for value=${it.value} i=${i}`);
+        ctx.k.wait(i * 0.08, () => {
+          console.log(`[gameFeed] eat anim fired for value=${it.value}`);
+          const start = ctx.k.time();
+          const dur = 0.5;
+          it.node.onUpdate(() => {
+            const dt = ctx.k.time() - start;
+            if (dt > dur) {
+              it.node.opacity = 0;
+              it.node.onUpdate(() => {});
+              return;
+            }
+            const t = dt / dur;
+            it.node.scale = ctx.k.vec2(1 - t, 1 - t);
+            it.node.opacity = 1 - t;
+          });
+        });
       });
-    };
-    eatAnim(itemA, 0);
-    eatAnim(itemB, 0.08);
+    }
 
     // Equation — replace the previous one so multiple correct picks in a
     // round don't stack on top of each other. Centered at x=748 to match

@@ -192,8 +192,12 @@ export default function createPairScene(config) {
           hadWrongs,
         });
         ctx.lastEncourageId = lastEncourageId;
-        window.PandaAudio.playSequence(chain, 200, 0);
-        buddy.setMood("cheer", { silent: true });
+        if (!window.__trace_no_audio) {
+          window.PandaAudio.playSequence(chain, 200, 0);
+        }
+        if (!window.__trace_no_mood) {
+          buddy.setMood("cheer", { silent: true });
+        }
         // Visual celebration at the midpoint of the two picked items
         // so the burst lands between the boat/cloud/bubble the kid
         // just matched, not at a random spot. Skipped when the game
@@ -223,26 +227,36 @@ export default function createPairScene(config) {
           // on round-complete, panda-praise-N on streak tiers).
           if (roundIdx + 1 < config.roundCount) {
             const endIds = config.roundEndCue(round) ? [config.roundEndCue(round)] : [];
-            window.PandaAudio.playAfter(
-              ctx.lastEncourageId,
-              endIds,
-              { gapMs: 0, seqGapMs: 0 },
-              () => {
-                roundIdx += 1;
-                k.go(config.sceneName);
-              },
-            );
+            if (!window.__trace_no_audio) {
+              window.PandaAudio.playAfter(
+                ctx.lastEncourageId,
+                endIds,
+                { gapMs: 0, seqGapMs: 0 },
+                () => {
+                  roundIdx += 1;
+                  k.go(config.sceneName);
+                },
+              );
+            } else {
+              roundIdx += 1;
+              k.go(config.sceneName);
+            }
           } else {
             saveProgress(config.levelId);
-            window.PandaAudio.playAfter(
-              ctx.lastEncourageId,
-              ["lvl-done"],
-              { gapMs: 0, seqGapMs: 0 },
-              () => {
-                roundIdx = 0;
-                k.go("gamesPicker");
-              },
-            );
+            if (!window.__trace_no_audio) {
+              window.PandaAudio.playAfter(
+                ctx.lastEncourageId,
+                ["lvl-done"],
+                { gapMs: 0, seqGapMs: 0 },
+                () => {
+                  roundIdx = 0;
+                  k.go("gamesPicker");
+                },
+              );
+            } else {
+              roundIdx = 0;
+              k.go("gamesPicker");
+            }
           }
         } else {
           bar.setStep(state.foundPairs + 1);
