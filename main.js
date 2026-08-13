@@ -1070,7 +1070,7 @@ watchOrientation();
     import("./scenes/gameBounce.js?v=20260812"),
     import("./scenes/gameCloud.js?v=20260812"),
     import("./scenes/gameFeed.js?v=20260812"),
-    import("./scenes/gameWhack.js?v=20260812"),
+    import("./scenes/gameWhack.js?v=20260813"),
   ]);
 
   // Sprites must be resolved before the first scene runs: scenes decide at build

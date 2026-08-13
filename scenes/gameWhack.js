@@ -248,6 +248,24 @@ export default function scene(k) {
     hit.onClick(() => tap(idx));
   });
 
+  // Test-only hook: expose the tap function on window so headless e2e tests
+  // can drive the 2-tap state machine without depending on mouse-event
+  // timing in Playwright. Gated by a query string so production never
+  // exposes this. Removed once the test passes.
+  if (location.search.includes("debug=tap")) {
+    window.__whack = {
+      tap,
+      holes,
+      state,
+      spawnAt(idx, value) {
+        // Pop a specific value into a specific hole — bypasses the
+        // random spawn so slot. tests can set up exact pair scenarios
+        // without waiting for the 2.8s spawn cadence.
+        if (!holes[idx].occupied) holes[idx].popUp(value);
+      },
+    };
+  }
+
   function finish(won) {
     if (state.finished) return;
     state.finished = true;
