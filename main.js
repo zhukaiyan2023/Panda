@@ -942,6 +942,10 @@ const SPRITES = [
   "badge-1", "badge-2", "badge-3", "badge-4",
   // panda-park migrated game props
   "boat", "boat-sel", "cloud", "mole", "balloon", "bubble",
+  // whack-a-mole grass retheme (2026-08-13): three hole variants + the
+  // grass-ground tile behind the hole grid. mole.png was also regenerated
+  // to drop the brown dirt baked into the old sprite.
+  "mole-hole-1", "mole-hole-2", "mole-hole-3", "grass-ground",
   // ten-frame: a hollow slot plus interchangeable counters, so the frame can
   // still fill one cell at a time
   "cell-frame",
@@ -959,7 +963,10 @@ const SPRITES = [
 // (2026-08-12: top row of the boat grid was the cached old tan-sail
 // boat.png while the bottom row got the new white-sail version, because
 // the JS imports were cache-busted but the sprite URLs weren't).
-const ART_VERSION = "20260812";
+//
+// 2026-08-13 bump: mole.png regenerated (no baked dirt) + four new
+// sprites for the whack grass retheme (mole-hole-{1,2,3}, grass-ground).
+const ART_VERSION = "20260813";
 
 function loadArt() {
   return Promise.all(

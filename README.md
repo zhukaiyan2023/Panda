@@ -75,7 +75,7 @@ move to a more physical / time-pressured version of the same content:
 | Bounce | 4 balloons, pop the one that completes 10 | Single pick |
 | Cloud | 6 clouds, find 2–3 pairs in a round | Multi-pair per round |
 | Feed | 3/5/7 bubbles, panda eats any valid pair | Multi-pair, escalating size |
-| Whack | 30-second timer, 6 holes, find 5 pairs | Time-attack |
+| Whack | 75-second timer, 6 grass-mound holes, find 5 pairs | Time-attack |
 
 All five games save progress under `unlockedGame` / `starsByGame` (separate
 from the math track). The math and games tracks unlock independently so a

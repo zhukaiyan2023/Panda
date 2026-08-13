@@ -1,22 +1,31 @@
 // scenes/gameWhack.js — whack-a-mole (whack.html from panda-park).
 //
 // Six grass-mound holes in a 3x2 grid. Moles pop up at random, each carrying
-// a 1-9 number. The player has 30 seconds to find 5 valid friends-of-10 pairs.
+// a 1-9 number. The player has 75 seconds to find 5 valid friends-of-10 pairs.
 // Two-tap mechanic: tap one mole, then a second; if they sum to 10 the pair
 // scores. Otherwise the second tap shakes and resets.
 //
 // This is the only timed game in the collection. It uses a different chrome
 // (timer pill instead of step bar) and a fresh scene rather than pairScene.
+//
+// 2026-08-13 grass retheme: brown dirt mound + dark-brown hole rects were
+// replaced by AI-generated 3D elliptical green-grass hole sprites. Each hole
+// is now a `whackHole(k, { x, y, variant })` entity (see
+// components/whackHole.js). The mole sprite was also regenerated to remove
+// the brown dirt baked into its frame. See
+// docs/superpowers/specs/2026-08-13-whack-grass-retheme-design.md.
 
-import stepBar from "../components/stepBar.js?v=20260812";
-import panda from "../components/panda.js?v=20260812";
-import { iconButton } from "../components/choice.js?v=20260812";
-import { INK, PAPER, FONT, YELLOW, ORANGE, DANGER } from "../components/theme.js?v=20260812";
-import sceneBg from "../components/sceneBg.js?v=20260812";
+import stepBar from "../components/stepBar.js?v=20260813";
+import panda from "../components/panda.js?v=20260813";
+import { iconButton } from "../components/choice.js?v=20260813";
+import { INK, PAPER, FONT, YELLOW, ORANGE, DANGER } from "../components/theme.js?v=20260813";
+import sceneBg from "../components/sceneBg.js?v=20260813";
+import whackHole from "../components/whackHole.js?v=20260813";
 
 const TIME_LIMIT = 75;     // seconds (5s dwell × 5 pairs needs a longer play window)
 const PAIRS_NEEDED = 5;
 const HOLE_COUNT = 6;
+
 // Spawn cadence (2026-08-12, rev 3): tuned for the 3–5 year-old memory
 // variant. The kid has to (1) read the number, (2) calculate its
 // complement to 10 in their head (e.g. "7, so I need 3"), (3) scan the
@@ -25,14 +34,30 @@ const HOLE_COUNT = 6;
 // speed. Spawn interval 2.8s keeps ~1.8 moles visible at once so the kid
 // always has options to pair but isn't overwhelmed by a forest of moles.
 const SPAWN_INTERVAL = 2.8; // seconds between mole spawns
-const HOLE_DWELL = 5.0;     // seconds a mole stays up before retreating
 
-// mole.png is 579x728 (drawn at portrait scale for the panda-park hero
-// art). 0.25 gives a ~145x182 mole. Combined with the dirt-mound-on-top
-// z-order fix below, only the head and shoulders of the mole poke above
-// the dirt, so the rendered footprint reads as "a mole popping out" rather
-// than "a full-body mole standing in front of a hole".
-const MOLE_SCALE = 0.25;
+// Mulberry32 PRNG seeded by `seed`. Used so the 6-hole variant assignment
+// (which of the 3 hole sprites each hole uses) is reproducible across
+// renders — same scene → same mix of holes. Gameplay randomness (spawn
+// positions, mole values) still uses Math.random for variety.
+function mulberry32(seed) {
+  let a = seed >>> 0;
+  return function() {
+    a = (a + 0x6D2B79F5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function shuffleSeeded(arr, rng) {
+  const c = arr.slice();
+  for (let i = c.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [c[i], c[j]] = [c[j], c[i]];
+  }
+  return c;
+}
 
 function shuffle(arr) {
   const c = arr.slice();
@@ -89,9 +114,9 @@ export default function scene(k) {
   ]);
 
   k.add([
-    k.text(`点两个地鼠，让它们加起来是十。`, { size: 56, font: FONT }),
+    k.text(`点两个地鼠，让它们加起来是十。`, { size: 48, font: FONT }),
     k.color(...INK),
-    k.pos(748, 310),
+    k.pos(748, 240),
     k.anchor("center"),
   ]);
 
@@ -100,81 +125,45 @@ export default function scene(k) {
   // === Hole grid (3 cols × 2 rows) ===
   const COLS = 3;
   const cellW = 320;
-  // The 2026-08-12 shift: gridY was 720 with cellH 280, which put row 1
-  // holes at y=1080 — past the bottom edge of the 1024-tall canvas, so the
-  // bottom row of holes was invisible. Tightening cellH and pulling gridY
-  // up to 480 lands row 0 holes near y=560 and row 1 near y=800, both
-  // comfortably inside the visible band (the title bar ends ~y=340).
+  // gridY 510 (down from the pre-retheme 480): the AI hole sprites at
+  // HOLE_SCALE 0.20 occupy ±83px around their y, leaving a 74-pixel gap
+  // between rows for the bottom-row mole's face to peek into. Row 0 sits
+  // at y=510 (sprite y=427-593), row 1 at y=750 (sprite y=667-833) —
+  // row 1's bottom edge sits 191px above the canvas bottom, leaving room
+  // for the buddy panda at x=130 (no horizontal overlap).
   const cellH = 240;
   const gridX = 748 - ((COLS - 1) * cellW) / 2;
-  const gridY = 480;
+  const gridY = 510;
+
+  // Grass-ground tile spans the play-area band (1100×280). Positioned so
+  // the bottom row of holes sits well inside the green strip and the top
+  // of the tile fades into the bg-meadow background above the holes.
+  // Anchor "topleft" so the x/y below is the upper-left corner, not center.
+  k.add([
+    k.sprite("grass-ground"),
+    k.pos(gridX - (1100 - COLS * cellW) / 2, gridY - 100),
+    k.z(0),
+  ]);
+
+  // Seeded variant assignment — Mulberry32 with a stable per-scene seed so
+  // every reload shows the same 3×2 mix of the 3 hole sprites. Each variant
+  // gets exactly 2 of the 6 holes (we pass [0,0,1,1,2,2] through the shuffle)
+  // so every variant is visible regardless of the seed.
+  const sceneSeed = (Date.now() ^ 0xA53F19B1) >>> 0;
+  const variantRng = mulberry32(sceneSeed);
+  const variants = shuffleSeeded([0, 0, 1, 1, 2, 2], variantRng);
+
   const holes = [];
   for (let i = 0; i < HOLE_COUNT; i++) {
     const col = i % COLS;
     const row = Math.floor(i / COLS);
     const x = gridX + col * cellW;
     const y = gridY + row * cellH;
-
-    // Dirt mound — tall wide rounded rectangle. The 2026-08-12 z-order
-    // fix: rendered ON TOP of the mole (z 1 > mole's z 0) so the dirt
-    // covers the mole's lower body. The kid only sees the head and upper
-    // chest poking above the mound — reads as "popping out of a hole"
-    // instead of "full-body mole standing in front of a hole". The mound
-    // is also taller (120 vs the old 80) so it has enough vertical real
-    // estate to swallow a 182-tall mole sprite.
-    k.add([
-      k.rect(240, 120, { radius: 40 }),
-      k.color(74, 53, 32),
-      k.pos(x, y + 80),
-      k.anchor("center"),
-      k.z(1),
-    ]);
-    // Hole — slightly darker rectangle on top of the mound. Higher z than
-    // the mound so the dark "hole" reads as a depression, not paint.
-    const hole = k.add([
-      k.rect(200, 50, { radius: 25 }),
-      k.color(36, 24, 16),
-      k.pos(x, y + 80),
-      k.anchor("center"),
-      k.z(2),
-    ]);
-
-    const mole = k.add([
-      k.sprite("mole"),
-      k.pos(x, y + 20),     // center just above hole center — head pokes above dirt
-      k.anchor("center"),
-      k.scale(MOLE_SCALE),
-      k.opacity(0),
-      k.z(0),
-    ]);
-
-    // Number badge — drawn over the mole sprite. The mole's eye sits ~28%
-    // from the sprite top; with MOLE_SCALE 0.25 and the mole centered at
-    // y+20, that lands the badge at y-19 so it reads "on" the eye above
-    // the dirt mound line.
-    const badge = k.add([
-      k.circle(28),
-      k.color(...YELLOW),
-      k.outline(3, k.rgb(...INK)),
-      k.pos(x, y - 19),
-      k.anchor("center"),
-      k.opacity(0),
-      k.z(3),
-    ]);
-    const num = k.add([
-      k.text("0", { size: 36, font: FONT }),
-      k.color(...INK),
-      k.pos(x, y - 19),
-      k.anchor("center"),
-      k.opacity(0),
-      k.z(4),
-    ]);
-
-    holes.push({ x, y, mole, badge, num, occupied: false, value: null });
+    holes.push(whackHole(k, { x, y, variant: variants[i] }));
   }
 
   // === Game state ===
-  let state = {
+  const state = {
     timer: TIME_LIMIT,
     pairs: 0,
     pending: null,         // index of first-picked hole
@@ -198,29 +187,7 @@ export default function scene(k) {
     const hole = free[Math.floor(Math.random() * free.length)];
     const value = spawnQueue.length ? spawnQueue.pop() : 1 + Math.floor(Math.random() * 9);
     if (spawnQueue.length < 4) refillQueue();
-    hole.value = value;
-    hole.occupied = true;
-    hole.num.text = String(value);
-    hole.mole.opacity = 1;
-    hole.badge.opacity = 1;
-    hole.num.opacity = 1;
-    // Pop-up animation.
-    const start = k.time();
-    hole.mole.onUpdate(() => {
-      const t = k.time() - start;
-      if (t > HOLE_DWELL) {
-        // Retreat.
-        hole.mole.opacity = 0;
-        hole.badge.opacity = 0;
-        hole.num.opacity = 0;
-        hole.occupied = false;
-        hole.value = null;
-        hole.mole.onUpdate(() => {});
-        return;
-      }
-      // Tiny bob.
-      hole.mole.pos.y = hole.y + 20 - Math.sin(t * 8) * 6;
-    });
+    hole.popUp(value);
   }
 
   // Pick a hole: either first of a pair or judging.
@@ -230,55 +197,51 @@ export default function scene(k) {
     if (!hole.occupied) return;
     if (state.pending === null) {
       state.pending = idx;
-      hole.badge.color = k.rgb(...ORANGE);
+      hole.setSelected(true);
     } else if (state.pending === idx) {
       // Same hole tapped twice — clear selection.
-      hole.badge.color = k.rgb(...YELLOW);
+      hole.setSelected(false);
       state.pending = null;
     } else {
       const first = holes[state.pending];
       const second = hole;
-      first.badge.color = k.rgb(...YELLOW);
+      first.setSelected(false);
       state.pending = null;
       if (first.value + second.value === 10) {
         state.pairs += 1;
         counterText.text = `${state.pairs} / ${PAIRS_NEEDED}`;
         bar.setStep(state.pairs + 1);
         // Retire both moles.
-        [first, second].forEach((h) => {
-          h.mole.opacity = 0;
-          h.badge.opacity = 0;
-          h.num.opacity = 0;
-          h.occupied = false;
-          h.value = null;
-          h.mole.onUpdate(() => {});
-        });
+        first.retreat();
+        second.retreat();
         // Whack is the loudest game by design (it's a time-attack), so the only
-// audible feedback on a correct pair is a quiet mood swap — no cheering
-// cues. Without this rule, 5 pairs in 30 seconds would be a wall of sound.
+        // audible feedback on a correct pair is a quiet mood swap — no cheering
+        // cues. Without this rule, 5 pairs in 30 seconds would be a wall of sound.
         buddy.setMood("cheer", { silent: true });
         if (state.pairs >= PAIRS_NEEDED) {
           finish(true);
         }
       } else {
         // Wrong pair — shake second mole briefly.
-        const start = k.time();
-        second.mole.onUpdate(() => {
-          const t = k.time() - start;
-          if (t > 0.4) { second.mole.pos.x = second.x; second.mole.onUpdate(() => {}); return; }
-          second.mole.pos.x = second.x + Math.sin(t * 30) * 12;
-        });
+        second.shake();
         buddy.setMood("think");
       }
     }
   }
 
-  // Wire hole clicks: invisible hit target over each hole. The rect() component
-// supplies renderArea, so k.area() with no explicit shape works.
+  // Wire hole clicks: invisible hit target over each hole. Sized and
+  // positioned to cover the mole's face area + a margin, since that's
+  // where the kid taps. The mole face is at scene y ≈ hole.y + MOLE_Y_OFFSET
+  // (see components/whackHole.js), so we centre the hit-target on that
+  // point rather than on the hole's bottom-half as the pre-retheme brown
+  // holes did.
+  const MOLE_Y_OFFSET = -120;
+  const HIT_W = 220;
+  const HIT_H = 200;
   holes.forEach((h, idx) => {
     const hit = k.add([
-      k.rect(220, 100, { radius: 20 }),
-      k.pos(h.x, h.y + 50),
+      k.rect(HIT_W, HIT_H, { radius: 20 }),
+      k.pos(h.x, h.y + MOLE_Y_OFFSET - HIT_H / 2),
       k.opacity(0),
       k.area(),
     ]);
