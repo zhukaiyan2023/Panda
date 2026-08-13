@@ -7,6 +7,14 @@
 // Usage:
 //   node tools/build-audio-tencent.mjs            # generate all cues
 //   node tools/build-audio-tencent.mjs --dry-run  # list, write nothing
+//   node tools/build-audio-tencent.mjs --only=feed-q-pre,n-7
+//                                                 # regenerate just these
+//                                                 # ids (comma-separated),
+//                                                 # for backfilling a cue
+//                                                 # added after the last
+//                                                 # full run without
+//                                                 # re-spending quota on
+//                                                 # the other ~200.
 //
 // Required env (loaded from .env if present):
 //   TENCENT_SECRET_ID     SecretId from 云 API 密钥
@@ -87,6 +95,14 @@ const SERVICE = "tts";
 const ACTION = "TextToVoice";
 const VERSION = "2019-08-23";
 const DRY = process.argv.includes("--dry-run");
+// --only=a,b limits the run to those cue ids. Empty set = no filter.
+const ONLY = new Set(
+  process.argv
+    .filter((a) => a.startsWith("--only="))
+    .flatMap((a) => a.slice("--only=".length).split(","))
+    .map((s) => s.trim())
+    .filter(Boolean),
+);
 
 if (!SECRET_ID || !SECRET_KEY) {
   console.error(
@@ -100,7 +116,15 @@ if (!Number.isFinite(VOICE_TYPE) || VOICE_TYPE <= 0) {
   process.exit(2);
 }
 
-const CUES = (await import("./cues.cjs")).default;
+const ALL_CUES = (await import("./cue-manifest.mjs")).buildManifest();
+const CUES = ONLY.size ? ALL_CUES.filter((c) => ONLY.has(c.id)) : ALL_CUES;
+if (ONLY.size) {
+  const missing = [...ONLY].filter((id) => !ALL_CUES.some((c) => c.id === id));
+  if (missing.length) {
+    console.error(`[tencent] --only ids not in the manifest: ${missing.join(", ")}`);
+    process.exit(2);
+  }
+}
 const OUT_DIR = path.join(ROOT, "assets", "audio");
 fs.mkdirSync(OUT_DIR, { recursive: true });
 

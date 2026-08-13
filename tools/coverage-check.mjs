@@ -70,8 +70,7 @@ const SHARED = new Set([
   "boat-intro", "boat-pair", "boat-done",
   "cloud-intro", "cloud-pair", "cloud-done",
   "bounce-intro", "bounce-pop", "bounce-done",
-  "whack-intro", "whack-start", "whack-tick", "whack-timeup", "whack-done",
-  "feed-intro", "feed-nom", "feed-next", "feed-done",
+  "feed-intro", "feed-nom", "feed-next", "feed-done", "feed-q-pre",
 ]);
 
 // ---- 3. Compute expected cues per level.

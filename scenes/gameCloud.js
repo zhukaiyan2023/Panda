@@ -20,25 +20,27 @@
 // Wrong taps shake + grey out (kid can keep trying). Correct taps
 // celebrate the cloud, resolve the equation, and end the round.
 
-import item from "../components/pickerItem.js";
-import panda from "../components/panda.js";
-import expression from "../components/expression.js";
-import { iconButton } from "../components/choice.js";
-import { pickCheerCue, pickWrongCue } from "../audio/praise.js";
-import { celebrate } from "../components/celebration.js";
+import item from "../components/pickerItem.js?v=20260813";
+import panda from "../components/panda.js?v=20260812";
+import expression from "../components/expression.js?v=20260812";
+import sceneBg from "../components/sceneBg.js?v=20260812";
+import { iconButton } from "../components/choice.js?v=20260812";
+import { pickCheerCue, pickWrongCue } from "../audio/praise.js?v=20260812";
+import { celebrate } from "../components/celebration.js?v=20260812";
 import {
-  INK, PAPER, FONT, ORANGE, ORANGE_DEEP, PINK, BLUE, SUCCESS, YELLOW,
-} from "../components/theme.js";
+  INK, FONT, ORANGE, ORANGE_DEEP, PINK, BLUE, SUCCESS, YELLOW,
+} from "../components/theme.js?v=20260812";
 
 const ROUND_COUNT = 5;
 const ROUND_TYPES = ["make10", "makeSmall", "make10", "makeSmall", "make10"];
-// All single-digit pairs whose sum is > 10. Used by case 2 of the 3-number
-// addition (凑十法). The user ruled out pairs whose sum is ≤ 10 and any
-// pair with a non-single-digit addend.
-const PAIRS_GT10 = [
-  [2, 9], [3, 8], [3, 9], [4, 7], [4, 8], [4, 9],
-  [5, 6], [5, 7], [5, 8], [5, 9], [6, 7], [6, 8], [6, 9],
-  [7, 8], [7, 9], [8, 9],
+// Single-digit pairs whose sum is exactly 10 — 凑十法's "friends of 10".
+// Used by the make10 round type so the kid can apply the make-ten strategy:
+// the pair → 10, then 10 + decoy = total. Pairs are listed in both orders so
+// addends[0,1] come up small-then-big ~half the time and big-then-small the
+// rest, giving the equation visual variety without affecting the math.
+const PAIRS_EQ10 = [
+  [1, 9], [2, 8], [3, 7], [4, 6], [5, 5],
+  [9, 1], [8, 2], [7, 3], [6, 4],
 ];
 
 let roundIdx = 0;
@@ -99,16 +101,19 @@ function pickWrongs(correct, count, lo, hi, offsets) {
   return wrongs.slice(0, count);
 }
 
-// Case 2 (凑十法): one of the three addends is a single-digit pair that
-// sums to > 10, plus a 1-9 decoy. (User ruled out pairs ≤ 10 and any
-// non-single-digit addend.) Total in [12, 27]. Wrong answers in [9, 30]
-// (avoid 0 and 28+).
+// Case 2 (凑十法): two addends sum to exactly 10 (a friend-of-10 pair),
+// plus a 1-9 decoy. Total = 10 + decoy, in [11, 19]. Wrong answers in
+// [9, 21] (avoid 0 and 22+). The correct = 10 + decoy form is the make-ten
+// strategy itself — the resolved equation shows "10 + decoy = total" so
+// the kid sees how the strategy works.
 function buildMake10Round() {
-  const pair = PAIRS_GT10[Math.floor(Math.random() * PAIRS_GT10.length)];
+  const pair = PAIRS_EQ10[Math.floor(Math.random() * PAIRS_EQ10.length)];
   const decoy = 1 + Math.floor(Math.random() * 9);
-  const correct = pair[0] + pair[1] + decoy;
+  // pair always sums to 10 by construction; written as 10 + decoy to make
+  // the 凑十法 strategy visible at the call site.
+  const correct = 10 + decoy;
   const addends = [pair[0], pair[1], decoy];
-  const wrongs = pickWrongs(correct, 3, 9, 30, [-2, -1, 1, 2, 3]);
+  const wrongs = pickWrongs(correct, 3, 9, 21, [-2, -1, 1, 2, 3]);
   return {
     type: "make10",
     pair: [pair[0], pair[1]],
@@ -151,16 +156,13 @@ function buildRound(roundIdx) {
 }
 
 // === Celebration ========================================================
-// On a correct tap: scale-pulse the cloud and burst sparkles around it.
-// Mirrors the boat game's reward beat so the kid feels a strong "yes!"
-// without changing the round's chrome.
+// On a correct tap: burst sparkles around the picked cloud. The cloud
+// itself stays still — no scale pulse, no lift — so the kid's eye
+// lands on the chosen answer without the picked object itself moving
+// (2026-08-14 feedback: "选中时，云朵不要动了"). The bobbing float on
+// every cloud is also gated off here via _hugged = true (set by the
+// caller right before celebrateCorrect runs).
 function celebrateCorrect(k, it) {
-  const root = it.node;
-  root.scale = k.vec2(1, 1);
-  k.tween(1, 1.3, 0.15, (v) => { root.scale = k.vec2(v, v); });
-  k.wait(0.15, () => {
-    k.tween(1.3, 1, 0.18, (v) => { root.scale = k.vec2(v, v); });
-  });
   for (let s = 0; s < 6; s++) {
     const sparkle = k.add([
       k.text("✨", { size: 36 }),
@@ -183,62 +185,13 @@ function celebrateCorrect(k, it) {
   }
 }
 
-// === Victory modal ======================================================
-function showVictory(k, total, isLastRound, onNext) {
-  k.add([
-    k.rect(k.width(), k.height()),
-    k.color(0, 0, 0),
-    k.opacity(0.4),
-    k.pos(0, 0),
-    k.z(40),
-  ]);
-  const cardW = 760;
-  const cardH = 440;
-  const cx = k.width() / 2;
-  const cy = k.height() / 2;
-  k.add([
-    k.rect(cardW, cardH, { radius: 32 }),
-    k.color(...YELLOW),
-    k.outline(8, k.rgb(255, 255, 255)),
-    k.pos(cx, cy),
-    k.anchor("center"),
-    k.z(41),
-  ]);
-  k.add([
-    k.text("🌈", { size: 140 }),
-    k.pos(cx, cy - 130),
-    k.anchor("center"),
-    k.z(42),
-  ]);
-  k.add([
-    k.text(isLastRound ? "全部答对啦！" : "答对啦！", { size: 64, font: FONT }),
-    k.color(...INK),
-    k.pos(cx, cy + 0),
-    k.anchor("center"),
-    k.z(42),
-  ]);
-  k.add([
-    k.text(`答案是 ${total}！`, { size: 36, font: FONT }),
-    k.color(...SUCCESS),
-    k.pos(cx, cy + 70),
-    k.anchor("center"),
-    k.z(42),
-  ]);
-  iconButton(k, {
-    label: isLastRound ? "完成 🏠" : "下一轮 ▶",
-    x: cx, y: cy + 150, w: 360, h: 90, fontSize: 36,
-    z: 43,
-    onClick: onNext,
-  });
-}
-
 export default function scene(k) {
   if (roundIdx === 0) window.PandaAudio.playCue("cloud-intro");
 
   const round = buildRound(roundIdx);
 
   // === Background ===
-  k.add([k.rect(k.width(), k.height()), k.color(...PAPER), k.z(-10)]);
+  sceneBg(k, "bg-meadow");
 
   // === HUD (back + round pill) ==========================================
   iconButton(k, {
@@ -330,9 +283,16 @@ export default function scene(k) {
       x,
       y,
       size: 180,
-      // Cloud body is sprite-centered at y=128 (256×256 sprite); anchored
-      // at (x, y-16) scaled 0.6 the body lands at scene y-16. Pass that
-      // as the label offset so the digit sits in the middle of the cloud.
+      // cloud.png is 806×610 — the default 0.6 scale gave a 484-px bounding
+      // box that overlapped heavily at cellW 300 (2026-08-12 feedback). 0.4
+      // dropped to 322 px but the user said the cloud was still slightly big
+      // for the row (2026-08-12 follow-up). 0.32 → 258 px bounding box,
+      // leaving ~42 px between adjacent clouds so the four choices read as
+      // four separate choices, not a wall of white.
+      spriteScale: 0.32,
+      // Cloud body is sprite-centered; anchored at (x, y-16) the body lands
+      // at scene y-16. Pass that as the label offset so the digit sits in
+      // the middle of the cloud.
       labelYOffset: -16,
       hideFace: true,
       noLabelBg: true,
@@ -367,12 +327,15 @@ export default function scene(k) {
 
       k.wait(0.5, () => {
         if (round.type === "make10") {
-          // Resolved equation: show the simple sum. (The original "10 +
-          // decoy = total" trick is gone now that case-2 pairs sum to > 10,
-          // not exactly 10.)
+          // Resolved equation: collapse the pair into "10", keep the decoy,
+          // show the total. This is the 凑十法 strategy rendered as math —
+          // pair → 10, 10 + decoy = total. The kid sees their own
+          // strategy written out. Colors map "10" → SUCCESS (the pair's
+          // resolved value), decoy → ORANGE_DEEP (its original color),
+          // total → PINK.
           setEquation(
-            [round.addends[0], "+", round.addends[1], "+", round.addends[2], "=", round.correct],
-            [BLUE, undefined, SUCCESS, undefined, ORANGE_DEEP, undefined, PINK],
+            [10, "+", round.decoy, "=", round.correct],
+            [SUCCESS, undefined, ORANGE_DEEP, undefined, PINK],
           );
         } else {
           // makeSmall: just the resolved sum.
@@ -385,7 +348,7 @@ export default function scene(k) {
       });
 
       buddy.setMood("cheer", { silent: true });
-      // game-specific "抱到啦" fires immediately on the picked cloud.
+      // game-specific "对啦" fires immediately on the picked cloud.
       window.PandaAudio.playCue("cloud-pair");
       // Tier-based cheer chain (audio/praise.js) follows after the
       // game-specific cue lands. The chain is the new "好棒" replacement:
@@ -405,7 +368,6 @@ export default function scene(k) {
         // — see the `let hadWrongs` declaration above.
         hadWrongs,
       });
-      ctx.lastEncourageId = lastEncourageId;
       window.PandaAudio.playAfter("cloud-pair", chain, {
         gapMs: 200,
         seqGapMs: 200,
@@ -421,20 +383,22 @@ export default function scene(k) {
       });
 
       window.PandaAudio.playAfter(
-        ctx.lastEncourageId,
+        lastEncourageId,
         ["cloud-done"],
         { gapMs: 0, seqGapMs: 0 },
         () => {
-          showVictory(k, round.correct, roundIdx + 1 >= ROUND_COUNT, () => {
-            if (roundIdx + 1 < ROUND_COUNT) {
-              roundIdx += 1;
-              k.go("gameCloud");
-            } else {
-              saveProgress(3);  // gameCloud is levelId 3; unlocks feed (id 4)
-              roundIdx = 0;
-              k.go("gamesPicker");
-            }
-          });
+          // No victory modal (2026-08-14 feedback: 弹框太丑 / 去掉) —
+          // just advance to the next round once the "cloud-done" cue
+          // finishes. The kid's "yes!" feedback already came from the
+          // sparkles + audio + panda hop fired above.
+          if (roundIdx + 1 < ROUND_COUNT) {
+            roundIdx += 1;
+            k.go("gameCloud");
+          } else {
+            saveProgress(3);  // gameCloud is levelId 3; unlocks feed (id 4)
+            roundIdx = 0;
+            k.go("gamesPicker");
+          }
         },
       );
     } else {

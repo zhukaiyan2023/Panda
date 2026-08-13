@@ -1,36 +1,35 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
-  <title>Wooden Rowboat</title>
-  <desc>A friendly cartoon rowboat with brown hull, white sail, and orange flag.</desc>
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="200" viewBox="0 0 256 200">
+  <title>Wooden Rowboat (short)</title>
+  <desc>Shortened boat: lower mast, no oversized water ripples — leaves more vertical breathing room in the 3x2 grid.</desc>
 
   <!-- Mast (vertical pole) -->
-  <line x1="128" y1="44" x2="128" y2="168" stroke="#c9531c" stroke-width="6" stroke-linecap="round"/>
+  <line x1="128" y1="28" x2="128" y2="130" stroke="#c9531c" stroke-width="6" stroke-linecap="round"/>
 
   <!-- Small triangular flag on top of mast -->
-  <path d="M 128 44 L 172 56 L 128 72 Z" fill="#FF8A3D" stroke="#c9531c" stroke-width="3" stroke-linejoin="round"/>
+  <path d="M 128 28 L 168 40 L 128 54 Z" fill="#FF8A3D" stroke="#c9531c" stroke-width="3" stroke-linejoin="round"/>
 
   <!-- White sail (triangle) -->
-  <path d="M 128 64 L 128 156 L 188 156 Z" fill="#fffaf0" stroke="#c9531c" stroke-width="4" stroke-linejoin="round"/>
+  <path d="M 128 50 L 128 124 L 184 124 Z" fill="#fffaf0" stroke="#c9531c" stroke-width="4" stroke-linejoin="round"/>
 
   <!-- Sail crease for character -->
-  <path d="M 128 80 L 128 148" fill="none" stroke="#c9531c" stroke-width="2" opacity="0.4" stroke-linecap="round"/>
+  <path d="M 128 64 L 128 118" fill="none" stroke="#c9531c" stroke-width="2" opacity="0.4" stroke-linecap="round"/>
 
   <!-- Hull (rounded brown) -->
-  <path d="M 36 156 Q 44 152 56 156 L 200 156 Q 212 152 220 156 Q 220 200 188 214 Q 168 220 128 220 Q 88 220 68 214 Q 36 200 36 156 Z"
+  <path d="M 36 124 Q 44 120 56 124 L 200 124 Q 212 120 220 124 Q 220 162 188 174 Q 168 180 128 180 Q 88 180 68 174 Q 36 162 36 124 Z"
         fill="#8B5A2B" stroke="#c9531c" stroke-width="4" stroke-linejoin="round"/>
 
   <!-- Hull top edge plank -->
-  <path d="M 36 156 Q 128 148 220 156" fill="none" stroke="#c9531c" stroke-width="3" stroke-linecap="round"/>
+  <path d="M 36 124 Q 128 116 220 124" fill="none" stroke="#c9531c" stroke-width="3" stroke-linecap="round"/>
 
   <!-- Wood plank lines -->
-  <path d="M 70 178 Q 70 188 72 198" fill="none" stroke="#c9531c" stroke-width="2" stroke-linecap="round" opacity="0.6"/>
-  <path d="M 128 180 Q 128 192 128 204" fill="none" stroke="#c9531c" stroke-width="2" stroke-linecap="round" opacity="0.6"/>
-  <path d="M 186 178 Q 186 188 184 198" fill="none" stroke="#c9531c" stroke-width="2" stroke-linecap="round" opacity="0.6"/>
+  <path d="M 70 142 Q 70 152 72 160" fill="none" stroke="#c9531c" stroke-width="2" stroke-linecap="round" opacity="0.6"/>
+  <path d="M 128 144 Q 128 154 128 164" fill="none" stroke="#c9531c" stroke-width="2" stroke-linecap="round" opacity="0.6"/>
+  <path d="M 186 142 Q 186 152 184 160" fill="none" stroke="#c9531c" stroke-width="2" stroke-linecap="round" opacity="0.6"/>
 
   <!-- Inner highlight on hull -->
-  <path d="M 60 168 Q 100 162 196 168" fill="none" stroke="#fffaf0" stroke-width="3" stroke-linecap="round" opacity="0.45"/>
+  <path d="M 60 134 Q 100 130 196 134" fill="none" stroke="#fffaf0" stroke-width="3" stroke-linecap="round" opacity="0.45"/>
 
-  <!-- Water ripples below -->
-  <path d="M 28 232 Q 64 226 100 232 Q 128 238 156 232 Q 192 226 228 232" fill="none" stroke="#c9531c" stroke-width="3" stroke-linecap="round"/>
-  <path d="M 50 244 Q 90 240 128 244 Q 166 248 206 244" fill="none" stroke="#c9531c" stroke-width="2.5" stroke-linecap="round" opacity="0.7"/>
+  <!-- Water ripples below (small) -->
+  <path d="M 50 192 Q 90 188 128 192 Q 166 196 206 192" fill="none" stroke="#c9531c" stroke-width="2.5" stroke-linecap="round" opacity="0.7"/>
 </svg>

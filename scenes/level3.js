@@ -49,13 +49,13 @@
 //                      and sub1 both reveal at once: "a + b = answer"
 //                      and "big + friend + rest = answer".
 
-import tenFrame from "../components/tenFrame.js";
-import expression from "../components/expression.js";
-import createRoundScene, { LAYOUT, options } from "./roundScene.js";
-import { poolGens } from "../data/pools.js";
+import tenFrame from "../components/tenFrame.js?v=20260812";
+import expression from "../components/expression.js?v=20260812";
+import createRoundScene, { LAYOUT, options } from "./roundScene.js?v=20260812";
+import { poolGens } from "../data/pools.js?v=20260812";
 import {
   INK, FONT, YELLOW, BLUE, PINK, PURPLE, ORANGE,
-} from "../components/theme.js";
+} from "../components/theme.js?v=20260812";
 
 const TEN = 10;
 const COL_BIG = BLUE;
@@ -77,6 +77,18 @@ function smaller(a, b) { return a >= b ? b : a; }
 // comparison step, where they just proved to themselves which is
 // bigger. Mirrors the same left-is-big / right-is-big color rule used
 // by step 1 below.
+//
+// `reserve` pins slot 4 (the sum) to round.answer — always 2 digits
+// in L3 (a + b > 10, max 9 + 9 = 18). Without the reservation the
+// row re-centers on the step-4 reveal and every slot — plus the
+// decomposition arrows drawn from slotCenters — jumps left. Per user
+// feedback 2026-08-12: "相同位置的元素,在每一步的位置好像不一样" —
+// locked once at the widest lifetime content. Same pattern as
+// level4.js's anchorSlots and the L1/L2 audit. round.answer is always
+// 2 digits for L3's pool, so reserving to it covers both "□" (0.9 ×
+// size) and the revealed 2-digit answer (1.24 × size) — max() at
+// layout time keeps the row's total width and slot centers stable
+// across every render of the anchor.
 function anchorSlots(round, sumSlot) {
   const aIsBig = round.a > round.b;
   return {
@@ -84,6 +96,7 @@ function anchorSlots(round, sumSlot) {
     colors: aIsBig
       ? [COL_BIG, undefined, COL_SMALL, undefined, undefined]
       : [COL_SMALL, undefined, COL_BIG, undefined, undefined],
+    reserve: [null, null, null, null, round.answer],
   };
 }
 
@@ -269,16 +282,22 @@ function buildL2Step4Ids(big, small, need, rest) {
   return [`l2-s4-${small}-${need}-${rest}-${big}`];
 }
 
-// Step 4 SWAP variant — fires only when the smaller addend comes
-// first (round.a < round.b, e.g. 6+9) AND rest ≠ need (the split
-// has two non-zero pieces in different order). The visual for these
-// rounds shows "(rest+need)+b = ?" preserving question order, but
-// the canonical l2-s4 audio says "big+need+rest" — re-introducing
-// the swap jump the visual removes. The "s" suffix marks the
-// swapped text variant. When rest == need both orderings are
-// visually identical so no swap audio needed.
+// Step 4 SWAP variant — fires whenever the smaller addend comes first
+// (round.a < round.b, e.g. 6+7, 6+9). The aIsSmall visual layout shows
+// "rest + need + b" preserving the question's original order so the
+// step-4 calc reads the same way as the step-2/3 decomposition the kid
+// just confirmed. The canonical l2-s4 audio says "big + need + rest"
+// — that's the right ordering for aIsBig rounds but it's a different
+// visual order from what the aIsSmall kid sees. The "s" suffix marks
+// the swapped text variant ("rest + need + big"). Used for ALL
+// aIsSmall rounds (rest === need too — e.g. 6+7 splits 6→3+3 and the
+// visual reads "3+3+7", not "7+3+3"). Previous logic excluded
+// rest === need ("both orderings are visually identical") but that's
+// wrong: "7+3+3" and "3+3+7" sit in different slot positions even
+// when the digits are commutative. That gap left 6+7, 4+8, 2+9
+// playing the canonical "7+3+3" audio over a "3+3+7" visual.
 function buildL2Step4SwapIds(a, b, big, small, need, rest) {
-  if (!(a < b && rest !== need)) return null;
+  if (!(a < b)) return null;
   return [`l2-s4s-${a}-${b}-${need}-${rest}-${big}`];
 }
 
@@ -407,6 +426,16 @@ export default createRoundScene({
       const colors = leftIsBig
         ? [COL_BIG, undefined, COL_SMALL]
         : [COL_SMALL, undefined, COL_BIG];
+      // `compareReserve` pins slot 1 (the □ / sign slot) so the row
+      // doesn't reflow when "□" reveals to ">" / "<". Box is 0.9 ×
+      // size; the operator renders at OP_SCALE × size = 0.7 × 82 ≈
+      // 57, so width = 57 × 0.4 = 22.8 px. Without the reserve, the
+      // reveal shrinks slot 1 from ~74 px to ~23 px, shifting a and
+      // b's centers inward (the row recenters too — total width
+      // drops). Reserving slot 1 to "□" (= 0.9 × size) keeps the
+      // reveal at the same slot width as the box: the operator text
+      // sits centered in the same slot, and a/b centers don't move.
+      const compareReserve = [null, "□", null];
       // After correct pick, the "□" slot fills with the picked sign
       // and turns COL_NEED (orange) so the eye sees the symbol as a
       // freshly-revealed piece of info, not part of the original
@@ -416,7 +445,7 @@ export default createRoundScene({
         : [COL_SMALL, COL_NEED, COL_BIG];
       const compareCorrect = leftIsBig ? ">" : "<";
       return {
-        equation: { slots, colors },
+        equation: { slots, colors, reserve: compareReserve },
         equationOpts: { y: 560, size: 82, boxMode: true },
         // No `cue:` — the L2 step-1 audio is the contextual sentence
         // fired via fireL2StepAudio above. Small SQUARE compare
@@ -432,11 +461,24 @@ export default createRoundScene({
         },
         onAdvance: () => {
           // After reveal the □ is replaced by the symbol — boxMode is
-          // off so the slot renders as text, not a box.
+          // off so the slot renders as text, not a box. `reserve` mirrors
+          // the step-1 setup's — slot 1 was laid out at the 0.9 × size
+          // bucket ("□" reserved), so the operator text (smaller) sits
+          // centered in the same slot without reflowing a/b.
           ctx.setEquation({
             slots: [round.a, compareCorrect, round.b],
             colors: revealColors,
-          }, { y: 560, size: 82 });
+            reserve: compareReserve,
+            // `boxMode: true` is required to keep the slot-1 width
+            // pinned at the box's 0.9 × size bucket after the reveal.
+            // Without it, the reserve to "□" is evaluated with
+            // boxMode=false (text width 0.62 × size) instead of
+            // boxMode=true (box width 0.9 × size), so widths[1] shrinks
+            // and the row recenters — shifting round.a and round.b's
+            // centers by ~11 px. Per user feedback 2026-08-13:
+            // "9和3都移动了，应该是 ◻ 只占了一个位置，但是 > 或者 <
+            // 占位不一致".
+          }, { y: 560, size: 82, boxMode: true });
           // Read the revealed comparison aloud so the kid hears
           // "X 大于 Y" / "X 小于 Y" matching the visual they just
           // unlocked. Chained off ctx.lastEncourageId (the actual
@@ -498,6 +540,23 @@ export default createRoundScene({
       //                                    "big + friend + rest" pattern
       //                                    so the kid can read the math
       //                                    left-to-right once filled in.
+      //
+      // `sub1Reserve` pins the □-reveal slots (need/rest/answer) to
+      // their widest lifetime content so the row never reflows as the
+      // boxes reveal across steps 2 → 3 → 4. Same pattern as the L1
+      // audit: the widest possible content for each slot is laid out
+      // from the first render, every subsequent reveal sits centered
+      // in the same slot. Without this, the step-2 onAdvance reveal
+      // of slot 2 shrinks it from 0.9 × size to 0.62 × size — the
+      // row recenters, slot centers shift, and the decomposition
+      // arrows drawn from slotCenters (drawL2Arrows) drift a few
+      // pixels left. The answer slot (slot 6) is reserved to
+      // round.answer which is always 2 digits in L3's pool, so
+      // max() at layout time covers both "□" and the revealed
+      // 2-digit number — same pattern as L1's anchorSlots.
+      const sub1Reserve = aIsSmall
+        ? ["10", null, "10", null, null, null, round.answer]
+        : [null, null, "10", null, "10", null, round.answer];
       let sub1Slots, sub1Colors, sub1RevealSlots, sub1RevealColors;
       let needIdx, restIdx, bigIdx;
       if (aIsSmall) {
@@ -544,6 +603,12 @@ export default createRoundScene({
       // kid picks correctly — the body wrapper and the line markers
       // drawn in postRender stay anchored, so the decomposition
       // visualization persists through the reveal.
+      //
+      // `reserve: [null, null, "10", null, null]` pins slot 2 ("□") to
+      // the 1.24 × size bucket so the box→friend reveal doesn't
+      // reflow the row. Without it, slot 2 shrinks from 0.9 × size to
+      // 0.62 × size on reveal and slot centers shift. Mirrored in
+      // step 2 onAdvance's rebuilt sub2 below.
       const body = ctx.k.add([ctx.k.pos(0, 0)]);
       let sub2Root = expression(body, {
         x: LAYOUT.barX,
@@ -552,10 +617,11 @@ export default createRoundScene({
         boxMode: true,
         slots: [big, "+", "□", "=", TEN],
         colors: [COL_BIG, undefined, undefined, undefined, COL_TEN],
+        reserve: [null, null, "10", null, null],
       });
 
       return {
-        equation: { slots: sub1Slots, colors: sub1Colors },
+        equation: { slots: sub1Slots, colors: sub1Colors, reserve: sub1Reserve },
         equationOpts: { y: 560, size: 82, boxMode: true },
         body: body,
         question: {
@@ -591,6 +657,12 @@ export default createRoundScene({
           ctx.setEquation({
             slots: sub1RevealSlots,
             colors: sub1RevealColors,
+            // `reserve` mirrors the step-2 setup's — slot 2 was laid
+            // out at the 1.24 × size bucket ("□" reserved to "10"),
+            // so revealing to round.need (1 digit) sits centered in
+            // the same slot. Without this the reveal shrinks the slot
+            // and shifts every other center.
+            reserve: sub1Reserve,
           }, { y: 560, size: 82, boxMode: true });
           sub2Root.destroy();
           sub2Root = expression(body, {
@@ -599,6 +671,10 @@ export default createRoundScene({
             size: 60,
             slots: [big, "+", round.need, "=", TEN],
             colors: [COL_BIG, undefined, COL_NEED, undefined, COL_TEN],
+            // sub2's slot 2 reveals from "□" → round.need (1 digit).
+            // Reserve to "10" so the row doesn't reflow when the box
+            // becomes the friend number.
+            reserve: [null, null, "10", null, null],
           });
         },
       };
@@ -616,6 +692,16 @@ export default createRoundScene({
       const big = bigger(round.a, round.b);
       const small = smaller(round.a, round.b);
       const aIsBig = round.a >= round.b;
+      // `aIsSmall` is referenced below for the sub1Reserve shape and
+      // the slot-order branches — without this declaration, step 3
+      // throws `ReferenceError: aIsSmall is not defined` when the row
+      // is first rendered, the entire step render is aborted, and
+      // the split-option buttons never appear. Per user feedback
+      // 2026-08-13: "在拆一拆的时候，播报完 6能分成1和几之后，没有
+      // 出现选项." Step 2 declares aIsSmall explicitly; step 3 had
+      // only aIsBig (looks like a copy-paste from step 4, where
+      // aIsSmall is the primary).
+      const aIsSmall = !aIsBig;
       const { options: splitOpts, correct } = buildSplitOptions(
         small, round.need, round.rest,
       );
@@ -631,6 +717,21 @@ export default createRoundScene({
       // the answer box stay as □ for now. Same aIsSmall swap as step 2:
       //   aIsBig:   "big + need + □ = □"     (need at 2, rest at 4, big at 0)
       //   aIsSmall: "□ + need + big = □"     (need at 2, rest at 0, big at 4)
+      //
+      // `sub1Reserve` is the same shape as step 2's — slot 4 (aIsBig)
+      // or slot 0 (aIsSmall) reveals "□" → round.rest (1 digit), and
+      // slot 6 still reveals to round.answer (2 digits) in step 4.
+      // Without reserving, the step-3 onAdvance reveal of the rest
+      // box shrinks its slot from 0.9 × size to 0.62 × size and
+      // shifts every other center (including the already-revealed
+      // need slot, whose arrow endpoint is what the decomposition
+      // visualization points at). The shape is identical to step 2's
+      // sub1Reserve — only the slot content at index 2 changes (need
+      // is already revealed here), but reserve is per-slot-index so
+      // we can reuse the same shape.
+      const sub1Reserve = aIsSmall
+        ? ["10", null, "10", null, null, null, round.answer]
+        : [null, null, "10", null, "10", null, round.answer];
       let sub1Slots, sub1Colors, sub1RevealSlots, sub1RevealColors;
       let needIdx, restIdx, bigIdx;
       if (aIsBig) {
@@ -672,6 +773,10 @@ export default createRoundScene({
       // sub2 — the new sub-split equation "friend + □ = small". The
       // kid picks the rest (round.rest); the box reveals to that.
       // `let` for the same in-place update reason as step 2.
+      //
+      // `reserve: [null, null, "10", null, null]` pins slot 2 ("□")
+      // so the box→round.rest reveal doesn't reflow the row. Same
+      // shape as the step-2 sub2.
       const body = ctx.k.add([ctx.k.pos(0, 0)]);
       let sub2Root = expression(body, {
         x: LAYOUT.barX,
@@ -680,10 +785,11 @@ export default createRoundScene({
         boxMode: true,
         slots: [round.need, "+", "□", "=", small],
         colors: [COL_NEED, undefined, undefined, undefined, COL_SMALL],
+        reserve: [null, null, "10", null, null],
       });
 
       return {
-        equation: { slots: sub1Slots, colors: sub1Colors },
+        equation: { slots: sub1Slots, colors: sub1Colors, reserve: sub1Reserve },
         equationOpts: { y: 560, size: 82, boxMode: true },
         body: body,
         question: {
@@ -710,6 +816,13 @@ export default createRoundScene({
           ctx.setEquation({
             slots: sub1RevealSlots,
             colors: sub1RevealColors,
+            // `reserve` mirrors the step-3 setup's — slot 4 (aIsBig)
+            // or slot 0 (aIsSmall) was laid out at the 1.24 × size
+            // bucket ("□" reserved to "10"), so revealing to round.rest
+            // (1 digit) sits centered in the same slot. Without it,
+            // the rest slot shrinks and shifts every other center
+            // including the need slot's arrow endpoint.
+            reserve: sub1Reserve,
           }, { y: 560, size: 82, boxMode: true });
           sub2Root.destroy();
           sub2Root = expression(body, {
@@ -718,6 +831,10 @@ export default createRoundScene({
             size: 60,
             slots: [round.need, "+", round.rest, "=", small],
             colors: [COL_NEED, undefined, COL_REST, undefined, COL_SMALL],
+            // Step-3 sub2: "friend + □ = small". Slot 2 reveals from
+            // "□" → round.rest (1 digit). Same reserve shape as the
+            // step-2 sub2 — locks slot 2 at the 1.24 × size bucket.
+            reserve: [null, null, "10", null, null],
           });
         },
       };
@@ -770,6 +887,18 @@ export default createRoundScene({
       // Arrow indices for the postRender pass:
       //   aIsBig:   sub1 = "big + need + rest"    — bigIdx=0, needIdx=2, restIdx=4
       //   aIsSmall: sub1 = "rest + need + big"    — restIdx=0, needIdx=2, bigIdx=4
+      //
+      // `sub1Reserve` is the same shape as step 2/3's — slot 6
+      // reveals "□" → round.answer (2 digits, always in L3's pool).
+      // The reserve is what makes the step-4 reveal NOT reflow the
+      // row: without it, slot 6 widens from 0.9 × size ("□") to 1.24
+      // × size (2 digits), shifting the whole calc row leftward and
+      // breaking the visual continuity with the step-2/3 split
+      // equations. Same `round.answer` value is reused across all
+      // three steps' reserves so the layout is pixel-identical.
+      const sub1Reserve = aIsSmall
+        ? ["10", null, "10", null, null, null, round.answer]
+        : [null, null, "10", null, "10", null, round.answer];
       let eqSlots, eqColors, revealSlots, revealColors;
       let needIdx, restIdx, bigIdx;
       if (aIsSmall) {
@@ -794,6 +923,7 @@ export default createRoundScene({
         equation: {
           slots: eqSlots,
           colors: eqColors,
+          reserve: sub1Reserve,
         },
         equationOpts: { y: 560, size: 82, boxMode: true },
         // No body in step 4 — sub2 disappears. The kid only sees the
@@ -824,6 +954,12 @@ export default createRoundScene({
           ctx.setEquation({
             slots: revealSlots,
             colors: revealColors,
+            // `reserve` mirrors the step-4 setup's — slot 6 was laid
+            // out at the 1.24 × size bucket ("□" reserved to
+            // round.answer's 2-digit width), so revealing to
+            // round.answer sits in the same slot. Without it, the
+            // row would widen and recenter on the final reveal.
+            reserve: sub1Reserve,
           }, { y: 560, size: 82 });
           return new Promise((resolve) => {
             window.PandaAudio.playAfter(

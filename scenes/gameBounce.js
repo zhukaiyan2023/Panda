@@ -11,20 +11,43 @@
 // protocol. The chrome (header, icon buttons, step bar, panda, save) is
 // copied from pairScene; if a sixth pair-style game appears, factor it out.
 
-import item from "../components/pickerItem.js";
-import stepBar from "../components/stepBar.js";
-import panda from "../components/panda.js";
-import expression from "../components/expression.js";
-import { iconButton } from "../components/choice.js";
-import { INK, PAPER, FONT, PINK } from "../components/theme.js";
+import item from "../components/pickerItem.js?v=20260813";
+import stepBar from "../components/stepBar.js?v=20260812";
+import panda from "../components/panda.js?v=20260812";
+import expression from "../components/expression.js?v=20260812";
+import { iconButton } from "../components/choice.js?v=20260812";
+import { pickCheerCue, pickWrongCue } from "../audio/praise.js?v=20260812";
+import { celebrate } from "../components/celebration.js?v=20260812";
+import { INK, PAPER, FONT, PINK } from "../components/theme.js?v=20260812";
+import sceneBg from "../components/sceneBg.js?v=20260812";
 
 const ROUND_COUNT = 5;
-// Each round uses a different target N (≤ 10) so the kid practices the
-// general "a + ? = N" decomposition, not just the make-ten case. 5 rounds
-// hit 5 different N values; the last slot is left as-is (no 11th).
-const TARGETS = [7, 5, 9, 6, 8];
+// Decomposition range: N ∈ [MIN_N, MAX_N], where N is the target the
+// visible addend `a` plus the balloon's number must sum to. Min 2 = the
+// simplest split (1+1, which we avoid via the midpoint filter below).
+// Max 10 = the game's "凑十法 ceiling" — beyond that the pairing logic
+// stops being intuitive for 3-6 year olds and overlaps with L2's make-
+// ten pool. Pool size = 9 × ~5 valid `a`s each ≈ 50 distinct problems.
+const MIN_N = 3;  // N=2 has no valid split (the only value v=1 is excluded by the midpoint filter 1 !== 1 fails). N=3+ keeps validA non-empty.
+const MAX_N = 10;
+// Memo of the last round's (N, a) so consecutive rounds never repeat.
+// Without this, a kid playing 5 rounds could see the same problem twice
+// in a row (small but real probability — ~2%). The retry loop caps at
+// 20 to guarantee progress even with a tiny pool edge case.
+let prevRoundKey = null;
 
 let roundIdx = 0;
+// Streak of consecutive correct picks this session — drives the tier
+// escalation in tryAnswer. Resets on wrong pick or when the kid taps ←.
+// Mirrors gameCloud's streak so a kid who clears L2 round 1 → L2 round 2
+// (gameBounce is levelId 2 per saveProgress) on consecutive picks hears
+// the streak3 tier on the second one, not a fresh "first" cue.
+let streak = 0;
+// Sticky flag flipped on the first wrong pick this session. Used by
+// pickCheerCue to gate enc-streak5-1 ("你试了好几次才对，这叫有耐心")
+// — its text only makes sense if the kid actually missed at least once.
+// Never resets.
+let hadWrongs = false;
 
 function shuffle(arr) {
   const c = arr.slice();
@@ -39,22 +62,31 @@ function shuffle(arr) {
 // a + v === N. Distractors never form a second valid pair with a or with
 // each other (i.e. no two distractor values sum to N either).
 function buildCandidates() {
-  const N = TARGETS[roundIdx % TARGETS.length];
-  // Pick `a` deterministically from values that aren't the midpoint of N —
-  // i.e. avoid `a === N/2`, which would make the correct answer equal the
-  // visible addend (a "3 + ? = 6 → balloon 3" round reads as self-reference,
-  // not as a real decomposition). For odd N every value in [1, N-1] is
-  // valid; for even N we skip the midpoint.
-  const validA = [];
-  for (let v = 1; v < N; v++) {
-    if (v !== N - v) validA.push(v);
-  }
-  const a = validA[roundIdx % validA.length];
+  // Pick (N, a) randomly. Retry until we land on a key different from
+  // last round so consecutive problems don't repeat. Keep N ≥ MIN_N so
+  // validA is never empty (N=2 has only one valid split; N=1 has none).
+  let N, a, key;
+  let pickTries = 0;
+  do {
+    N = MIN_N + Math.floor(Math.random() * (MAX_N - MIN_N + 1));
+    // Exclude the midpoint (v === N/2) because it makes the correct
+    // answer equal the visible addend — a "3 + ? = 6 → balloon 3" round
+    // reads as self-reference, not as a real decomposition.
+    const validA = [];
+    for (let v = 1; v < N; v++) {
+      if (v !== N - v) validA.push(v);
+    }
+    a = validA[Math.floor(Math.random() * validA.length)];
+    key = `${N}-${a}`;
+    pickTries++;
+    if (pickTries > 20) break;  // pool is large enough that this is unreachable
+  } while (key === prevRoundKey);
+  prevRoundKey = key;
   const correct = N - a;
   const set = new Set([correct]);
-  let tries = 0;
-  while (set.size < 4 && tries < 40) {
-    tries += 1;
+  let distractorTries = 0;
+  while (set.size < 4 && distractorTries < 40) {
+    distractorTries += 1;
     const v = 1 + Math.floor(Math.random() * 9);
     if (set.has(v)) continue;
     // Reject v if it completes N with anything already in the set —
@@ -86,12 +118,13 @@ function saveProgress(levelId) {
 function drawRound(k, ctx) {
   const { a, N, candidates, correct } = ctx.roundData;
 
-  k.add([k.rect(k.width(), k.height()), k.color(...PAPER), k.z(-10)]);
+  sceneBg(k, "bg-meadow");
 
   iconButton(k, {
     label: "←", x: 84, y: 92, w: 96, h: 72, fontSize: 44,
     onClick: () => {
       roundIdx = 0;
+      streak = 0;
       k.go("gamesPicker");
     },
   });
@@ -136,9 +169,9 @@ function drawRound(k, ctx) {
   // pink body (not in a separate white circle). Matches
   // panda-park/bounce.html: balloon-shape with a chunky white num inside.
   const cols = 4;
-  const cellW = 240;
+  const cellW = 200;
   const gridX = 748 - ((cols - 1) * cellW) / 2;
-  const gridY = 720;
+  const gridY = 700;
   const items = [];
   candidates.forEach((v, i) => {
     const col = i % cols;
@@ -149,16 +182,39 @@ function drawRound(k, ctx) {
       sprite: "balloon",
       x,
       y,
-      size: 170,
+      // Hit box 180 wide × 360 tall (was 180×180). The visible red ball
+      // sits at scene y-77 from the item center (sprite-y 275 × 0.35 minus
+      // the -16 anchor offset), and the sprite extends ±157 vertically at
+      // scale 0.35 — the upper half of the balloon body lands ABOVE the
+      // old hit box and taps there did nothing. 360 covers the full sprite
+      // (top y-180, bottom y+180; sprite spans y-173 to y+141). Per
+      // 2026-08-14 user feedback: kid's tap on the round body landed on
+      // empty space above the hit box.
+      //
+      // Width stays 180 so balloons (200 px apart) keep a 20 px gap
+      // between adjacent hit boxes. Adjacent rows alternate ±50 on y, so
+      // the taller hit box overlaps across rows but never inside the same
+      // row — picks remain unambiguous because each tap reads the body
+      // position, not the row.
+      size: 180,
+      hitHeight: 360,
       hideFace: true,     // no card frame around the balloon
       noLabelBg: true,    // no white circle around the digit
-      // Balloon body is the ellipse cy=92 in a 200×240 sprite, so the
-      // visual center of the pink body is at sprite y=92. With sprite
-      // anchored at (x, y-16) and scaled 0.6, that point lands at
-      // scene y-32.8. -33 places the digit at the body's vertical
-      // center — exactly in the middle of the balloon (per user
-      // feedback 2026-08-09).
-      labelYOffset: -33,
+      // The balloon PNG is 443×899 (much taller than the old 200×240 SVG),
+      // and the red body fills the upper ~520 px — body centre sits at
+      // sprite-y ≈ 275. With the sprite anchored at (x, y-16) and scaled
+      // 0.35, that body centre lands at scene y-77 ((275 - 449.5)·0.35 =
+      // -61, plus -16). -77 places the digit at the body's vertical
+      // centre so it sits in the middle of the balloon, not near the top.
+      //
+      // spriteScale 0.35 per user feedback 2026-08-13: 0.4 was still a
+      // touch too big and left the digit off-centre because the label
+      // offset above assumed the old 200×240 sprite. 0.35 → ~155 px
+      // visible width; 200 - 155 = 45 px gap between adjacent centres,
+      // and the hit target 100 stays a comfortable tap margin for small
+      // fingers.
+      spriteScale: 0.35,
+      labelYOffset: -77,
     }));
   });
 
@@ -182,42 +238,70 @@ function drawRound(k, ctx) {
           x: 748, y: 400, size: 96,
           colors: [undefined, undefined, PINK, undefined, undefined],
         });
-        // Wait for the "砰" pop sound to actually end before
-        // navigating. playAfter hooks bounce-pop's `ended` event —
-        // no k.wait guess needed (the old 1.6s could overlap if
-        // bounce-pop lasted longer, and would cut "lvl-done" short
-        // in the last round).
-        if (roundIdx + 1 < ROUND_COUNT) {
-          window.PandaAudio.playAfter(
-            "bounce-pop",
-            [],
-            { gapMs: 0, seqGapMs: 0 },
-            () => {
+        // Streak escalates the encouragement chain — first pick of the
+        // game fires the first tier ("enc-first-N → panda-praise-N" via
+        // "level" path since this is single-pick), and consecutive
+        // rounds keep climbing.
+        streak += 1;
+        const { chain, lastEncourageId, tier } = pickCheerCue({
+          streak,
+          isRoundComplete: true,  // gameBounce: 1 pick per round = always round-end
+          levelId: 2,             // gameBounce is levelId 2; unlocks cloud (id 3)
+          hasDiscovery: false,
+          hadWrongs,
+        });
+        // Wait for "啵啵！" pop sound to actually end before the cheer
+        // chain — playAfter hooks bounce-pop's `ended` event. The chain
+        // itself plays in 200ms-gap sequence inside audio/praise.js.
+        window.PandaAudio.playAfter("bounce-pop", chain, {
+          gapMs: 200,
+          seqGapMs: 200,
+        });
+        // Visual celebration anchored at the popped balloon — sparkles
+        // and panda hop in parallel with the cheer chain. Mirrors
+        // gameCloud's loop so both games feel equally alive.
+        celebrate(k, {
+          tier,
+          anchor: { x: it.node.pos.x, y: it.node.pos.y },
+          pandaBody: buddy?.body,
+          pandaBaseSize: 230,
+        });
+        // After the cheer chain finishes, play the game-specific done
+        // cue and navigate. The chain + bounce-done combo is the new
+        // "yes!" moment — replaces the old single-cue "砰" loop.
+        window.PandaAudio.playAfter(
+          lastEncourageId,
+          ["bounce-done"],
+          { gapMs: 0, seqGapMs: 0 },
+          () => {
+            if (roundIdx + 1 < ROUND_COUNT) {
               roundIdx += 1;
               k.go("gameBounce");
-            },
-          );
-        } else {
-          saveProgress(2);  // gameBounce is levelId 2; unlocks cloud (id 3)
-          window.PandaAudio.playAfter(
-            "bounce-pop",
-            ["lvl-done"],
-            { gapMs: 0, seqGapMs: 0 },
-            () => {
+            } else {
+              // Last round — same chain as in-between, but mark progress
+              // before navigating home. Reset roundIdx + streak so the
+              // next session starts fresh.
+              saveProgress(2);  // unlocks cloud (id 3)
               roundIdx = 0;
+              streak = 0;
               k.go("gamesPicker");
-            },
-          );
-        }
+            }
+          },
+        );
       } else {
         it.shake();
         it.setDisabled(true);
-        // Wrong — silent panda mood. The wrong-pick audio is fired by
-        // pairScene-equivalent flow (pickWrongCue → enc-wrong-N); game
-        // scenes inherit the silent-mode mood so the panda pose changes
-        // without doubling the audio. The old "enc-try" cue that used
-        // to fire from setMood("think") is GONE.
         buddy.setMood("think", { silent: true });
+        // Wrong pick — fire an enc-wrong-N from the new tier system.
+        // stopAllAudio before to be safe — wrong pick overlaps with any
+        // pre-existing audio (rare, but a hint played on entry could
+        // still be tail-firing). Mirrors gameCloud's wrong branch.
+        window.PandaAudio.stopAllAudio();
+        window.PandaAudio.playCue(pickWrongCue({ isNearMiss: false }));
+        streak = 0;
+        // Sticky flag: any future streak-5 cue can now include
+        // enc-streak5-1's "你试了好几次才对，这叫有耐心" line.
+        hadWrongs = true;
         locked = false;     // allow another try on the remaining balloons
       }
     });

@@ -14,7 +14,7 @@
 //   const bar = stepBar(parent, { labels: [...4 strings], x, y, w, h });
 //   bar.setStep(2);
 
-import { INK, YELLOW, PINK, FONT } from "./theme.js";
+import { INK, YELLOW, PINK, FONT } from "./theme.js?v=20260812";
 
 const TRACK = [240, 236, 250];
 const STEP_COUNT = 4;

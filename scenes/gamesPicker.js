@@ -1,6 +1,6 @@
 // scenes/gamesPicker.js — panda-park games tab.
 //
-// Five large cards: Boat, Bounce, Cloud, Feed, Whack. Locked games show a
+// Four large cards: Boat, Bounce, Cloud, Feed. Locked games show a
 // lock badge; unlocked games play their intro cue and enter the scene on tap.
 // Stars are tracked separately under save.starsByGame so the math and games
 // tracks are independent.
@@ -9,10 +9,11 @@
 // same tab pill style — so a child can predict where "Math" went when they
 // want it back.
 
-import panda from "../components/panda.js";
+import panda from "../components/panda.js?v=20260812";
+import sceneBg from "../components/sceneBg.js?v=20260812";
 import {
-  INK, PAPER, CARD, ORANGE, YELLOW, BLUE, PURPLE, PINK, FONT,
-} from "../components/theme.js";
+  INK, CARD, ORANGE, YELLOW, BLUE, PURPLE, PINK, FONT,
+} from "../components/theme.js?v=20260812";
 
 const LOCKED_BG = [220, 213, 230];
 const LOCKED_INK = [150, 140, 170];
@@ -20,9 +21,8 @@ const LOCKED_INK = [150, 140, 170];
 const GAMES = [
   { id: 1, title: "小船",  sub: "凑十过河",  scene: "gameBoat",   sprite: "boat",   accent: BLUE },
   { id: 2, title: "气球",  sub: "扎破凑十",  scene: "gameBounce", sprite: "balloon", accent: PINK },
-  { id: 3, title: "云朵",  sub: "抱出好朋友", scene: "gameCloud",  sprite: "cloud",  accent: PURPLE },
+  { id: 3, title: "云朵",  sub: "看算式找答案", scene: "gameCloud",  sprite: "cloud",  accent: PURPLE },
   { id: 4, title: "喂食",  sub: "帮熊猫吃饱", scene: "gameFeed",   sprite: "bubble", accent: ORANGE },
-  { id: 5, title: "打地鼠", sub: "限时找朋友", scene: "gameWhack",  sprite: "mole",   accent: YELLOW },
 ];
 
 function hasSprite(k, name) {
@@ -31,10 +31,34 @@ function hasSprite(k, name) {
 
 function sprite(parent, k, name, { x, y, size }) {
   if (!hasSprite(k, name)) return null;
-  const node = parent.add([k.sprite(name), k.anchor("center"), k.pos(x, y)]);
-  node.width = size;
-  node.height = size;
-  return node;
+  // Preserve the source aspect ratio. balloon.png is 443x899 (very tall
+  // because of the trailing string) and forcing it into a size x size box
+  // squashed it into a short fat shape next to the boat / cloud / bubble
+  // (which are roughly square). We use uniform k.scale() (matching
+  // pickerItem.js:202) and fit the longer side to `size` so the balloon
+  // reads as tall and the boat reads as wide — same visual weight, no
+  // compression.
+  //
+  // Two earlier attempts were wrong:
+  //   (a) reading sp.width / sp.height — modern kaplay stores sprite
+  //       source dimensions on sp.data.width / sp.data.height, so the
+  //       top-level accessors return undefined and the aspect math
+  //       degenerates to NaN.
+  //   (b) setting node.width / node.height after `k.sprite(name)` — that
+  //       only resizes the hitbox in modern kaplay, not the visual
+  //       sprite drawing. k.scale() is the component that drives the
+  //       visual size for sprites.
+  const sp = k.getSprite(name);
+  const sw = sp.data?.width  ?? size;
+  const sh = sp.data?.height ?? size;
+  const longSide = Math.max(sw, sh) || size;
+  const scale = size / longSide;
+  return parent.add([
+    k.sprite(name),
+    k.anchor("center"),
+    k.pos(x, y),
+    k.scale(scale),
+  ]);
 }
 
 function drawTab(k, parent, label, x, y, w, h, active) {
@@ -125,7 +149,7 @@ function drawCard(k, parent, game, unlocked) {
 export default function gamesPickerScene(k) {
   const save = window.PandaSave?.load() || { unlockedGame: 1, starsByGame: {} };
 
-  k.add([k.rect(k.width(), k.height()), k.color(...PAPER), k.z(-10)]);
+  sceneBg(k, "bg-meadow");
 
   // Tabs at the top.
   drawTab(k, k, "学数学", 600, 200, 200, 70, false);
@@ -177,7 +201,7 @@ export default function gamesPickerScene(k) {
         cardX: k.width() / 2 - totalSpan / 2 + i * stride,
         cardY: baseY,
       },
-      g.id <= save.unlockedGame,
+      true,
     );
   });
 

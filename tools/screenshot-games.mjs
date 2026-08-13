@@ -12,7 +12,8 @@ const browser = await chromium.launch({
 });
 const ctx = await browser.newContext({
   viewport: { width: 1366, height: 1024 },
-  deviceScaleFactor: 1,
+  // deviceScaleFactor 2 (was 1, 2026-08-12) — retina-quality PNG.
+  deviceScaleFactor: 2,
 });
 const page = await ctx.newPage();
 page.on("pageerror", (err) => console.error("[pageerror]", err.message));

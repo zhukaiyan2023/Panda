@@ -25,7 +25,7 @@
 //   buddy.setMood("think");            // plays enc-wrong-N
 //   buddy.setMood("think", { silent: true });  // pose-only
 
-import { pickStaticWrongCue } from "../audio/praise.js";
+import { pickStaticWrongCue } from "../audio/praise.js?v=20260812";
 
 const MOODS = {
   idle: "panda-idle",

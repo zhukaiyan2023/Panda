@@ -22,13 +22,14 @@
 // L2 shows a chain (a+?=10, then need+rest=answer). Buttons stay visible at
 // every step — a child shouldn't have to wait for buttons to re-appear.
 
-import expression from "../components/expression.js";
-import stepBar from "../components/stepBar.js";
-import panda from "../components/panda.js";
-import choice, { iconButton } from "../components/choice.js";
-import { INK, PAPER, FONT } from "../components/theme.js";
-import { pickCheerCue, pickWrongCue } from "../audio/praise.js";
-import { celebrate } from "../components/celebration.js";
+import expression from "../components/expression.js?v=20260812";
+import stepBar from "../components/stepBar.js?v=20260812";
+import panda from "../components/panda.js?v=20260812";
+import choice, { iconButton } from "../components/choice.js?v=20260812";
+import { INK, PAPER, FONT } from "../components/theme.js?v=20260812";
+import sceneBg from "../components/sceneBg.js?v=20260812";
+import { pickCheerCue, pickWrongCue } from "../audio/praise.js?v=20260812";
+import { celebrate } from "../components/celebration.js?v=20260812";
 
 // Long enough for a slow voice to land a one-word prompt and the child to
 // look at the buttons before the timer expires. The verifier flips a global
@@ -125,7 +126,7 @@ export default function createRoundScene(config) {
   function drawRound(k, round, ri, totalRounds) {
     const state = { step: 1, locked: new Set(), buttons: [], body: null };
 
-    k.add([k.rect(k.width(), k.height()), k.color(...PAPER), k.z(-10)]);
+    sceneBg(k, "bg-meadow");
 
     iconButton(k, {
       label: "←",
@@ -198,6 +199,16 @@ export default function createRoundScene(config) {
         x: opts.x ?? LAYOUT.barX,
         y: opts.y ?? LAYOUT.equationY,
         size: opts.size ?? 96,
+        // boxMode must be forwarded explicitly — the reveal pass for
+        // step 1 (比一比 → "□" reveals to ">" / "<") passes slots that
+        // contain no "□" / "?", so the expression component's auto
+        // wantsBox check returns false. Without this, the reserve to
+        // "□" computes with boxMode=false and widths[1] shrinks from
+        // 0.9 × size to 0.62 × size, recentering the row and shifting
+        // round.a and round.b's centers. Per user feedback 2026-08-13:
+        // "选中正确答案之后，9和3的位置移动了，应该是 ◻ 只占了一个
+        // 位置，但是 > 或者 < 占位不一致."
+        boxMode: opts.boxMode,
       };
       if (eq.slots) {
         props.slots = eq.slots;
@@ -223,6 +234,13 @@ export default function createRoundScene(config) {
         x: opts.x ?? LAYOUT.barX,
         y: opts.y ?? 220,
         size: opts.size ?? 100,
+        // boxMode forwarded through — see setEquation's note on why
+        // this matters for step 1's compare reveal. Anchor reveals
+        // currently always pass slots containing "□", so the auto
+        // wantsBox path covers them today; pass it through for
+        // symmetry and to keep the call surface identical to
+        // setEquation.
+        boxMode: opts.boxMode,
       };
       if (eq.slots) {
         props.slots = eq.slots;

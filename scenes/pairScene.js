@@ -22,15 +22,22 @@
 //                                   to onCorrect / onWrong as ctx.body
 //   onCorrect(ctx, a, b)         — animation + state mutation for a correct pick
 //   onWrong(ctx, a, b)           — feedback for a wrong pick (defaults: shake only)
+//   noCelebrate    boolean       — skip celebrate() fireworks on correct pick.
+//                                   Boat uses this (2026-08-12): the kid said
+//                                   the matching animation was too noisy, so
+//                                   boat opts out of the shared burst/star
+//                                   celebration chain. The cheer audio and
+//                                   the disabled (faded) items still play.
 //   roundEndCue(r) string        — audio cue when this round finishes
 //   replayCue(r, step) string    — audio cue when the player taps replay
 
-import stepBar from "../components/stepBar.js";
-import panda from "../components/panda.js";
-import { iconButton } from "../components/choice.js";
-import { INK, PAPER, FONT } from "../components/theme.js";
-import { pickCheerCue, pickWrongCue } from "../audio/praise.js";
-import { celebrate } from "../components/celebration.js";
+import stepBar from "../components/stepBar.js?v=20260812";
+import panda from "../components/panda.js?v=20260812";
+import { iconButton } from "../components/choice.js?v=20260812";
+import { INK, PAPER, FONT } from "../components/theme.js?v=20260812";
+import sceneBg from "../components/sceneBg.js?v=20260812";
+import { pickCheerCue, pickWrongCue } from "../audio/praise.js?v=20260812";
+import { celebrate } from "../components/celebration.js?v=20260812";
 
 // Picks that happen during one round share the same step bar. Each correct
 // pick moves the bar forward; the round is complete when step === roundSteps.
@@ -78,7 +85,7 @@ export default function createPairScene(config) {
     };
 
     // Header band, icon buttons, and panda — same chrome as the math levels.
-    k.add([k.rect(k.width(), k.height()), k.color(...PAPER), k.z(-10)]);
+    sceneBg(k, "bg-meadow");
 
     iconButton(k, {
       label: "←",
@@ -90,7 +97,10 @@ export default function createPairScene(config) {
       },
     });
 
-    const totalSteps = Math.max(1, config.pairs(round.index).length);
+    // Pass round.candidates too: gameFeed.buildPairs needs the actual
+    // displayed digits to derive valid pairs. gameBoat.pairsFor only
+    // reads the index, so the second arg is ignored there.
+    const totalSteps = Math.max(1, config.pairs(round.index, round.candidates).length);
     const bar = stepBar(k, {
       labels: Array.from({ length: totalSteps + 1 }, (_, i) =>
         i === 0 ? "开始" : i === totalSteps ? "完成" : `第 ${i} 对`),
@@ -133,13 +143,22 @@ export default function createPairScene(config) {
     }
 
     function tryPair(aIdx, bIdx) {
+      console.log(`[pairScene] tryPair ri=${roundIdx} aIdx=${aIdx} bIdx=${bIdx} a=${ctx.items[aIdx]?.value} b=${ctx.items[bIdx]?.value} roundTarget=${ctx.round.target}`);
       if (state.done) return;
       if (state.selections.includes(aIdx) || state.selections.includes(bIdx)) return;
       const a = ctx.items[aIdx].value;
       const b = ctx.items[bIdx].value;
       const sum = a + b;
 
-      if (sum === config.target) {
+      // Per-round target override: pair-scene configs that vary the
+      // target across rounds (e.g. dynamic-target gameFeed) can set
+      // round.target on the round object inside body(); pairScene
+      // honours that over config.target. Configs that keep one fixed
+      // target (boat/bounce/cloud) never touch round.target, so
+      // `ctx.round.target ?? config.target` falls through to the
+      // session-wide config value.
+      const target = ctx.round.target ?? config.target;
+      if (sum === target) {
         // Correct — record, animate, advance step.
         streak += 1;
         state.selections.push(aIdx, bIdx);
@@ -173,21 +192,29 @@ export default function createPairScene(config) {
           hadWrongs,
         });
         ctx.lastEncourageId = lastEncourageId;
-        window.PandaAudio.playSequence(chain, 200, 0);
-        buddy.setMood("cheer", { silent: true });
+        if (!window.__trace_no_audio) {
+          window.PandaAudio.playSequence(chain, 200, 0);
+        }
+        if (!window.__trace_no_mood) {
+          buddy.setMood("cheer", { silent: true });
+        }
         // Visual celebration at the midpoint of the two picked items
         // so the burst lands between the boat/cloud/bubble the kid
-        // just matched, not at a random spot.
-        const aNode = ctx.items[aIdx].node;
-        const bNode = ctx.items[bIdx].node;
-        const mx = (aNode.pos.x + bNode.pos.x) / 2;
-        const my = (aNode.pos.y + bNode.pos.y) / 2;
-        celebrate(k, {
-          tier,
-          anchor: { x: mx, y: my },
-          pandaBody: buddy?.body,
-          pandaBaseSize: 180,
-        });
+        // just matched, not at a random spot. Skipped when the game
+        // opts out via noCelebrate: true (boat, 2026-08-12 — the
+        // shared burst/fireworks were too noisy for that scene).
+        if (!config.noCelebrate) {
+          const aNode = ctx.items[aIdx].node;
+          const bNode = ctx.items[bIdx].node;
+          const mx = (aNode.pos.x + bNode.pos.x) / 2;
+          const my = (aNode.pos.y + bNode.pos.y) / 2;
+          celebrate(k, {
+            tier,
+            anchor: { x: mx, y: my },
+            pandaBody: buddy?.body,
+            pandaBaseSize: 180,
+          });
+        }
 
         if (isRoundComplete) {
           state.done = true;
@@ -200,26 +227,36 @@ export default function createPairScene(config) {
           // on round-complete, panda-praise-N on streak tiers).
           if (roundIdx + 1 < config.roundCount) {
             const endIds = config.roundEndCue(round) ? [config.roundEndCue(round)] : [];
-            window.PandaAudio.playAfter(
-              ctx.lastEncourageId,
-              endIds,
-              { gapMs: 0, seqGapMs: 0 },
-              () => {
-                roundIdx += 1;
-                k.go(config.sceneName);
-              },
-            );
+            if (!window.__trace_no_audio) {
+              window.PandaAudio.playAfter(
+                ctx.lastEncourageId,
+                endIds,
+                { gapMs: 0, seqGapMs: 0 },
+                () => {
+                  roundIdx += 1;
+                  k.go(config.sceneName);
+                },
+              );
+            } else {
+              roundIdx += 1;
+              k.go(config.sceneName);
+            }
           } else {
             saveProgress(config.levelId);
-            window.PandaAudio.playAfter(
-              ctx.lastEncourageId,
-              ["lvl-done"],
-              { gapMs: 0, seqGapMs: 0 },
-              () => {
-                roundIdx = 0;
-                k.go("gamesPicker");
-              },
-            );
+            if (!window.__trace_no_audio) {
+              window.PandaAudio.playAfter(
+                ctx.lastEncourageId,
+                ["lvl-done"],
+                { gapMs: 0, seqGapMs: 0 },
+                () => {
+                  roundIdx = 0;
+                  k.go("gamesPicker");
+                },
+              );
+            } else {
+              roundIdx = 0;
+              k.go("gamesPicker");
+            }
           }
         } else {
           bar.setStep(state.foundPairs + 1);
@@ -251,6 +288,7 @@ export default function createPairScene(config) {
     let pending = null;
     ctx.items.forEach((item, idx) => {
       const onTap = () => {
+        console.log(`[pairScene] onTap ri=${roundIdx} idx=${idx} value=${item.value} pending=${pending} done=${state.done}`);
         if (state.done) return;
         if (state.selections.includes(idx)) return;
         if (item.value === null || item.value === undefined) return;

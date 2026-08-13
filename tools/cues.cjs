@@ -280,31 +280,32 @@ module.exports = [
   { id: "boat-pair",  text: "凑十啦" },
   { id: "boat-done",  text: "过河啦" },
 
-  // Cloud — 找抱抱. Find all the friends-of-10 pairs hidden in clouds.
-  { id: "cloud-intro", text: "找抱抱" },
-  { id: "cloud-pair",  text: "抱到啦" },
-  { id: "cloud-done",  text: "全找到啦" },
+  // Cloud — 算式选云. Read the equation at the top, tap the cloud whose
+  // number equals the answer. Mirrors bounce-intro's structure: greet, name
+  // the equation, name the action. The on-screen equation + cue together are
+  // enough for a 3-6 year old to pick up the mechanic.
+  { id: "cloud-intro", text: "小朋友好，看上面的算式，找到答案对的那朵云。" },
+  { id: "cloud-pair",  text: "对啦" },     // generic correct-tap callout (was "抱到啦", stale pair-match metaphor)
+  { id: "cloud-done",  text: "全做完啦" },
 
   // Bounce — 扎气球. Decomposition practice (a + ? = N, N ≤ 10). The intro
   // is short and concrete: greet, name the equation, name the action. A 3-6
   // year old can't follow a long explanation — they pick up the mechanic
   // from the equation on screen + this one-sentence nudge.
   { id: "bounce-intro", text: "小朋友好，看上面的等式，找那个能凑出答案的气球，扎破它。" },
-  { id: "bounce-pop",   text: "砰" },
-  { id: "bounce-done",  text: "全扎完啦" },
-
-  // Whack-a-mole — 打地鼠. Time-pressure game; the only audio cues are
-  // the start signal and the timeout, otherwise the round would be a
-  // wall of sound.
-  { id: "whack-intro",  text: "打地鼠" },
-  { id: "whack-start",  text: "开始" },
-  { id: "whack-tick",   text: "快点" },
-  { id: "whack-timeup", text: "时间到" },
-  { id: "whack-done",   text: "赢啦" },
+  { id: "bounce-pop",   text: "啵啵！" },
+  { id: "bounce-done",  text: "全炸啦！" },
+  // Whack-a-mole removed 2026-08-13 (user feedback: "做的太差了").
 
   // Feed — 喂熊猫. Pick pairs, the panda eats them.
   { id: "feed-intro", text: "帮熊猫吃" },
   { id: "feed-nom",   text: "好吃" },
   { id: "feed-next",  text: "再来" },
   { id: "feed-done",  text: "吃饱啦" },
+  // Per-target question prompts for the dynamic-target feed variant.
+  // Reads as "选两个加起来是七" / "选两个加起来是八" etc., so the kid
+  // hears a distinct question for each round instead of the same fixed
+  // "等于十" line. Numbers stay as separate n-N cues chained in
+  // gameFeed.js, so these only carry the leading phrase.
+  { id: "feed-q-pre", text: "选两个加起来是" },
 ];

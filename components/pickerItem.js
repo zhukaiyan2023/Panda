@@ -11,7 +11,7 @@
 // removes it. A small child can tap one of these reliably even when several
 // are on screen at once.
 
-import { INK, CARD, ORANGE, FONT } from "./theme.js";
+import { INK, CARD, ORANGE, FONT } from "./theme.js?v=20260812";
 
 const SIZE = 180;        // hit-target and face size
 const SPRITE_SCALE = 0.6; // default: shrinks the prop sprite inside the button
@@ -33,8 +33,33 @@ function hitShape(k, x, y, w, h, labelAbove) {
 //
 //   parent   Kaplay scene root (k)
 //   value    the number this item carries (used by pairScene to compute sums)
-//   sprite   optional sprite name (e.g. "boat", "cloud", "mole", "balloon", "bubble")
+//   sprite   optional sprite name (e.g. "boat", "cloud", "balloon", "bubble")
 //            — when missing, the item renders as a plain numbered card
+//   selectedSprite optional second sprite name. When set, highlight() swaps
+//            the visible sprite to `selectedSprite` and unhighlight() swaps
+//            back. The pulsing orange ring is skipped — the sprite swap is
+//            the selection indicator. Used by the boat scene (2026-08-12),
+//            where the kid found the pulsing ring "ugly" and we now switch
+//            between two whole boat sprites (white-sail / golden-sail).
+//   selectedLift   optional pixels to lift the whole item (root.pos.y
+//            decreases by this much) on highlight(), and tween back on
+//            unhighlight(). The lift is a clear "this one is up, this one
+//            is picked" beat that pairs with the sprite swap. Default 0
+//            (no lift; only the sprite changes). Boat uses 20 (2026-08-12
+//            follow-up: the sprite-swap alone wasn't obvious enough).
+//   selectedScale  optional MULTIPLIER applied to the SPRITE NODE (not the
+//            whole item — the hit target stays put so the kid can't
+//            accidentally un-pick by tapping the grown sprite) on
+//            highlight(), tweened back on unhighlight(). The actual
+//            target scale is spriteScale × selectedScale, so 1.18 with a
+//            base spriteScale of 0.16 grows the bubble to 0.1888 (≈18%
+//            bigger), not 1.18 absolute. For sprites that don't have a
+//            `selectedSprite` companion (gameFeed bubbles ship only one
+//            bubble PNG, so the sprite-swap path doesn't apply), the
+//            scale + lift + ring combo makes selection unmistakable.
+//            Default 1.0 (no scale). Bubbles use 1.18 — the bubble
+//            sprite is mostly inside the orange ring, so a scale-up
+//            reads as the bubble "popping forward".
 //   x, y     center position on the canvas
 //   fillColor   [r,g,b] override for the card face, default CARD
 //   size     override for the face hit-target (square)
@@ -74,10 +99,19 @@ export default function item(parent, opts) {
   const k = window.kaplay;
   const value = opts.value;
   const spriteName = opts.sprite;
+  const selectedSpriteName = opts.selectedSprite;
+  const selectedLift = opts.selectedLift ?? 0;
+  const selectedScale = opts.selectedScale ?? 1.0;
   const x = opts.x;
   const y = opts.y;
   const w = opts.size ?? SIZE;
-  const h = opts.size ?? SIZE;
+  // Default the hit-box height to `size` (square) so boat/cloud/bubble
+  // callers stay unchanged. Balloon uses a taller hit box (see
+  // gameBounce.js) because balloon.png is 443×899 — far taller than
+  // wide — and a square 180×180 hit box misses the entire upper half of
+  // the visible body. 2026-08-14 user feedback: kid's tap on the round
+  // balloon body landed on empty space (above the hit box).
+  const h = opts.hitHeight ?? opts.size ?? SIZE;
   const fill = opts.fillColor || CARD;
   const hasSprite = spriteName && k.getSprite(spriteName);
   const labelPosition = opts.labelPosition ?? "below";
@@ -148,8 +182,43 @@ export default function item(parent, opts) {
   ]);
 
   // Optional sprite prop behind the number — boats, clouds, balloons.
-  if (hasSprite) {
-    root.add([
+  // When `selectedSprite` is provided, two sprite nodes are created at the
+  // same position; the regular one is visible by default, the selected one
+  // is shown by highlight() and hidden by unhighlight(). The pulsing orange
+  // ring is skipped in that mode (useSpriteSwap is the new selection
+  // indicator). Capturing the node refs is required so we can flip their
+  // visibility in highlight()/unhighlight().
+  let spriteNode = null;
+  let selectedSpriteNode = null;
+  const useSpriteSwap = !!(hasSprite && selectedSpriteName && k.getSprite(selectedSpriteName));
+  if (useSpriteSwap) {
+    // Two sprite nodes at the same spot. The selected one starts at
+    // opacity 0 so it never paints on top of the regular sprite until
+    // highlight() is called. We use opacity (not .hidden = true) because
+    // 2026-08-12 the user reported seeing a half-mixed state at the
+    // start of the round — top row looked like the selected sprite even
+    // though no one had tapped anything. .hidden appears to be unreliable
+    // when the two sprites share z and are added back-to-back to the
+    // same parent; the renderer can paint the "hidden" one on top before
+    // the property settles. Opacity is a guaranteed render-time skip.
+    spriteNode = root.add([
+      k.sprite(spriteName),
+      k.pos(x, y - 16),
+      k.anchor("center"),
+      k.scale(spriteScale),
+      k.opacity(1),
+      k.z(1),
+    ]);
+    selectedSpriteNode = root.add([
+      k.sprite(selectedSpriteName),
+      k.pos(x, y - 16),
+      k.anchor("center"),
+      k.scale(spriteScale),
+      k.opacity(0),
+      k.z(1),
+    ]);
+  } else if (hasSprite) {
+    spriteNode = root.add([
       k.sprite(spriteName),
       k.pos(x, y - 16),
       k.anchor("center"),
@@ -215,7 +284,27 @@ export default function item(parent, opts) {
       label.opacity = on ? 0.35 : 1;
       if (labelBg) labelBg.opacity = on ? 0.35 : 1;
       if (labelStroke) labelStroke.opacity = on ? 0.2 : 0.55;
-      ring.hidden = on || !ring.userVisible;
+      if (useSpriteSwap) {
+        // Disabled = "done, faded out". Force the regular (unselected)
+        // sprite so every disabled boat looks the same — the kid doesn't
+        // see a "golden selected but faded" inconsistency mid-round.
+        // Snap the lift back to 0 too: a disabled boat should sit on the
+        // row baseline, not hover. Opacity (not .hidden) — see the long
+        // comment in the sprite-swap creation block above for the
+        // 2026-08-12 why .hidden was unreliable.
+        spriteNode.opacity = 1;
+        selectedSpriteNode.opacity = 0;
+        if (selectedLift > 0) root.pos.y = 0;
+      } else {
+        ring.hidden = on || !ring.userVisible;
+        // Snap the sprite back to its base scale on disable — a
+        // disabled bubble should sit on the row baseline at its
+        // original size, not hover above it at the selected scale.
+        if (spriteNode && selectedScale !== 1.0) {
+          spriteNode.scale = k.vec2(spriteScale, spriteScale);
+        }
+        if (selectedLift > 0) root.pos.y = 0;
+      }
     },
     shake() {
       // Quick horizontal jitter; 0.35s total. Doesn't lock the item so the
@@ -232,16 +321,72 @@ export default function item(parent, opts) {
       });
     },
     highlight() {
+      if (useSpriteSwap) {
+        // Whole-sprite swap: hide the regular boat, show the golden-sail
+        // "picked" boat. No ring, no pulse — the visual change is the
+        // sprite itself, plus a small lift (see below) so the picked boat
+        // physically rises above its neighbors. The kid sees "this one
+        // is up, this one is picked" instead of just a colour swap.
+        // Opacity (not .hidden) — see the long comment at the sprite
+        // creation site for the 2026-08-12 reason.
+        spriteNode.opacity = 0;
+        selectedSpriteNode.opacity = 1;
+        if (selectedLift > 0) {
+          k.tween(root.pos.y, -selectedLift, 0.15, (v) => { root.pos.y = v; });
+        }
+        return;
+      }
       ring.userVisible = true;
       ring.hidden = disabled;
       pulseStart = k.time();
       pulsing = true;
+      // Sprite-only scale tween — the hit-target stays put so the kid
+      // can't accidentally un-pick by tapping the grown sprite, and the
+      // ring still fits around the (smaller) hit area. Combines with
+      // the ring pulse and an optional lift to make selection
+      // unmistakable on sprites where the orange ring is mostly hidden
+      // by the sprite body (gameFeed bubbles).
+      //
+      // selectedScale is a MULTIPLIER on the base spriteScale, not an
+      // absolute value — so selectedScale 1.18 means "bubble grows to
+      // 1.18× its base 0.16 = 0.1888" (≈18% bigger), not "bubble grows
+      // to absolute scale 1.18" (which would 7× the bubble and cover
+      // the whole canvas).
+      if (spriteNode && selectedScale !== 1.0) {
+        const targetScale = spriteScale * selectedScale;
+        k.tween(spriteNode.scale.x, targetScale, 0.15, (v) => {
+          spriteNode.scale = k.vec2(v, v);
+        });
+      }
+      if (selectedLift > 0) {
+        k.tween(root.pos.y, -selectedLift, 0.15, (v) => { root.pos.y = v; });
+      }
     },
     unhighlight() {
+      if (useSpriteSwap) {
+        // Swap back: regular visible, selected hidden, and tween the
+        // lift back to 0 so the boat returns to its row baseline.
+        spriteNode.opacity = 1;
+        selectedSpriteNode.opacity = 0;
+        if (selectedLift > 0) {
+          k.tween(root.pos.y, 0, 0.15, (v) => { root.pos.y = v; });
+        }
+        return;
+      }
       ring.userVisible = false;
       ring.hidden = true;
       pulsing = false;
       ring.scale = k.vec2(1, 1);
+      // Tween the sprite back to its base scale so the picked bubble
+      // visibly shrinks back into the row, not just fades its ring.
+      if (spriteNode && selectedScale !== 1.0) {
+        k.tween(spriteNode.scale.x, spriteScale, 0.15, (v) => {
+          spriteNode.scale = k.vec2(v, v);
+        });
+      }
+      if (selectedLift > 0) {
+        k.tween(root.pos.y, 0, 0.15, (v) => { root.pos.y = v; });
+      }
     },
   };
 
