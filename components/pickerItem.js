@@ -105,7 +105,13 @@ export default function item(parent, opts) {
   const x = opts.x;
   const y = opts.y;
   const w = opts.size ?? SIZE;
-  const h = opts.size ?? SIZE;
+  // Default the hit-box height to `size` (square) so boat/cloud/bubble
+  // callers stay unchanged. Balloon uses a taller hit box (see
+  // gameBounce.js) because balloon.png is 443×899 — far taller than
+  // wide — and a square 180×180 hit box misses the entire upper half of
+  // the visible body. 2026-08-14 user feedback: kid's tap on the round
+  // balloon body landed on empty space (above the hit box).
+  const h = opts.hitHeight ?? opts.size ?? SIZE;
   const fill = opts.fillColor || CARD;
   const hasSprite = spriteName && k.getSprite(spriteName);
   const labelPosition = opts.labelPosition ?? "below";

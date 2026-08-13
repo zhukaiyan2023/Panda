@@ -89,6 +89,7 @@ function body(ctx) {
   const { k, round } = ctx;
   const n = round.candidates.length;
   const target = targetFor(ctx.ri);
+  console.log(`[gameFeed] body() start ri=${ctx.ri} target=${target} n=${n}`);
 
   // Set the round's per-round target now that pairScene has already
   // built `round` — pairScene's tryPair reads ctx.round.target with
@@ -226,6 +227,7 @@ export default createPairScene({
   prompt: () => "",
   body,
   onCorrect(ctx, a, b) {
+    console.log(`[gameFeed] onCorrect ri=${ctx.ri} pair=(${a},${b}) target=${ctx.round.target} candidates=${JSON.stringify(ctx.items.map(i=>i.value))}`);
     ctx.score += 10;
     if (ctx.scoreText) ctx.scoreText.text = String(ctx.score);
 
@@ -281,25 +283,31 @@ export default createPairScene({
     }
 
     // Eat animation: scale the two picked bubbles to 0 + fade out, with
-    // a small offset between them so they don't vanish in lockstep.
-    [itemA, itemB].forEach((it, i) => {
-      if (!it) return;
-      ctx.k.wait(i * 0.08, () => {
-        const start = ctx.k.time();
-        const dur = 0.5;
-        it.node.onUpdate(() => {
-          const dt = ctx.k.time() - start;
-          if (dt > dur) {
-            it.node.opacity = 0;
-            it.node.onUpdate(() => {});
-            return;
-          }
-          const t = dt / dur;
-          it.node.scale = ctx.k.vec2(1 - t, 1 - t);
-          it.node.opacity = 1 - t;
-        });
+    // a small offset between them so they don't vanish in lockstep. Run
+    // both tweens in parallel (no k.wait gate) so nothing is left queued
+    // after the scene transitions — the previous wait+onUpdate pattern
+    // left an orphan handler poking a destroyed node every frame, which
+    // was the source of the "stuck after round 2" freeze.
+    const eatAnim = (it, delay) => {
+      if (!it || !it.node) return;
+      // Drive scale 1 → 0 over `dur` with an initial `delay` so the two
+      // bubbles pop sequentially rather than in lockstep. We bake the
+      // delay into the eased curve directly instead of using k.wait —
+      // a k.wait gate would schedule a callback that might fire after
+      // the scene is destroyed and re-attach an animation to a dead
+      // node.
+      const dur = 0.5;
+      ctx.k.tween(0, 1, dur + delay, (v) => {
+        if (!it.node || it.node.exists === false) return;
+        if (v < delay / (dur + delay)) return;          // pre-delay hold
+        const t = (v - delay / (dur + delay)) / (dur / (dur + delay));
+        const s = Math.max(0, 1 - t);
+        it.node.scale = ctx.k.vec2(s, s);
+        it.node.opacity = Math.max(0, 1 - t);
       });
-    });
+    };
+    eatAnim(itemA, 0);
+    eatAnim(itemB, 0.08);
 
     // Equation — replace the previous one so multiple correct picks in a
     // round don't stack on top of each other. Centered at x=748 to match

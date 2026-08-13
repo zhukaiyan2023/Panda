@@ -104,10 +104,15 @@ export function buildManifest() {
     if (a !== b) {
       push(`l2-cmp-${a}-${b}`, `${numZh(a)}${a > b ? "大于" : "小于"}${numZh(b)}`);
     }
-    // Swapped step-4 phrasing, used when the smaller addend is written first
-    // and the split has two distinct pieces — the visual keeps the question's
-    // order, so the audio must too.
-    if (a < b && rest !== need) {
+    // Swapped step-4 phrasing, used whenever the smaller addend is written
+    // first (round.a < round.b). The aIsSmall visual keeps the question's
+    // order ("rest + need + big"), so the audio must read the same way.
+    // Applies to rest === need cases too (e.g. 6+7 → "3 + 3 + 7") — the
+    // previous `rest !== need` check was wrong because "big + need + rest"
+    // (e.g. "7+3+3") and "rest + need + big" (e.g. "3+3+7") sit in
+    // different slot positions even when the digits commute. Without
+    // this, 6+7, 4+8, 2+9 played canonical audio over swapped visuals.
+    if (a < b) {
       push(`l2-s4s-${a}-${b}-${need}-${rest}-${big}`,
         `${numZh(small)}分成${numZh(rest)}加${numZh(need)}，算一算${numZh(rest)}加${numZh(need)}加${numZh(big)}等于几`);
     }

@@ -282,16 +282,22 @@ function buildL2Step4Ids(big, small, need, rest) {
   return [`l2-s4-${small}-${need}-${rest}-${big}`];
 }
 
-// Step 4 SWAP variant — fires only when the smaller addend comes
-// first (round.a < round.b, e.g. 6+9) AND rest ≠ need (the split
-// has two non-zero pieces in different order). The visual for these
-// rounds shows "(rest+need)+b = ?" preserving question order, but
-// the canonical l2-s4 audio says "big+need+rest" — re-introducing
-// the swap jump the visual removes. The "s" suffix marks the
-// swapped text variant. When rest == need both orderings are
-// visually identical so no swap audio needed.
+// Step 4 SWAP variant — fires whenever the smaller addend comes first
+// (round.a < round.b, e.g. 6+7, 6+9). The aIsSmall visual layout shows
+// "rest + need + b" preserving the question's original order so the
+// step-4 calc reads the same way as the step-2/3 decomposition the kid
+// just confirmed. The canonical l2-s4 audio says "big + need + rest"
+// — that's the right ordering for aIsBig rounds but it's a different
+// visual order from what the aIsSmall kid sees. The "s" suffix marks
+// the swapped text variant ("rest + need + big"). Used for ALL
+// aIsSmall rounds (rest === need too — e.g. 6+7 splits 6→3+3 and the
+// visual reads "3+3+7", not "7+3+3"). Previous logic excluded
+// rest === need ("both orderings are visually identical") but that's
+// wrong: "7+3+3" and "3+3+7" sit in different slot positions even
+// when the digits are commutative. That gap left 6+7, 4+8, 2+9
+// playing the canonical "7+3+3" audio over a "3+3+7" visual.
 function buildL2Step4SwapIds(a, b, big, small, need, rest) {
-  if (!(a < b && rest !== need)) return null;
+  if (!(a < b)) return null;
   return [`l2-s4s-${a}-${b}-${need}-${rest}-${big}`];
 }
 

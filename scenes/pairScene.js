@@ -143,6 +143,7 @@ export default function createPairScene(config) {
     }
 
     function tryPair(aIdx, bIdx) {
+      console.log(`[pairScene] tryPair ri=${roundIdx} aIdx=${aIdx} bIdx=${bIdx} a=${ctx.items[aIdx]?.value} b=${ctx.items[bIdx]?.value} roundTarget=${ctx.round.target}`);
       if (state.done) return;
       if (state.selections.includes(aIdx) || state.selections.includes(bIdx)) return;
       const a = ctx.items[aIdx].value;
@@ -273,6 +274,7 @@ export default function createPairScene(config) {
     let pending = null;
     ctx.items.forEach((item, idx) => {
       const onTap = () => {
+        console.log(`[pairScene] onTap ri=${roundIdx} idx=${idx} value=${item.value} pending=${pending} done=${state.done}`);
         if (state.done) return;
         if (state.selections.includes(idx)) return;
         if (item.value === null || item.value === undefined) return;

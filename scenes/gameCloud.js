@@ -156,16 +156,13 @@ function buildRound(roundIdx) {
 }
 
 // === Celebration ========================================================
-// On a correct tap: scale-pulse the cloud and burst sparkles around it.
-// Mirrors the boat game's reward beat so the kid feels a strong "yes!"
-// without changing the round's chrome.
+// On a correct tap: burst sparkles around the picked cloud. The cloud
+// itself stays still — no scale pulse, no lift — so the kid's eye
+// lands on the chosen answer without the picked object itself moving
+// (2026-08-14 feedback: "选中时，云朵不要动了"). The bobbing float on
+// every cloud is also gated off here via _hugged = true (set by the
+// caller right before celebrateCorrect runs).
 function celebrateCorrect(k, it) {
-  const root = it.node;
-  root.scale = k.vec2(1, 1);
-  k.tween(1, 1.3, 0.15, (v) => { root.scale = k.vec2(v, v); });
-  k.wait(0.15, () => {
-    k.tween(1.3, 1, 0.18, (v) => { root.scale = k.vec2(v, v); });
-  });
   for (let s = 0; s < 6; s++) {
     const sparkle = k.add([
       k.text("✨", { size: 36 }),
@@ -186,55 +183,6 @@ function celebrateCorrect(k, it) {
       });
     });
   }
-}
-
-// === Victory modal ======================================================
-function showVictory(k, total, isLastRound, onNext) {
-  k.add([
-    k.rect(k.width(), k.height()),
-    k.color(0, 0, 0),
-    k.opacity(0.4),
-    k.pos(0, 0),
-    k.z(40),
-  ]);
-  const cardW = 760;
-  const cardH = 440;
-  const cx = k.width() / 2;
-  const cy = k.height() / 2;
-  k.add([
-    k.rect(cardW, cardH, { radius: 32 }),
-    k.color(...YELLOW),
-    k.outline(8, k.rgb(255, 255, 255)),
-    k.pos(cx, cy),
-    k.anchor("center"),
-    k.z(41),
-  ]);
-  k.add([
-    k.text("🌈", { size: 140 }),
-    k.pos(cx, cy - 130),
-    k.anchor("center"),
-    k.z(42),
-  ]);
-  k.add([
-    k.text(isLastRound ? "全部答对啦！" : "答对啦！", { size: 64, font: FONT }),
-    k.color(...INK),
-    k.pos(cx, cy + 0),
-    k.anchor("center"),
-    k.z(42),
-  ]);
-  k.add([
-    k.text(`答案是 ${total}！`, { size: 36, font: FONT }),
-    k.color(...SUCCESS),
-    k.pos(cx, cy + 70),
-    k.anchor("center"),
-    k.z(42),
-  ]);
-  iconButton(k, {
-    label: isLastRound ? "完成 🏠" : "下一轮 ▶",
-    x: cx, y: cy + 150, w: 360, h: 90, fontSize: 36,
-    z: 43,
-    onClick: onNext,
-  });
 }
 
 export default function scene(k) {
@@ -400,7 +348,7 @@ export default function scene(k) {
       });
 
       buddy.setMood("cheer", { silent: true });
-      // game-specific "抱到啦" fires immediately on the picked cloud.
+      // game-specific "对啦" fires immediately on the picked cloud.
       window.PandaAudio.playCue("cloud-pair");
       // Tier-based cheer chain (audio/praise.js) follows after the
       // game-specific cue lands. The chain is the new "好棒" replacement:
@@ -439,16 +387,18 @@ export default function scene(k) {
         ["cloud-done"],
         { gapMs: 0, seqGapMs: 0 },
         () => {
-          showVictory(k, round.correct, roundIdx + 1 >= ROUND_COUNT, () => {
-            if (roundIdx + 1 < ROUND_COUNT) {
-              roundIdx += 1;
-              k.go("gameCloud");
-            } else {
-              saveProgress(3);  // gameCloud is levelId 3; unlocks feed (id 4)
-              roundIdx = 0;
-              k.go("gamesPicker");
-            }
-          });
+          // No victory modal (2026-08-14 feedback: 弹框太丑 / 去掉) —
+          // just advance to the next round once the "cloud-done" cue
+          // finishes. The kid's "yes!" feedback already came from the
+          // sparkles + audio + panda hop fired above.
+          if (roundIdx + 1 < ROUND_COUNT) {
+            roundIdx += 1;
+            k.go("gameCloud");
+          } else {
+            saveProgress(3);  // gameCloud is levelId 3; unlocks feed (id 4)
+            roundIdx = 0;
+            k.go("gamesPicker");
+          }
         },
       );
     } else {

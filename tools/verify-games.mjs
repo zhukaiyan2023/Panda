@@ -23,7 +23,7 @@ const URL = process.env.PANDA_URL || "http://localhost:8126/";
 const GAMES = [
   { scene: "gameBoat",   kind: "pair" },
   { scene: "gameBounce", kind: "single" },
-  { scene: "gameCloud",  kind: "pair" },
+  { scene: "gameCloud",  kind: "add" },
   { scene: "gameFeed",   kind: "pair" },
 ];
 const FRIENDS = new Set([
