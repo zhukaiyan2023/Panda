@@ -96,14 +96,16 @@ function body(ctx) {
   // config.target for the dynamic-target comparison.
   round.target = target;
 
-  // Equation card: big "□ + □ = N" header. This IS the question — the
-  // redundant pairScene prompt ("选两个加起来是N") is rendered right
-  // BELOW it at y=310 and would collide with the equation, so we
-  // replace it with an empty string to suppress it. The equation on
-  // its own already conveys the question visually.
-  // Pass `k` as the parent (not a wrapping node) — same pattern
-  // level1.js uses, so the expression slots render directly on the
-  // scene canvas at the given x/y.
+  // Equation card: big "□ + □ = N" header — the kid's question for the
+  // round. Below it, a small "目标 N" label acts as both a visual
+  // reinforcement of the target (so a kid who can't yet read the
+  // equation glyphs still knows the target number) AND a parseable
+  // text node for the verify harness (the expression component
+  // renders "N" as a text child of the equation root, but walking the
+  // node tree from kaplay is brittle; a plain k.text is rock-solid).
+  // Pair-scene's own prompt is suppressed via prompt: () => "" so we
+  // don't double up with "选两个加起来是N" — the equation + label
+  // carry the question.
   ctx.eqRoot = expression(k, {
     slots: ["□", "+", "□", "=", target],
     // Center on the layout's barX (same column as the step bar — the
@@ -115,6 +117,13 @@ function body(ctx) {
     size: 110,
     boxMode: true,
   });
+  k.add([
+    k.text(`目标 ${target}`, { size: 32, font: FONT }),
+    k.color(...INK),
+    k.opacity(0.55),
+    k.pos(748, 420),
+    k.anchor("center"),
+  ]);
 
   // Bubbles sit in a horizontal row centered at x=748 — same axis as the
   // stepBar / equation / other panda-park games (boat, cloud, bounce

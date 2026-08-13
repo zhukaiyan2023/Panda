@@ -126,28 +126,29 @@ for (const game of GAMES) {
   }
 
   if (game.kind === "pair") {
-    // Read the round's target from the on-screen text. Only gameFeed
-    // is dynamic-target (cycles 5..7 across rounds). Its prompt reads
-    // "选两个加起来是N" and the reward text on a correct pick reads
-    // "a + b = N！" — both end with a single trailing digit. We match
-    // those two patterns explicitly so we don't accidentally latch onto
-    // other numbers in the scene (round counter, total rounds, etc.).
-    // The other pair games always anchor on 10, so the regex falling
-    // through → 10 is correct for them.
+    // Read the round's target from the on-screen text. gameFeed is
+    // dynamic-target (cycles 5..10 across rounds). It renders a small
+    // "目标 N" label below the equation, which the verifier reads via
+    // the `目标\s*(\d+)` pattern below. The other pair games
+    // (boat/cloud/bounce) never expose a numeric target on screen, so
+    // the regex falls through to the 10 default — which matches their
+    // fixed target.
     const target = await page.evaluate(() => {
       const k = window.kaplay;
       const nodes = k.get("*", { recursive: true });
       for (const o of nodes) {
         if (typeof o.text !== "string") continue;
-        // Match the gameFeed prompt "加起来是N" — captures N. The "是"
-        // is a Chinese character so it doesn't conflict with the "+"
-        // and "=" sprite-rendered operators in the on-screen equation.
-        let m = o.text.match(/加起来是(\d+)/);
+        // gameFeed's "目标 N" label (below the equation). The 目标
+        // label is the most specific pattern for gameFeed's round
+        // target, so check it first.
+        let m = o.text.match(/目标\s*(\d+)/);
         if (m) return Number(m[1]);
-        // Match the gameFeed reward text "a + b = N！" — the digits at
-        // the very end of the line, after the "=". The "=" here is a
-        // TEXT character (not the expression sprite) because the reward
-        // text is plain k.text.
+        // Other pair games with dynamic target — currently only
+        // gameFeed, but future-proof for any new pair-scene variant
+        // that surfaces the target in plain text.
+        m = o.text.match(/加起来是(\d+)/);
+        if (m) return Number(m[1]);
+        // Reward text "a + b = N！" — works for any correct-pick reveal.
         m = o.text.match(/=\s*(\d+)[\s！!]/);
         if (m) return Number(m[1]);
       }
