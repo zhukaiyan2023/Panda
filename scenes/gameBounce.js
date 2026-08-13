@@ -150,7 +150,14 @@ function drawRound(k, ctx) {
       sprite: "balloon",
       x,
       y,
-      size: 100,
+      // Hit box 180×180 (matches gameCloud's default): the visible red ball
+      // sits at scene y-77 from the item center (sprite-y 275 × 0.35 minus
+      // the -16 anchor offset), so a 100×100 box centered at (x,y) misses
+      // the top of the ball and the kid's tap on the body lands on empty
+      // space — picks do nothing. 180 puts the body well inside the hit
+      // rect; balloons are 200 px apart so 180×180 still leaves a 20 px
+      // gap between adjacent hit boxes.
+      size: 180,
       hideFace: true,     // no card frame around the balloon
       noLabelBg: true,    // no white circle around the digit
       // The balloon PNG is 443×899 (much taller than the old 200×240 SVG),
