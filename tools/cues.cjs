@@ -292,15 +292,7 @@ module.exports = [
   { id: "bounce-intro", text: "小朋友好，看上面的等式，找那个能凑出答案的气球，扎破它。" },
   { id: "bounce-pop",   text: "砰" },
   { id: "bounce-done",  text: "全扎完啦" },
-
-  // Whack-a-mole — 打地鼠. Time-pressure game; the only audio cues are
-  // the start signal and the timeout, otherwise the round would be a
-  // wall of sound.
-  { id: "whack-intro",  text: "打地鼠" },
-  { id: "whack-start",  text: "开始" },
-  { id: "whack-tick",   text: "快点" },
-  { id: "whack-timeup", text: "时间到" },
-  { id: "whack-done",   text: "赢啦" },
+  // Whack-a-mole removed 2026-08-13 (user feedback: "做的太差了").
 
   // Feed — 喂熊猫. Pick pairs, the panda eats them.
   { id: "feed-intro", text: "帮熊猫吃" },

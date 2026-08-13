@@ -93,7 +93,7 @@ async function readItems() {
     const k = window.kaplay;
     const all = k.get("*", { recursive: true });
     // Find the number text nodes — they sit at a known font size set in
-    // pickerItem.js (size 64 by default, 56 for whack numbers). Their parent
+    // pickerItem.js (size 64 by default). Their parent
     // root is an area() object with hitShape. We walk one level up.
     const items = [];
     for (const node of all) {
@@ -245,27 +245,6 @@ for (const game of GAMES) {
   }
 }
 
-// Whack — timed game; just confirm it boots and the timer is counting down.
-// We don't wait for the 30s timer to expire — that's a long hold for CI and
-// adds no additional signal beyond "the scene rendered without errors".
-console.log(`\ngameWhack  (timed)`);
-await page.evaluate(() => window.kaplay.go("gameWhack"));
-await page.waitForTimeout(2500);
-const whackTimer = await page.evaluate(() => {
-  const k = window.kaplay;
-  const hit = k.get("*", { recursive: true })
-    .find((o) => typeof o.text === "string" && /^[0-9]+$/.test(o.text) && Number(o.text) <= 30 && Number(o.text) > 0);
-  return hit ? Number(hit.text) : null;
-});
-if (whackTimer === null) {
-  fail("gameWhack: no countdown timer found");
-} else {
-  checked.push(`gameWhack: timer=${whackTimer}`);
-  console.log(`  ok  timer reading ${whackTimer}`);
-}
-
-// Immediately navigate away from whack so its 30s timer doesn't pin the
-// browser open after we've finished verifying.
 await page.evaluate(() => window.kaplay.go("levelPicker"));
 
 await browser.close();
