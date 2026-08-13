@@ -47,6 +47,19 @@ function hitShape(k, x, y, w, h, labelAbove) {
 //            is picked" beat that pairs with the sprite swap. Default 0
 //            (no lift; only the sprite changes). Boat uses 20 (2026-08-12
 //            follow-up: the sprite-swap alone wasn't obvious enough).
+//   selectedScale  optional MULTIPLIER applied to the SPRITE NODE (not the
+//            whole item — the hit target stays put so the kid can't
+//            accidentally un-pick by tapping the grown sprite) on
+//            highlight(), tweened back on unhighlight(). The actual
+//            target scale is spriteScale × selectedScale, so 1.18 with a
+//            base spriteScale of 0.16 grows the bubble to 0.1888 (≈18%
+//            bigger), not 1.18 absolute. For sprites that don't have a
+//            `selectedSprite` companion (gameFeed bubbles ship only one
+//            bubble PNG, so the sprite-swap path doesn't apply), the
+//            scale + lift + ring combo makes selection unmistakable.
+//            Default 1.0 (no scale). Bubbles use 1.18 — the bubble
+//            sprite is mostly inside the orange ring, so a scale-up
+//            reads as the bubble "popping forward".
 //   x, y     center position on the canvas
 //   fillColor   [r,g,b] override for the card face, default CARD
 //   size     override for the face hit-target (square)
@@ -88,6 +101,7 @@ export default function item(parent, opts) {
   const spriteName = opts.sprite;
   const selectedSpriteName = opts.selectedSprite;
   const selectedLift = opts.selectedLift ?? 0;
+  const selectedScale = opts.selectedScale ?? 1.0;
   const x = opts.x;
   const y = opts.y;
   const w = opts.size ?? SIZE;
@@ -277,6 +291,13 @@ export default function item(parent, opts) {
         if (selectedLift > 0) root.pos.y = 0;
       } else {
         ring.hidden = on || !ring.userVisible;
+        // Snap the sprite back to its base scale on disable — a
+        // disabled bubble should sit on the row baseline at its
+        // original size, not hover above it at the selected scale.
+        if (spriteNode && selectedScale !== 1.0) {
+          spriteNode.scale = k.vec2(spriteScale, spriteScale);
+        }
+        if (selectedLift > 0) root.pos.y = 0;
       }
     },
     shake() {
@@ -313,6 +334,27 @@ export default function item(parent, opts) {
       ring.hidden = disabled;
       pulseStart = k.time();
       pulsing = true;
+      // Sprite-only scale tween — the hit-target stays put so the kid
+      // can't accidentally un-pick by tapping the grown sprite, and the
+      // ring still fits around the (smaller) hit area. Combines with
+      // the ring pulse and an optional lift to make selection
+      // unmistakable on sprites where the orange ring is mostly hidden
+      // by the sprite body (gameFeed bubbles).
+      //
+      // selectedScale is a MULTIPLIER on the base spriteScale, not an
+      // absolute value — so selectedScale 1.18 means "bubble grows to
+      // 1.18× its base 0.16 = 0.1888" (≈18% bigger), not "bubble grows
+      // to absolute scale 1.18" (which would 7× the bubble and cover
+      // the whole canvas).
+      if (spriteNode && selectedScale !== 1.0) {
+        const targetScale = spriteScale * selectedScale;
+        k.tween(spriteNode.scale.x, targetScale, 0.15, (v) => {
+          spriteNode.scale = k.vec2(v, v);
+        });
+      }
+      if (selectedLift > 0) {
+        k.tween(root.pos.y, -selectedLift, 0.15, (v) => { root.pos.y = v; });
+      }
     },
     unhighlight() {
       if (useSpriteSwap) {
@@ -329,6 +371,16 @@ export default function item(parent, opts) {
       ring.hidden = true;
       pulsing = false;
       ring.scale = k.vec2(1, 1);
+      // Tween the sprite back to its base scale so the picked bubble
+      // visibly shrinks back into the row, not just fades its ring.
+      if (spriteNode && selectedScale !== 1.0) {
+        k.tween(spriteNode.scale.x, spriteScale, 0.15, (v) => {
+          spriteNode.scale = k.vec2(v, v);
+        });
+      }
+      if (selectedLift > 0) {
+        k.tween(root.pos.y, 0, 0.15, (v) => { root.pos.y = v; });
+      }
     },
   };
 

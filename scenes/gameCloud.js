@@ -20,7 +20,7 @@
 // Wrong taps shake + grey out (kid can keep trying). Correct taps
 // celebrate the cloud, resolve the equation, and end the round.
 
-import item from "../components/pickerItem.js?v=20260812";
+import item from "../components/pickerItem.js?v=20260813";
 import panda from "../components/panda.js?v=20260812";
 import expression from "../components/expression.js?v=20260812";
 import sceneBg from "../components/sceneBg.js?v=20260812";

@@ -11,7 +11,7 @@
 // protocol. The chrome (header, icon buttons, step bar, panda, save) is
 // copied from pairScene; if a sixth pair-style game appears, factor it out.
 
-import item from "../components/pickerItem.js?v=20260812";
+import item from "../components/pickerItem.js?v=20260813";
 import stepBar from "../components/stepBar.js?v=20260812";
 import panda from "../components/panda.js?v=20260812";
 import expression from "../components/expression.js?v=20260812";

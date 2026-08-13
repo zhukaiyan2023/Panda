@@ -9,7 +9,7 @@
 // is now a whole-sprite swap (regular boat ↔ golden-sail + heart boat).
 
 import createPairScene, { shuffle } from "./pairScene.js?v=20260812";
-import item from "../components/pickerItem.js?v=20260812";
+import item from "../components/pickerItem.js?v=20260813";
 
 const TARGET = 10;
 

@@ -18,7 +18,7 @@
 // number comes from the existing n-N cues chained via playSequence.
 
 import createPairScene, { shuffle } from "./pairScene.js?v=20260812";
-import item from "../components/pickerItem.js?v=20260812";
+import item from "../components/pickerItem.js?v=20260813";
 import expression from "../components/expression.js?v=20260812";
 import { INK, FONT, ORANGE } from "../components/theme.js?v=20260812";
 
@@ -150,6 +150,17 @@ function body(ctx) {
       noLabelBg: true,
       noLabelBgTextColor: [40, 40, 40],
       noLabelBgStrokeColor: [255, 255, 255],
+      // Selection visual for bubbles (user feedback 2026-08-13:
+      // "选中的效果太差了"). The bubble sprite is mostly inside the
+      // orange ring (ring 142 vs sprite ~118), so the ring alone reads
+      // as a thin outline. Add scale + lift on top so a tapped bubble
+      // visibly pops forward off the row — the same "this one is up,
+      // this one is picked" beat gameBoat uses with selectedSprite +
+      // selectedLift. scale is on the sprite node only (the hit
+      // target stays put so a bigger tap zone doesn't sneak past the
+      // orange ring).
+      selectedScale: 1.18,
+      selectedLift: 18,
     }));
   });
   ctx.items = items;
