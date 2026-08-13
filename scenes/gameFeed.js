@@ -1,77 +1,47 @@
 // scenes/gameFeed.js — feed the panda (panda.html from panda-park).
 //
 // Dynamic-target variant of the original feed game. Each round the kid is
-// shown a fresh target N (cycling 5→10 across rounds) as an equation
+// shown a fresh target N (cycling 7→9 across the 3 rounds) as an equation
 // "□ + □ = N" so the on-screen problem changes every round instead of
 // always being "凑成十". Picking two bubbles whose digits sum to N makes
 // the panda "eat" them — bubbles shrink/fade, the panda hops toward them
 // with a chewing animation, and a new equation "a + b = N" flashes up.
 //
-// 3 escalating rounds: 5/7/9 bubbles. Each round hides at least one
-// pair summing to N plus distractors. After 3 pairs the panda is "full"
-// and the round ends. The round's target comes from TARGETS[roundIdx].
+// 3 escalating rounds: 7/8/9 bubbles. Each round has exactly 3 distinct
+// unordered pairs that sum to the target (the math cap for 1..9 digits;
+// targets <7 would only yield 2 pairs and silently regress the round to
+// "click once and you're done"). After 3 pairs the panda is "full" and
+// the round ends. The round's target comes from TARGETS[roundIdx].
 //
 // Voice: per-round intro plays the chain "feed-q-pre + n-N" — e.g.
 // "选两个加起来是七" — so the kid hears a distinct question for each
 // target instead of one fixed prompt. feed-q-pre is a single new cue
 // added to tools/cues.cjs (text: "选两个加起来是"); the per-target
 // number comes from the existing n-N cues chained via playSequence.
+//
+// Audio ownership: pairScene is the SOLE owner of the round's audio
+// chain. It picks a tier (first/streak3/streak5/streak10/level), plays
+// the encouragement sequence, and chains the round-end navigation off
+// the last cue's `ended` event. Calling playCue("feed-nom") from
+// onCorrect used to call stopAllAudio() and tear down that chain
+// (verified 2026-08-14 in main.js: playCue→stopAllAudio detaches the
+// playAfter ended listener AND clears the playAfter fallback timer),
+// which is why "第二轮卡死" only fixed itself on a wall-clock timeout.
+// onCorrect now only does the visual work (panda hop, eat anim, score,
+// equation reveal) and lets pairScene handle the audio.
 
-import createPairScene, { shuffle } from "./pairScene.js?v=20260812";
+import createPairScene from "./pairScene.js?v=20260812";
 import item from "../components/pickerItem.js?v=20260813";
 import expression from "../components/expression.js?v=20260812";
 import { INK, FONT, ORANGE } from "../components/theme.js?v=20260812";
+import {
+  buildFeedRound,
+  pairsOnBoard,
+  targetFor,
+  PAIRS_PER_ROUND,
+} from "../data/feedRounds.js?v=20260814";
 
-// Targets per round — cycles 5 → 6 → 7 → 8 → 9 → 10. Round 0/1/2 see
-// 5/6/7 then wrap to 8/9/10 if ROUND_COUNT > 3. Targets ≥ 5 give the
-// kid at least 2 distinct unordered pairs (e.g. 7 → 1+6, 2+5, 3+4) so
-// every round has multiple valid picks — same mechanic as the old
-// fixed-10 version, just with a different sum per round.
-const TARGETS = [5, 6, 7, 8, 9, 10];
 const ROUND_COUNT = 3;
-const BUBBLES_PER_ROUND = [5, 7, 9];
-
-function targetFor(roundIdx) {
-  return TARGETS[Math.min(roundIdx, TARGETS.length - 1)];
-}
-
-function buildCandidates(roundIdx) {
-  const target = targetFor(roundIdx);
-  const n = BUBBLES_PER_ROUND[Math.min(roundIdx, BUBBLES_PER_ROUND.length - 1)];
-
-  // Pick a valid pair that fits the target (avoid [0, target] because
-  // 0 + N is trivial and we want at least two non-trivial digits).
-  // We try 1..target-1 for the smaller addend and pair it with
-  // target - small — works for every target in TARGETS.
-  const small = 1 + Math.floor(Math.random() * Math.max(1, target - 1));
-  const big = target - small;
-  const list = [small, big];
-  const counts = new Map();
-  list.forEach((v) => counts.set(v, (counts.get(v) || 0) + 1));
-  while (list.length < n) {
-    const v = 1 + Math.floor(Math.random() * 9);
-    let conflict = false;
-    for (const existing of counts.keys()) {
-      if (existing + v === target) { conflict = true; break; }
-    }
-    if (conflict) continue;
-    if (counts.has(v)) continue;
-    list.push(v);
-    counts.set(v, 1);
-  }
-  return shuffle(list);
-}
-
-function buildPairs(roundIdx, candidates) {
-  const target = targetFor(roundIdx);
-  const pairs = [];
-  for (let i = 0; i < candidates.length; i++) {
-    for (let j = i + 1; j < candidates.length; j++) {
-      if (candidates[i] + candidates[j] === target) pairs.push([candidates[i], candidates[j]]);
-    }
-  }
-  return pairs.slice(0, 3);
-}
 
 // Build the "选两个加起来是N" voice chain. Chained via playSequence so
 // the leading phrase and the number read as one sentence. Falls back
@@ -129,7 +99,7 @@ function body(ctx) {
   // Bubbles sit in a horizontal row centered at x=748 — same axis as the
   // stepBar / equation / other panda-park games (boat, cloud, bounce
   // all center content at x=748 too). cellW 110 keeps all rounds within
-  // the 1366-wide canvas. gridX is computed per round so 5/7/9 bubbles
+  // the 1366-wide canvas. gridX is computed per round so 7/8/9 bubbles
   // all share the same center regardless of count; the previous
   // hardcoded gridX=380 shifted the whole row 80-140px left of the
   // equation (user feedback 2026-08-13: "喂食这个应用，位置没有剧中").
@@ -215,10 +185,17 @@ export default createPairScene({
   // `ctx.round.target ?? config.target`, so the per-round override
   // set in body() wins for the actual pick comparison. config.target
   // is still used by other call sites (e.g. the initial cue lookup)
-  // so we set it to the round-0 target as a sane default.
+  // so we set it to the round-0 target as a sane default. With
+  // TARGETS=[7,8,9] this is 7.
   target: targetFor(0),
-  candidates: buildCandidates,
-  pairs: buildPairs,
+  // Board construction and pair extraction live in data/feedRounds.js
+  // so the math is independently testable in plain node (see
+  // tools/verify-feed-rounds.mjs). candidates() returns the rendered
+  // bubble digits; pairs() re-derives the valid pairs from those
+  // digits so the step bar / totalSteps can never advertise a pair
+  // the kid cannot see on screen.
+  candidates: (roundIdx) => buildFeedRound(roundIdx).candidates,
+  pairs: (roundIdx, candidates) => pairsOnBoard(candidates, targetFor(roundIdx)).slice(0, PAIRS_PER_ROUND),
   // The equation component renders "□ + □ = N" at the top of the scene,
   // which IS the question. The default pairScene prompt would draw
   // "选两个加起来是N" as a text overlay right below it and overlap the
@@ -257,17 +234,15 @@ export default createPairScene({
       // the lunge / chew / return path inside the callback.
       // Capture the panda ref locally so the tween doesn't dereference
       // ctx.pandaNode after the scene transitions and the panda root
-      // is destroyed — without this guard, the orphan tween keeps
-      // poking the dead panda's pos every frame for the rest of its
-      // 0.42s lifetime, and after round 1 + round 2's worth of these
-      // the renderer state is inconsistent enough to hang the JS
-      // thread on the third transition (user report: "喂食卡死").
+      // is destroyed. pandaNode.exists() is the canonical kaplay
+      // "node still alive" probe — survives scene transitions where
+      // `pandaNode.parent` could transiently read as stale.
       const pandaNode = ctx.pandaNode;
       const totalDur = 0.42;
       ctx.k.tween(0, 1, totalDur, (v) => {
+        if (!pandaNode.exists()) return;
         // Phase map: 0..0.14 lunge (ease-out), 0.14..0.57 chew wiggle,
         // 0.57..1.0 ease-in return.
-        if (!pandaNode.parent) return;
         let x, y;
         if (v < 0.14) {
           const f = v / 0.14;
@@ -293,15 +268,25 @@ export default createPairScene({
 
     // Eat animation: scale the two picked bubbles to 0 + fade out, with
     // a small offset between them so they don't vanish in lockstep.
+    //
+    // Both callbacks guard on `it.node.exists()` so a round transition
+    // (which destroys the old items) does NOT leave the wait() setTimeout
+    // or the eat onUpdate handler poking a dead node. Without these
+    // guards the leaked handlers pile up round after round and freeze
+    // the JS thread by the second transition (verified by
+    // tools/verify-feed-multiround.mjs).
     if (!window.__trace_no_eat) {
       [itemA, itemB].forEach((it, i) => {
         if (!it) return;
-        console.log(`[gameFeed] eat anim scheduled for value=${it.value} i=${i}`);
         ctx.k.wait(i * 0.08, () => {
-          console.log(`[gameFeed] eat anim fired for value=${it.value}`);
+          if (!it.node.exists()) return;
           const start = ctx.k.time();
           const dur = 0.5;
           it.node.onUpdate(() => {
+            if (!it.node.exists()) {
+              it.node.onUpdate(() => {});
+              return;
+            }
             const dt = ctx.k.time() - start;
             if (dt > dur) {
               it.node.opacity = 0;
@@ -327,7 +312,18 @@ export default createPairScene({
       ctx.k.pos(748, 540),
       ctx.k.anchor("center"),
     ]);
-    window.PandaAudio.playCue("feed-nom");
+
+    // Audio: pairScene.tryPair already runs pickCheerCue → playSequence →
+    // playAfter on a correct pick, and on round completion the
+    // playAfter callback navigates to the next round. Calling
+    // playCue("feed-nom") here would defeat that: playCue() invokes
+    // stopAllAudio() (main.js), which detaches the playAfter ended
+    // listener AND clears the playAfter fallback timer, leaving the
+    // round transition to hang on a wall-clock timeout. The visual
+    // equation reveal + score + panda hop + eat anim are the
+    // gameFeed-specific feedback; the audio encouragement + round
+    // transition are pairScene's job. So this onCorrect intentionally
+    // plays no audio of its own.
   },
   // Each round advances silently; the per-round voice prompt is fired
   // inside body() so it lands at the start of every round, not just

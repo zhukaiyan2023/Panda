@@ -8,6 +8,8 @@
     "smoke": "node tools/smoke.cjs",
     "verify:math": "node tools/verify-math.mjs",
     "verify:games": "node tools/verify-games.mjs",
+    "verify:feed:full": "node tools/verify-feed-multiround.mjs",
+    "verify:feed:rounds": "node tools/verify-feed-rounds.mjs",
     "verify:audio": "node tools/verify-audio-timing.mjs",
     "verify:l1:mt": "node tools/verify-l1-mt-audio.mjs",
     "placeholders": "node tools/make-placeholders.js",
