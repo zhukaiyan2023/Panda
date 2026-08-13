@@ -1069,7 +1069,7 @@ watchOrientation();
     import("./scenes/gameBoat.js?v=20260812"),
     import("./scenes/gameBounce.js?v=20260812"),
     import("./scenes/gameCloud.js?v=20260812"),
-    import("./scenes/gameFeed.js?v=20260812"),
+    import("./scenes/gameFeed.js?v=20260813"),
     import("./scenes/gameWhack.js?v=20260813"),
   ]);
 

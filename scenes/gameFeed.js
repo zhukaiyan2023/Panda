@@ -96,13 +96,36 @@ function body(ctx) {
   // config.target for the dynamic-target comparison.
   round.target = target;
 
-  // Bubbles sit in a horizontal row to the right of the panda, same
-  // layout as the original Feed game so the panda-body size and
-  // bubble positions stay familiar. cellW 110 keeps all rounds
-  // within the 1366-wide canvas.
+  // Equation card: big "□ + □ = N" header. This IS the question — the
+  // redundant pairScene prompt ("选两个加起来是N") is rendered right
+  // BELOW it at y=310 and would collide with the equation, so we
+  // replace it with an empty string to suppress it. The equation on
+  // its own already conveys the question visually.
+  // Pass `k` as the parent (not a wrapping node) — same pattern
+  // level1.js uses, so the expression slots render directly on the
+  // scene canvas at the given x/y.
+  ctx.eqRoot = expression(k, {
+    slots: ["□", "+", "□", "=", target],
+    // Center on the layout's barX (same column as the step bar — the
+    // visual centre of pair-scene chrome). y 310 matches LAYOUT.equationY
+    // from roundScene.js so the equation sits in the same spot as the
+    // old prompt text used to — no vertical jump vs. the original feed.
+    x: 748,
+    y: 310,
+    size: 110,
+    boxMode: true,
+  });
+
+  // Bubbles sit in a horizontal row centered at x=748 — same axis as the
+  // stepBar / equation / other panda-park games (boat, cloud, bounce
+  // all center content at x=748 too). cellW 110 keeps all rounds within
+  // the 1366-wide canvas. gridX is computed per round so 5/7/9 bubbles
+  // all share the same center regardless of count; the previous
+  // hardcoded gridX=380 shifted the whole row 80-140px left of the
+  // equation (user feedback 2026-08-13: "喂食这个应用，位置没有剧中").
   const cellW = 110;
-  const gridX = 380;
-  const gridY = 600;
+  const gridX = 748 - ((n - 1) * cellW) / 2;
+  const gridY = 640;
 
   const items = [];
   round.candidates.forEach((v, i) => {
@@ -122,24 +145,6 @@ function body(ctx) {
   });
   ctx.items = items;
 
-  // Equation card: big "□ + □ = N" header. Pinned to the upper portion
-  // of the screen so the kid reads it before reaching for the bubbles.
-  // The two box slots reserve width via the expression component so
-  // the layout doesn't shift when a correct pick reveals them.
-  // boxMode true renders "□" as outlined squares (per panda memory:
-  // L1 uses "□" for unknowns since the 2026-08-11 user feedback —
-  // "用这个方格子表示未知，不要用问号了"). Pass `k` as the parent
-  // (not a wrapping node) — same pattern level1.js uses, so the
-  // expression slots render directly on the scene canvas at the
-  // given x/y.
-  ctx.eqRoot = expression(k, {
-    slots: ["□", "+", "□", "=", target],
-    x: 540,
-    y: 360,
-    size: 110,
-    boxMode: true,
-  });
-
   // Voice prompt: chain "选两个加起来是" + n-target. Stops any audio
   // first so the prompt is the only thing the kid hears on entry —
   // the global single-active-audio invariant (panda memory) requires
@@ -147,18 +152,22 @@ function body(ctx) {
   window.PandaAudio.stopAllAudio();
   window.PandaAudio.playSequence(buildQuestionCues(target), 90, 0);
 
-  // Score pill above the bubbles (same look as the old Feed game).
+  // Score pill — small, top-right, tucked into the step-bar area so it
+  // doesn't crowd the equation or the bubbles. Previously it sat at
+  // (540, 460) and overlapped the equation; the top-right corner mirrors
+  // the pair-scene chrome (timer/counter pills on whack live there too)
+  // so the chrome stays consistent across the games.
   k.add([
-    k.rect(180, 64, { radius: 32 }),
+    k.rect(160, 56, { radius: 28 }),
     k.color(...ORANGE),
     k.outline(4, k.rgb(...INK)),
-    k.pos(540, 460),
+    k.pos(1240, 196),
     k.anchor("center"),
   ]);
   const scoreText = k.add([
-    k.text("0", { size: 40, font: FONT }),
+    k.text("0", { size: 36, font: FONT }),
     k.color(255, 255, 255),
-    k.pos(540, 460),
+    k.pos(1240, 196),
     k.anchor("center"),
   ]);
   ctx.scoreText = scoreText;
@@ -185,9 +194,12 @@ export default createPairScene({
   target: targetFor(0),
   candidates: buildCandidates,
   pairs: buildPairs,
-  // prompt is rendered by pairScene BEFORE body() runs, so round.target
-  // isn't set yet — compute from round.index via targetFor().
-  prompt: (round) => `选两个加起来是${targetFor(round.index)}`,
+  // The equation component renders "□ + □ = N" at the top of the scene,
+  // which IS the question. The default pairScene prompt would draw
+  // "选两个加起来是N" as a text overlay right below it and overlap the
+  // equation — so we suppress the text overlay (return ""). The voice
+  // prompt still fires via the buildQuestionCues chain inside body().
+  prompt: () => "",
   body,
   onCorrect(ctx, a, b) {
     ctx.score += 10;
@@ -266,12 +278,14 @@ export default createPairScene({
     });
 
     // Equation — replace the previous one so multiple correct picks in a
-    // round don't stack on top of each other.
+    // round don't stack on top of each other. Centered at x=748 to match
+    // the equation card and the bubble row, so the "a + b = N!" reveal
+    // lands on the same axis as the rest of the scene's main content.
     if (ctx.eqText) ctx.eqText.destroy();
     ctx.eqText = ctx.k.add([
       ctx.k.text(`${a} + ${b} = ${ctx.round.target}！`, { size: 48, font: FONT }),
       ctx.k.color(...INK),
-      ctx.k.pos(540, 540),
+      ctx.k.pos(748, 540),
       ctx.k.anchor("center"),
     ]);
     window.PandaAudio.playCue("feed-nom");
