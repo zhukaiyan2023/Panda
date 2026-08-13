@@ -41,7 +41,7 @@ import {
   PAIRS_PER_ROUND,
 } from "../data/feedRounds.js?v=20260814";
 
-const ROUND_COUNT = 3;
+const ROUND_COUNT = 5;
 
 // Build the "选两个加起来是N" voice chain. Chained via playSequence so
 // the leading phrase and the number read as one sentence. Falls back

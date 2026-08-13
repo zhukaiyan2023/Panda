@@ -46,27 +46,29 @@
 //   N=9 → {1,8} {2,7} {3,6} {4,5}      = 4
 //   N=10 → {1,9} {2,8} {3,7} {4,6}     = 4
 //
-// We do not pad with invalid sums to force a uniform "3 pairs every round".
-// To guarantee 3 pairs across all rounds while staying in the 1..9 digit
-// space, TARGETS is restricted to sums with ≥3 unordered pairs (7, 8, 9).
-// BUBBLES_PER_ROUND is sized so the board can hold 3 pair-digits (6
-// distinct digits) plus 1-3 distractors — anything smaller would force
-// a pair to share a digit, which a five-year-old reads as a mistake
-// (and `pairsForTarget` deliberately rejects duplicates for the same
-// reason).
+// Two of the 5 rounds (target 5, 6) admit only 2 pairs; the other three
+// (target 7, 8, 9) admit 3+ pairs. The "3 pairs every round" cap is
+// an upper bound — the actual pair count is `min(PAIRS_PER_ROUND, allPairs.length)`.
+// We do not pad with invalid sums; rounds 0/1 simply offer fewer pairs
+// for the kid to find, which is the natural difficulty curve. The step
+// bar's labels are sized off `pairCount` so it reads "第 1 对 / 第 2 对 /
+// 完成" on a 2-pair round and "第 1 对 / 第 2 对 / 第 3 对 / 完成" on a
+// 3-pair round — never advertises a pair the kid can't see.
 
-// Target sum per round — only sums with ≥3 unordered pairs of distinct
-// 1..9 digits, so every round offers the 3 pairs the scene chrome
-// promises.
-export const TARGETS = [7, 8, 9];
-// Bubbles on the board per round — 6 distinct pair-digits + 1-3
-// distractors, so the kid sees 3 pairs to find and a couple of decoys.
-export const BUBBLES_PER_ROUND = [7, 8, 9];
-// Upper bound on how many pairs the kid must find in one round. Capped
-// at 3 to match the scene chrome ("第 1 对 / 第 2 对 / 第 3 对 / 完成").
-// Rounds 0/1 (target 7/8) hit the cap exactly; round 2 (target 9)
-// admits 4 pairs but only the first 3 go on the board, the 4th waits
-// for a future "5-pair round" if the design ever needs it.
+// Target sum per round — 5 rounds walking the kid up the difficulty
+// curve from 5 (2 pairs) through 9 (4 pairs, capped at 3).
+export const TARGETS = [5, 6, 7, 8, 9];
+// Bubbles on the board per round. Rounds 0/1 (target 5/6) hold 4
+// pair-digits + 1 distractor = 5; rounds 2/3/4 (target 7/8/9) hold
+// 6 pair-digits + 1-3 distractors. Sized to stay well within the
+// 1366-px-wide canvas at cellW=110.
+export const BUBBLES_PER_ROUND = [5, 5, 7, 8, 9];
+// Upper bound on how many pairs the kid must find in one round. The
+// actual pair count is min(this, the math's pair count for the target).
+// Rounds 0/1 (target 5/6) yield 2 pairs; rounds 2/3/4 (target 7/8/9)
+// hit this cap exactly. Round 4 (target 9) admits 4 pairs but the cap
+// keeps the scene chrome at 3 — the 4th waits for a future "5-pair
+// round" if the design ever needs it.
 export const PAIRS_PER_ROUND = 3;
 
 export function targetFor(roundIdx) {

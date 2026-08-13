@@ -467,21 +467,55 @@ export default function createRoundScene(config) {
           advanced = true;
           advance(prev);
         };
+        // Compute the FULL cheer-chain duration so the safety ceiling
+        // (timeout fallback) fires AFTER the event-driven chain would
+        // naturally complete — never BEFORE. The old math used
+        // `lastEncourageId.duration` only, which works for the "first"
+        // tier (chain = [enc-first-N], one cue) but is wrong for every
+        // tier that adds a panda-cue: streak3+ chains are
+        // [enc-streak-N, panda-praise-N], level tier is
+        // [enc-level-N, panda-cheer-N]. The ceiling was firing ~5.5s
+        // into the level-tier path while the actual chain (enc-level
+        // ~2s + gap + panda-cheer ~3s + gap + post-celebration rwd
+        // ~2s ≈ 7.4s) was still mid-playback — `stopAllAudio()` cut
+        // the rwd audio off, the next round landed on top of the
+        // celebration tail, and the kid heard "答对了" with the next
+        // prompt starting mid-sentence. Per user feedback: "事件要比
+        // 较长，timeout 做兜底" — events must lead, timeout only
+        // catches the Safari-missed-`ended` case.
+        //
+        // Sum every cue's duration in the cheer chain + inter-cue
+        // gaps (seqGapMs) + a generous buffer for any post-celebration
+        // audio a step's onAdvance chains off lastEncourageId (e.g.
+        // L3 step 1's l2-cmp-*, L3 step 4's l2-rwd-*). 3500ms covers
+        // the 200ms post-cheer gap + the longest post-celebration
+        // audio (~2-3s for l2-rwd-*).
+        let cheerMs = 0;
+        for (const id of chain) {
+          const el = window.PandaAudio.audio[id];
+          if (el && Number.isFinite(el.duration) && el.duration > 0) {
+            cheerMs += el.duration * 1000;
+          } else {
+            // Duration metadata not loaded yet (first play before
+            // Safari finishes decoding). Use a generous per-cue
+            // default so the safety ceiling still errs on the LATE
+            // side rather than cutting audio off.
+            cheerMs += 3000;
+          }
+        }
+        // seqGapMs is 200 in `playSequence(chain, 200, 0)` above.
+        cheerMs += 200 * Math.max(0, chain.length - 1);
+        const SAFETY_BUFFER_MS = 3500;
+        const fullSafetyMs = cheerMs + SAFETY_BUFFER_MS;
         if (advanceResult && typeof advanceResult.then === 'function') {
+          // Event-driven path: the Promise resolves when the step's
+          // post-celebration audio chain ends (`playAfter` calls
+          // `resolve` as its `onComplete`). That IS the event — under
+          // normal Safari behaviour the Promise resolves first and the
+          // safety ceiling below is a no-op (advanced flag). Only when
+          // Safari misses `ended` does the ceiling kick in.
           advanceResult.then(adv);
-          // Mirror safety ceiling on the Promise path too — a step's
-          // onAdvance Promise resolves when its audio chain's last cue
-          // fires `ended`. If Safari misses that event (same iOS bug),
-          // the Promise never resolves and the kid is stuck between
-          // steps. Belt-and-suspenders: schedule a hard ceiling that
-          // unblocks the advance regardless.
-          const promiseEl = window.PandaAudio.audio[lastEncourageId];
-          const promiseSafetyMs = (promiseEl
-            && Number.isFinite(promiseEl.duration)
-            && promiseEl.duration > 0)
-            ? Math.ceil(promiseEl.duration * 1000) + 2500
-            : 7000;
-          k.wait(window.__skipTimers ? TEST_DELAY : promiseSafetyMs / 1000, adv);
+          k.wait(window.__skipTimers ? TEST_DELAY : fullSafetyMs / 1000, adv);
         } else {
           // Default: advance when the celebration audio's last cue
           // ends. The cheer chain (enc + maybe panda-cue) is playing
@@ -499,16 +533,12 @@ export default function createRoundScene(config) {
           }
           // Safety ceiling — fires after the longest expected cheer
           // duration even if iPad Safari misses the `ended` event.
-          // enc-first-N run ~1-2s, enc-streak-N + panda-praise-N
-          // run ~4-5s, enc-level-N + panda-cheer-N run ~4-5s; 7s
-          // covers all tiers with margin. The kid hears at most one
-          // beat of silence instead of a permanent freeze.
-          const safetyMs = (lastEl
-            && Number.isFinite(lastEl.duration)
-            && lastEl.duration > 0)
-            ? Math.ceil(lastEl.duration * 1000) + 2500
-            : 7000;
-          k.wait(window.__skipTimers ? TEST_DELAY : safetyMs / 1000, adv);
+          // `fullSafetyMs` covers the FULL cheer chain + buffer for
+          // any post-celebration audio, so under normal circumstances
+          // the `ended` listener above wins and the ceiling is a
+          // no-op. The kid hears at most one beat of silence instead
+          // of a permanent freeze (and never an audio cut-off).
+          k.wait(window.__skipTimers ? TEST_DELAY : fullSafetyMs / 1000, adv);
         }
         // Optional per-step override of the safety ceiling. Use only
         // when a level genuinely needs a different (usually shorter)

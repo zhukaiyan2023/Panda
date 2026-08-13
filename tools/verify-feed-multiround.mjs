@@ -89,7 +89,7 @@ function readBoard() {
 
 // Play every round. Each round we repeatedly find and click a valid pair
 // until the board advances (round label changes) or we leave the scene.
-const ROUNDS = 3;
+const ROUNDS = 5;
 for (let r = 1; r <= ROUNDS; r++) {
   const board = await evalSafe(readBoard, `read board for round ${r}`);
   if (board.roundLabel !== r) {

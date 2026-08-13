@@ -59,15 +59,20 @@ for (let r = 0; r < BUBBLES_PER_ROUND.length; r++) {
   if (candidates.length > wanted) {
     fail(`round ${r}: returned ${candidates.length} candidates, more than BUBBLES_PER_ROUND[${r}]=${wanted}`);
   }
-  if (pairCount !== PAIRS_PER_ROUND) {
-    fail(`round ${r}: pairCount=${pairCount}, expected PAIRS_PER_ROUND=${PAIRS_PER_ROUND}`);
+  // pairCount is capped at PAIRS_PER_ROUND but bounded above by what
+  // the target's math admits (2 pairs for target 5/6, 3+ for 7+).
+  // The hard invariant is "every pair on the board is one we can
+  // actually find" — not a uniform 3 pairs.
+  const allPairs = pairsForTarget(target);
+  const expectedPairs = Math.min(PAIRS_PER_ROUND, allPairs.length);
+  if (pairCount !== expectedPairs) {
+    fail(`round ${r}: pairCount=${pairCount}, expected min(PAIRS_PER_ROUND, pairsForTarget(${target}).length) = ${expectedPairs}`);
   }
 
   // Every advertised pair must actually be present on the board —
   // check the ACTUAL pairs on the board, not a fixed prefix of
   // pairsForTarget (the module picks `pairCount` pairs at random
   // from the pool, so the prefix in natural order is meaningless).
-  const allPairs = pairsForTarget(target);
   const actualPairs = pairsOnBoard(candidates, target);
   if (actualPairs.length !== pairCount) {
     fail(`round ${r}: board has ${actualPairs.length} pair(s), expected ${pairCount} — extra hidden pair or missing pair!`);
@@ -110,7 +115,8 @@ for (let i = 0; i < trials; i++) {
   const r = i % N;
   const { target, candidates, pairCount } = buildFeedRound(r);
   if (candidates.length === 0) fail(`trial ${i}: empty board`);
-  if (pairCount !== PAIRS_PER_ROUND) fail(`trial ${i}: pairCount=${pairCount}`);
+  const expected = Math.min(PAIRS_PER_ROUND, pairsForTarget(target).length);
+  if (pairCount !== expected) fail(`trial ${i}: pairCount=${pairCount}, expected ${expected}`);
   if (pairsOnBoard(candidates, target).length !== pairCount) {
     fail(`trial ${i}: extra pair on board`);
   }

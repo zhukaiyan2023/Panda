@@ -244,9 +244,19 @@ export default function createPairScene(config) {
           } else {
             saveProgress(config.levelId);
             if (!window.__trace_no_audio) {
+              // Chain the round-end nav off the last cue of the
+              // cheer chain so the kid hears the full "level complete"
+              // praise (enc-level-N + panda-cheer-N) before the
+              // scene transitions. The post-cue list is empty —
+              // we removed the old "lvl-done" ("全部完成啦")
+              // broadcast per user feedback 2026-08-14: the kid
+              // already gets a multi-sensory celebration from the
+              // tier chain, and a second "all done" line is just
+              // noise on top of the cheer audio. Navigation still
+              // happens, just without the extra cue.
               window.PandaAudio.playAfter(
                 ctx.lastEncourageId,
-                ["lvl-done"],
+                [],
                 { gapMs: 0, seqGapMs: 0 },
                 () => {
                   roundIdx = 0;
