@@ -254,6 +254,24 @@ if (consoleErrors.length) {
   console.error(`\n${consoleErrors.length} runtime error(s):`);
   [...new Set(consoleErrors)].forEach((e) => console.error(`  ${e}`));
 }
+
+// gameFeed smoke above only proves "the scene renders and accepts one
+// correct pick". The "喂食第二轮之后卡死" bug shipped because that was
+// the only check. Round transitions, multi-pair round completion,
+// and the playAfter / k.go chain were never exercised. Spawn the
+// dedicated multi-round verifier as a sub-test so "verify-games OK"
+// finally implies "all 3 rounds of gameFeed finish and return to the
+// picker". The child uses the same dev server we relied on above.
+console.log("\ngameFeed multi-round:");
+const { spawnSync } = await import("node:child_process");
+const mr = spawnSync(process.execPath, ["tools/verify-feed-multiround.mjs"], {
+  stdio: "inherit",
+  env: { ...process.env, PANDA_URL: process.env.PANDA_URL || URL },
+});
+if (mr.status !== 0) {
+  failures.push(`gameFeed multi-round failed (exit ${mr.status})`);
+}
+
 if (failures.length || consoleErrors.length) {
   console.error(`\nFAILED — ${failures.length} assertion(s), ${consoleErrors.length} runtime error(s)`);
   process.exit(1);

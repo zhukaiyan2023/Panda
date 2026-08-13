@@ -21,6 +21,7 @@ await page.addInitScript((skipTimers) => {
   window.__trace_no_audio = true;
   window.__trace_no_mood = true;
   window.__trace_no_eat = true;
+  window.__trace_no_transition = false;
   window.__events = [];
   const origLog = console.log;
   console.log = function (...args) {
@@ -120,7 +121,7 @@ let pill = await page.evaluate(() => {
 });
 console.log(`[probe] @${ms()}ms start pill=${pill}`);
 
-for (let roundNum = 1; roundNum <= 2; roundNum++) {
+for (let roundNum = 1; roundNum <= 4; roundNum++) {
   await page.waitForTimeout(500);
   const bubbles = await getBubbles();
   if (!bubbles) { console.log(`[probe] @${ms()}ms round ${roundNum}: page dead`); break; }
