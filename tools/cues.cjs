@@ -307,4 +307,10 @@ module.exports = [
   { id: "feed-nom",   text: "好吃" },
   { id: "feed-next",  text: "再来" },
   { id: "feed-done",  text: "吃饱啦" },
+  // Per-target question prompts for the dynamic-target feed variant.
+  // Reads as "选两个加起来是七" / "选两个加起来是八" etc., so the kid
+  // hears a distinct question for each round instead of the same fixed
+  // "等于十" line. Numbers stay as separate n-N cues chained in
+  // gameFeed.js, so these only carry the leading phrase.
+  { id: "feed-q-pre", text: "选两个加起来是" },
 ];

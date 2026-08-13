@@ -47,7 +47,7 @@ const CUE_IDS = [
   "enc-near-1", "enc-near-2", "enc-near-3", "enc-specific-decomp", "enc-specific-double", "enc-specific-friend",
   "enc-specific-pair", "enc-streak3-1", "enc-streak3-2", "enc-streak3-3", "enc-streak5-1", "enc-streak5-2",
   "enc-streak5-3", "enc-streak10-1", "enc-streak10-2", "enc-streak10-3", "enc-wrong-1", "enc-wrong-2",
-  "enc-wrong-3", "equals", "feed-done", "feed-intro", "feed-next", "feed-nom",
+  "enc-wrong-3", "equals", "feed-done", "feed-intro", "feed-next", "feed-nom", "feed-q-pre",
   "l1-intro-0-0-3", "l1-intro-0-0-4", "l1-intro-0-0-5", "l1-intro-0-0-6", "l1-intro-0-0-7", "l1-intro-0-0-8",
   "l1-intro-0-0-9", "l1-intro-0-0-10", "l1-intro-0-1-2", "l1-intro-0-1-3", "l1-intro-0-1-4", "l1-intro-0-1-5",
   "l1-intro-0-1-6", "l1-intro-0-1-7", "l1-intro-0-1-8", "l1-intro-0-1-9", "l1-intro-0-1-10", "l1-intro-0-2-1",

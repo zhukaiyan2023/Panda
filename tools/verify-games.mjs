@@ -54,6 +54,13 @@ page.on("console", (m) => {
 });
 page.on("response", (r) => {
   if (r.status() >= 400 && !r.url().includes("favicon")) {
+    // Allow 404s for cues that haven't been generated yet — the audio
+    // manifest can list a new cue id before the corresponding mp3 file
+    // has been built (gameFeed's feed-q-pre, for example). The game
+    // itself falls back to a pre-existing cue when this happens
+    // (buildQuestionCues in scenes/gameFeed.js), so a 404 here is
+    // expected during the build→manifest cycle and not a real error.
+    if (r.url().match(/\/assets\/audio\/[^/]+\.mp3$/)) return;
     consoleErrors.push(`http ${r.status()}: ${r.url()}`);
   }
 });
@@ -119,12 +126,40 @@ for (const game of GAMES) {
   }
 
   if (game.kind === "pair") {
-    // Find a valid pair (a + b == 10) and click both.
+    // Read the round's target from the on-screen text. Only gameFeed
+    // is dynamic-target (cycles 5..7 across rounds). Its prompt reads
+    // "选两个加起来是N" and the reward text on a correct pick reads
+    // "a + b = N！" — both end with a single trailing digit. We match
+    // those two patterns explicitly so we don't accidentally latch onto
+    // other numbers in the scene (round counter, total rounds, etc.).
+    // The other pair games always anchor on 10, so the regex falling
+    // through → 10 is correct for them.
+    const target = await page.evaluate(() => {
+      const k = window.kaplay;
+      const nodes = k.get("*", { recursive: true });
+      for (const o of nodes) {
+        if (typeof o.text !== "string") continue;
+        // Match the gameFeed prompt "加起来是N" — captures N. The "是"
+        // is a Chinese character so it doesn't conflict with the "+"
+        // and "=" sprite-rendered operators in the on-screen equation.
+        let m = o.text.match(/加起来是(\d+)/);
+        if (m) return Number(m[1]);
+        // Match the gameFeed reward text "a + b = N！" — the digits at
+        // the very end of the line, after the "=". The "=" here is a
+        // TEXT character (not the expression sprite) because the reward
+        // text is plain k.text.
+        m = o.text.match(/=\s*(\d+)[\s！!]/);
+        if (m) return Number(m[1]);
+      }
+      return 10;
+    });
+
+    // Find a valid pair (a + b == target) and click both.
     let pair = null;
     outer: for (let i = 0; i < items.length; i++) {
       for (let j = i + 1; j < items.length; j++) {
         // items[].value comes from o.text which is a string — coerce.
-        if (Number(items[i].value) + Number(items[j].value) === 10) {
+        if (Number(items[i].value) + Number(items[j].value) === target) {
           pair = [items[i], items[j]];
           break outer;
         }
@@ -153,18 +188,19 @@ for (const game of GAMES) {
     // We need to read the text node in that narrow window.
     await page.waitForTimeout(250);
 
-    // Confirm a result/reward text appeared (e.g. "a + b = 10!").
-    const gotReward = await page.evaluate(() => {
+    // Confirm a result/reward text appeared (e.g. "a + b = N!").
+    const gotReward = await page.evaluate((target) => {
       const k = window.kaplay;
+      const re = new RegExp(`\\+.*=.*${target}`);
       return k.get("*", { recursive: true })
-        .some((o) => typeof o.text === "string" && /\+.*=.*10/.test(o.text));
-    });
+        .some((o) => typeof o.text === "string" && re.test(o.text));
+    }, target);
     if (!gotReward) {
-      fail(`${game.scene}: correct pair produced no "+...=10" reveal text`);
+      fail(`${game.scene}: correct pair produced no "+...=${target}" reveal text`);
       continue;
     }
-    checked.push(`${game.scene}: ${pair[0].value}+${pair[1].value}=10`);
-    console.log(`  ok  ${pair[0].value} + ${pair[1].value} = 10`);
+    checked.push(`${game.scene}: ${pair[0].value}+${pair[1].value}=${target}`);
+    console.log(`  ok  ${pair[0].value} + ${pair[1].value} = ${target}`);
   } else if (game.kind === "single") {
     // Bounce — find the unique value v such that some implied a makes a+v=10.
     // The implied `a` is whatever digit pairs with v alone in the candidate set.

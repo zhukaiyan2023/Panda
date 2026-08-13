@@ -149,7 +149,15 @@ export default function createPairScene(config) {
       const b = ctx.items[bIdx].value;
       const sum = a + b;
 
-      if (sum === config.target) {
+      // Per-round target override: pair-scene configs that vary the
+      // target across rounds (e.g. dynamic-target gameFeed) can set
+      // round.target on the round object inside body(); pairScene
+      // honours that over config.target. Configs that keep one fixed
+      // target (boat/bounce/cloud/whack) never touch round.target, so
+      // `ctx.round.target ?? config.target` falls through to the
+      // session-wide config value.
+      const target = ctx.round.target ?? config.target;
+      if (sum === target) {
         // Correct — record, animate, advance step.
         streak += 1;
         state.selections.push(aIdx, bIdx);
