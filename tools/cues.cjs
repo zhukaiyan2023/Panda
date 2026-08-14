@@ -295,7 +295,19 @@ module.exports = [
   { id: "bounce-intro", text: "小朋友好，看上面的等式，找那个能凑出答案的气球，扎破它。" },
   { id: "bounce-pop",   text: "啵啵！" },
   { id: "bounce-done",  text: "全炸啦！" },
-  // Whack-a-mole removed 2026-08-13 (user feedback: "做的太差了").
+
+  // Whack-a-mole (rebuilt 2026-08-15 — single-tap answer mechanic)
+  { id: "whack-intro",    text: "我们来打地鼠吧" },
+  { id: "whack-q-pre",    text: "算一算" },
+  { id: "whack-start",    text: "开始" },
+  { id: "whack-pop",      text: "啵" },
+  { id: "whack-down",     text: "嗖" },
+  { id: "whack-tap",      text: "嗒" },
+  { id: "whack-correct",  text: "答对啦" },
+  { id: "whack-near",     text: "差一点点" },
+  { id: "whack-done",     text: "做完了，真棒" },
+  { id: "whack-timeup",   text: "时间到啦" },
+  { id: "whack-next",     text: "再来一道" },
 
   // Feed — 喂熊猫. Pick pairs, the panda eats them.
   { id: "feed-intro", text: "帮熊猫吃" },
