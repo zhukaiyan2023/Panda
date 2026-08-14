@@ -995,6 +995,10 @@ const SPRITES = [
   "slot-answer", "op-plus", "op-equals",
   // full-bleed scene backdrops
   "bg-meadow", "bg-bamboo-grove",
+  // whack-a-mole (added 2026-08-15): 6 ink moles + 3 hole variants + grass strip
+  "mole-1", "mole-2", "mole-3", "mole-4", "mole-5", "mole-6",
+  "mole-hole-1", "mole-hole-2", "mole-hole-3",
+  "grass-ground",
 ];
 
 // Bumped whenever boat.png / boat-sel.png (or any other regenerated
@@ -1004,7 +1008,7 @@ const SPRITES = [
 // (2026-08-12: top row of the boat grid was the cached old tan-sail
 // boat.png while the bottom row got the new white-sail version, because
 // the JS imports were cache-busted but the sprite URLs weren't).
-const ART_VERSION = "20260812";
+const ART_VERSION = "20260815";
 
 function loadArt() {
   return Promise.all(
