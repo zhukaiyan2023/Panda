@@ -182,6 +182,16 @@ export default function gameWhack(k) {
     pending: null,
   };
 
+  // Map streak → celebration tier (matches audio/praise.js pickTier).
+  // First-tier chains are enc-first-N only; streak-3+ add a panda-cue;
+  // the visual burst count is tier-matched in components/celebration.js.
+  function streakTier(s) {
+    if (s >= 10) return "streak10";
+    if (s >= 5) return "streak5";
+    if (s >= 3) return "streak3";
+    return "first";
+  }
+
   // === Question builder ===
   //
   // Pulls a fresh question from the data layer, re-renders the equation
@@ -256,4 +266,120 @@ export default function gameWhack(k) {
   // first-question read-out is chained off `whack-start` above; tap-handler
   // and win/lose flows call buildAndSpawn(false) for subsequent rounds.
   buildAndSpawn(true);
+
+  // === Tap handler (single-tap-answer) ===
+  // Each hole carries one candidate. Tap compares getValue() against
+  // currentQ.answer. Correct → flash + retreat + cheer chain + advance
+  // once the audio ends. Wrong → shake + wrong-cue + auto-advance after
+  // the cue finishes (so the kid is never stuck on a wrong pick).
+  //
+  // Hit-target sits above the hole rim, centered on the mole's face
+  // position (y - 120, per whackHole.js MOLE_Y_OFFSET). Width 220 ×
+  // height 200 — slightly larger than the mole's on-screen size so
+  // 3-6 year-olds can land it with a finger tap on iPad Safari.
+  const TAP_HIT_W = 220;
+  const TAP_HIT_H = 200;
+  holes.forEach((h) => {
+    const hit = k.add([
+      k.rect(TAP_HIT_W, TAP_HIT_H, { radius: 20 }),
+      // Anchor center so k.pos(h.x, h.y - 120) lands the rect's center
+      // on the mole's face. Without k.anchor("center") — kaplay's rect
+      // default anchor is topleft — the box would extend rightward of
+      // h.x by TAP_HIT_W/2 (≈110px), so taps on the left half of the
+      // mole would miss entirely. The -120 matches MOLE_Y_OFFSET in
+      // whackHole.js (mole head pokes 120px above the hole rim).
+      k.anchor("center"),
+      k.pos(h.x, h.y - 120),
+      k.opacity(0),
+      k.area(),
+    ]);
+    hit.onClick(() => {
+      // Taps landing after the 90s timer has expired are no-ops; the
+      // results scene is about to take over.
+      if (state.finished) return;
+      // Empty holes (post-retreat / not yet populated) can't be answered.
+      if (!h.isOccupied()) return;
+      const v = h.getValue();
+      if (v === currentQ.answer) {
+        // === CORRECT ===
+        streak += 1;
+        correctCount += 1;
+        scoreText.text = `做对 ${correctCount} 题`;
+        bar.setStep(Math.min(correctCount + 1, 30));
+        const tier = streakTier(streak);
+
+        // Visual: flashCorrect (which calls retreat internally once the
+        // halo fades) + tier-matched particle burst at the mole's face.
+        h.flashCorrect();
+        celebrate(k, {
+          tier,
+          anchor: { x: h.x, y: h.y - 120 },
+          pandaBody: buddy?.body,
+          pandaBaseSize: 200,
+        });
+
+        // Audio: stop anything playing, then fire the chain. The first
+        // half (whack-tap → whack-correct) plays as discrete playCue
+        // calls separated by short timer waits so the snap sound bytes
+        // the start of whack-correct cleanly — no overlap, per
+        // panda-audio-event-driven memory's single-active invariant.
+        window.PandaAudio.stopAllAudio();
+        window.PandaAudio.playCue("whack-tap");
+        k.wait(0.05, () => window.PandaAudio.stopAllAudio());
+        k.wait(0.06, () => window.PandaAudio.playCue("whack-correct"));
+
+        // Once whack-correct ends, fire the streak cheer chain. Then
+        // after the chain ends, advance to the next question via
+        // buildAndSpawn(false) — not the isFirst flag, since we already
+        // finished the intro chain earlier.
+        const { chain } = pickCheerCue({
+          streak,
+          isRoundComplete: false,
+          levelId: 5,
+          // No math discovery for gameWhack — the kid isn't learning
+          // 凑十法 here, just playing a matching game.
+          hasDiscovery: false,
+        });
+        // Wait for whack-correct's natural audio duration + small post-
+        // buffer before kicking off the cheer chain. Reading the cue's
+        // loaded duration keeps the wait accurate; if it isn't loaded
+        // yet (first tap before Safari decodes metadata), fall back to
+        // a conservative 0.8s so we never cut whack-correct mid-
+        // syllable. After the cheer chain, sum its full runtime so the
+        // fallback timer can't pre-empt it — per
+        // panda-audio-safety-ceiling-full-chain memory.
+        const whackCorrectDur =
+          (window.PandaAudio?.audio?.["whack-correct"]?.duration || 0.6) +
+          0.2;
+        k.wait(whackCorrectDur, () => {
+          if (state.finished) return;
+          window.PandaAudio.playSequence(chain, 200, 0);
+          const cheerDur = chainDurationSec(chain, 200);
+          k.wait(cheerDur, () => {
+            if (!state.finished) buildAndSpawn();
+          });
+        });
+      } else {
+        // === WRONG ===
+        streak = 0;
+        h.shake();
+
+        window.PandaAudio.stopAllAudio();
+        window.PandaAudio.playCue("whack-tap");
+        k.wait(0.05, () => window.PandaAudio.stopAllAudio());
+        k.wait(0.06, () => {
+          const wrongCue = pickWrongCue();
+          window.PandaAudio.playCue(wrongCue);
+          // chainDurationSec on a single-element chain reduces to
+          // (wrongCue.duration + 0.5s buffer). Sums the FULL cue per
+          // panda-audio-safety-ceiling-full-chain so the auto-advance
+          // never cuts the wrong-cue off mid-sentence.
+          const wd = chainDurationSec([wrongCue], 0);
+          k.wait(wd, () => {
+            if (!state.finished) buildAndSpawn();
+          });
+        });
+      }
+    });
+  });
 }
