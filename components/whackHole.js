@@ -31,12 +31,19 @@ import { INK, YELLOW, ORANGE } from "./theme.js?v=20260815";
 //   moles and ~250×166 holes. With the actual cutout sizes those constants
 //   would yield only ~84-120 px wide moles (less than half the intended
 //   on-screen size, too small to read at iPad-arm's-length). Bumped
-//   MOLE_SCALE to 0.24 → 126-180 px wide moles (≈ the brief's intended
-//   140-160 range), kept HOLE_SCALE at 0.20 → 152-157 px wide holes
-//   (the holes are ground decoration and the planar 762-783 px source
-//   ratio means the original 0.20 already reads correctly).
+//   MOLE_SCALE to 0.24 → 126-180 px wide moles, kept HOLE_SCALE at 0.20.
+//
+//   Final-review screenshot (2026-08-15) caught overlap that earlier per-
+//   task reviews missed: at MOLE_SCALE=0.24 the mole heads at y=GRID_Y0
+//   +MOLE_Y_OFFSET=420 land exactly on the hint text
+//   "点中头顶是答案的地鼠" at y=420, completely covering it and brushing
+//   the bottom of the equation at y=320 — unreadable for a 3-6 year-old.
+//   Reduced MOLE_SCALE to 0.18 → ~95-135 px wide × ~114-145 px tall moles.
+//   Smaller mole body means the head no longer reaches up into the hint
+//   row. HOLE_SCALE stays at 0.20 → ~152-157 px wide holes — the planar
+//   762-783 px source ratio means 0.20 already reads correctly.
 const HOLE_SCALE = 0.20;     // 762-783×397-647 source → ~152-157 wide
-const MOLE_SCALE = 0.24;     // 527-749×634-806 source → ~126-180 wide (bumped from 0.16 for visibility)
+const MOLE_SCALE = 0.18;     // 527-749×634-806 source → ~95-135 wide (reduced 0.24→0.18 to fit 3x2 grid + clear hint text)
 const MOLE_Y_OFFSET = -120;  // head peeks ~120px above hole rim
 const BADGE_Y_OFFSET = -150; // badge sits on the forehead
 const BADGE_RADIUS = 28;
