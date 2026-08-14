@@ -40,6 +40,8 @@ audio**. No build step, no PWA, no Chinese narration — just open
 | 1 | Numbers up to 5 | Plain addition with totals ≤ 5 | fill the blank in `a + ? = answer` |
 | 2 | Make a Ten | Decompose b into `need + rest` so `a + need = 10` | fill the blank in `a + ? = 10` |
 | 3 | Up to 20 | Two-digit addition without the make-ten scaffold | fill the blank in `a + ? = answer` |
+| 4 | 二十以内 | Teen + digit, no carry via 10+ones strategy | fill the blank in `a + ? = answer` |
+| 5 | 十几加十几 | Two teens + two teens, no carry, 5-step decomposition | fill the blank in `a + ? = answer` |
 
 Each level has 6 rounds. Completing a level unlocks the next; stars accumulate
 per level.
