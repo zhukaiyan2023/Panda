@@ -19,6 +19,12 @@ export const PINK = [255, 143, 171]; // --c-pink
 export const YELLOW = [205, 165, 40]; // --c-yellow
 export const BLUE = [124, 199, 255]; // --c-blue
 export const PURPLE = [155, 140, 255]; // --c-purple
+// GREEN for the whack-a-mole card accent (mint meadow — matches the
+// celebration particle palette so the card stays consistent with the
+// scene's natural-tone grass strip). Add to gamesPicker.js as the 5th
+// game's `accent` color; CSS custom property (--c-green) can be added
+// in styles.css in a follow-up if the DOM layer ever needs the same hue.
+export const GREEN = [143, 211, 144]; // matches celebration mint
 
 export const MUTED = [180, 170, 200];
 export const DISABLED_BG = [230, 225, 239];
