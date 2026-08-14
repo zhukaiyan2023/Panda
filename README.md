@@ -64,7 +64,7 @@ level means writing a config, not copying a scene.
 
 ### Panda-park games
 
-A second tab — "Games" — opens four pair-finding activities ported from
+A second tab — "Games" — opens five pair-finding + whack activities ported from
 [panda-park](https://example.com). Each is a thin wrapper around either
 `scenes/pairScene.js` (Boat, Cloud, Feed) or a self-contained scene (Bounce).
 The four games all teach the same "make 10" idea but with different
@@ -77,6 +77,7 @@ move to a more physical / time-pressured version of the same content:
 | Bounce | 4 balloons, pop the one that completes 10 | Single pick |
 | Cloud | 6 clouds, find 2–3 pairs in a round | Multi-pair per round |
 | Feed | 3/5/7 bubbles, panda eats any valid pair | Multi-pair, escalating size |
+| Whack | 6 moles, tap the one whose number equals a + b | 90s timed, single-tap |
 
 All four games save progress under `unlockedGame` / `starsByGame` (separate
 from the math track). The math and games tracks unlock independently so a
