@@ -187,10 +187,12 @@ export default function gameWhack(k) {
   // Pulls a fresh question from the data layer, re-renders the equation
   // (destroy + recreate since textNodes isn't exposed), pops up 6 moles
   // with the question's candidates, then fires the "算一算 a 加 b"
-  // read-out chain. stopAllAudio() before playSequence enforces the
-  // single-active-audio invariant (panda memory).
+  // read-out chain. For the FIRST question we chain the read-out off the
+  // intro's `whack-start` cue (no stopAllAudio — would cut the intro
+  // mid-stride and violate the single-active-audio invariant). Subsequent
+  // questions use stopAllAudio() + playSequence to clear any residual cue.
   let currentQ = null;
-  function buildAndSpawn() {
+  function buildAndSpawn(isFirst = false) {
     const type = pickType(roundIdx);
     currentQ = buildQuestion(type, prevKey);
     prevKey = currentQ.key;
@@ -201,11 +203,17 @@ export default function gameWhack(k) {
     // same place on screen. Last slot stays "□" so the unknown reads as
     // a hand-drawn box, not a "?" glyph (per user feedback 2026-08-11:
     // "用这个方格子表示未知，不要用问号了").
+    //
+    // reserve[] locks per-slot widths to the widest content the row will
+    // ever hold: Type B a ∈ [11..18] → 2-digit "11"; b up to 9 → "9";
+    // answer slot mirrors a → "11". Without reserve[], the 2-digit `a`
+    // slot widens between rounds and shifts the whole row.
     eq.destroy();
     eq = expression(k, {
       slots: [String(currentQ.a), "+", String(currentQ.b), "=", "□"],
       x: 748, y: 320, size: 100,
       boxMode: true,
+      reserve: ["11", "+", "9", "=", "11"],
     });
 
     // Populate 6 holes — each hole shows one of the 6 candidates (the
@@ -215,24 +223,37 @@ export default function gameWhack(k) {
     }
 
     // Read-out: "算一算 a 加 b" — [whack-q-pre, n-A, q-plus, n-B].
-    // stopAllAudio() first so any in-flight audio from scene init or a
-    // previous round's cue doesn't bleed into this chain (single-active
-    // invariant).
-    window.PandaAudio.stopAllAudio();
     const readChain = [
       "whack-q-pre",
       `n-${currentQ.a}`,
       "q-plus",
       `n-${currentQ.b}`,
     ];
-    window.PandaAudio.playSequence(readChain, 200, 0);
+
+    if (isFirst) {
+      // Chain off the intro's last cue ("whack-start") so the read-out
+      // starts as soon as "开始" finishes — no stopAllAudio, which would
+      // cut the intro mid-stride (single-active invariant).
+      window.PandaAudio.playAfter("whack-start", readChain, {
+        gapMs: 200,
+        seqGapMs: 200,
+      });
+    } else {
+      // Subsequent questions: clear any residual audio, then play fresh.
+      // stopAllAudio enforces single-active-audio (panda memory).
+      window.PandaAudio.stopAllAudio();
+      window.PandaAudio.playSequence(readChain, 200, 0);
+    }
   }
 
-  // Initial spawn (replaces the random 1..9 placeholder loop). buildAndSpawn
-  // handles both the mole pop-up AND the first question's read-out audio —
-  // the scene-entry `whack-intro + whack-start` chain that previously lived
-  // here would have cancelled the read-out mid-stride (single-active
-  // invariant), so the intro audio is dropped from the entry path. Tap-handler
-  // and win/lose flows can still fire it later if needed.
-  buildAndSpawn();
+  // Scene-entry audio: intro + start. The first question's read-out
+  // chains off `whack-start` inside buildAndSpawn(true) so we never have
+  // two chains overlapping (single-active invariant). Subsequent
+  // buildAndSpawn(false) calls use the stopAllAudio + playSequence path.
+  window.PandaAudio.playSequence(["whack-intro", "whack-start"], 200, 0);
+
+  // Initial spawn (replaces the random 1..9 placeholder loop). The
+  // first-question read-out is chained off `whack-start` above; tap-handler
+  // and win/lose flows call buildAndSpawn(false) for subsequent rounds.
+  buildAndSpawn(true);
 }
