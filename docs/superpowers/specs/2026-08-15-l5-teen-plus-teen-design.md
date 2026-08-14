@@ -42,9 +42,10 @@ data/pools.js                                 # 加 generateL5Pool + levelPools[
 data/levels.json                              # 加 { id: 5, title: "十几加十几" }
 main.js                                       # 加 levelsData 第 5 项；computePoolCueIds 加 L5 分支；
                                               # 增 level5 导入 + k.scene("level5", ...)
-scenes/levelPicker.js                         # 加 SHORT_TITLES[5] 和 CARD_ACCENT[5]
-audio/cues.cjs (或 cues.js)                   # 新增 99 个 l5-* 模板条目
-tools/_emit-cues.mjs                          # 加 l5-* 模板生成
+scenes/levelPicker.js                         # 加 SHORT_TITLES[5] 和 CARD_ACCENT[5]；SPRITES 加 badge-5
+tools/cues.cjs                                # 暂不修改（l5-* 是 pre-baked composite mp3，由 Tencent TTS
+                                              # 单独生成；不经过 cjs manifest 的 chunk pipelines）
+tools/_emit-cues.mjs                          # 加 L5 分支生成 l5-* id 列表
 tools/emit-cue-ids.mjs                        # 跑一次同步 CUE_IDS
 README.md                                     # Levels 表格加 L5
 ```
@@ -174,13 +175,15 @@ boxMode 由 slots 里的 `?` 自动判断（expression.js 的 wantsBox 路径）
 
 | Cue id 模板 | 数量 | 模板例 | 语音内容 |
 |---|---|---|---|
-| `l5-s1-{a}` | 9 | l5-s1-11 | "11 + 14 等于几，我们先把 11 拆成 10 加几" |
-| `l5-s2-{b}` | 9 | l5-s2-14 | "14 能拆成 10 加几" |
+| `l5-s1-{a}-{b}` | 36 | l5-s1-11-14 | "11 加 14 等于几，我们先把 11 拆成 10 加几" |
+| `l5-s2-{a}-{b}` | 36 | l5-s2-11-14 | "我们再拆 14，14 能拆成 10 加几" |
 | `l5-s3-{onesA}-{onesB}` | 36 | l5-s3-1-4 | "个位相加 1 加 4 等于几" |
 | `l5-s4` | 1 | (静态) | "十加十等于 20" |
 | `l5-s5-{sum}` | 8 | l5-s5-5 | "20 加 5 等于几" |
 | `l5-rwd-{a}-{b}-{answer}` | 36 | l5-rwd-11-14-25 | "11 加 14 等于 25" |
-| **合计** | **99** | | |
+| **合计** | **153** | | |
+
+`l5-s1-{a}-{b}` / `l5-s2-{a}-{b}` 沿用 L4 的 `l3-s1-{a}-{b}` 模式（参数化两个数字，与 L4 的 `buildL3Step1Ids` 对齐）。读出会话中需要按当前轮的 (a, b) 选 mp3。
 
 ### 复用 L4 的 fireL3StepAudio 模式
 
@@ -214,8 +217,8 @@ return new Promise((resolve) => {
 ```js
 } else if (levelId === 5) {
   for (const r of poolGens[5]()) {
-    ids.add(`l5-s1-${r.a}`);
-    ids.add(`l5-s2-${r.b}`);
+    ids.add(`l5-s1-${r.a}-${r.b}`);
+    ids.add(`l5-s2-${r.a}-${r.b}`);
     ids.add(`l5-s3-${r.onesA}-${r.onesB}`);
     ids.add(`l5-s4`);                          // 静态
     ids.add(`l5-s5-${r.sum}`);
@@ -224,7 +227,9 @@ return new Promise((resolve) => {
 }
 ```
 
-未走 `enc-level-5` 路径（`pickCheerCue` 不为 L5 单独分级 — L1-L4 共享 enc-level-1..4，仅用于 level-complete 触发；如果 L5 需要专门的 level-complete 鼓励音，单独加 `enc-level-5` 等条目，但那不是本次需求；如果不可用则 fallback 到 `enc-level-1..4`）。
+### level-complete 鼓励音
+
+`pickCheerCue` 共享 `enc-level-1..4` + `panda-cheer-1..2` 池。L5 不需要新增 `enc-level-5`（本次范围外；如果以后想给 L5 单独分级，再加 `enc-level-5` 等条目）。
 
 ---
 
@@ -334,10 +339,10 @@ L4 沿用 L3 的「无 intro」策略（per-round step 1 音频自含引导）�
 - 改 `scenes/levelPicker.js`（SHORT_TITLES、CARD_ACCENT、SPRITES badge-5）
 - 新增 `assets/art/badge-5.png/.svg`
 - 跑 `tools/emit-cue-ids.mjs` 同步 CUE_IDS
-- 新增 99 个音频（l5-* 前缀）— 由 Tencent TTS 预生成
+- 新增 153 个音频（l5-* 前缀）— 由 Tencent TTS 预生成
 - README 更新 Levels 表格
 
-### 改成什么样的"细"假设
+### 设计细化的取舍
 
 - **不**复用 L4 的 `buildL3Step*Ids` 等函数（命名不同），但 `fireL3StepAudio` 的逻辑复制改名
 - **不**做跨步骤的连线（不像 L4 的 anchor → split 拆分线），因为 L5 的 5 步 sub 各自独立
@@ -360,11 +365,11 @@ L4 沿用 L3 的「无 intro」策略（per-round step 1 音频自含引导）�
 
 | 风险 | 对策 |
 |---|---|
-| 99 个 MP3 生成失败 / 漏生成 | audit-audio 验证 + emit-cue-ids 同步；CUE_IDS 缺 → 启动时无法注册 pool cue → 改 silent mode 不会用到额外 cue |
+| 153 个 MP3 生成失败 / 漏生成 | audit-audio 验证 + emit-cue-ids 同步；CUE_IDS 缺 → 启动时无法注册 pool cue；如果 cue 缺失，运行时 audio Proxy 返回 undefined，console.warn 但 kid 仍能玩 |
 | 静态 `l5-s4` 在多 round 重复播放显得乏味 | step 4 只在 36 round 中的每 1 round 都出现一次，且永远只有 1 个 cue，无可避免；接受 |
 | step 5 的按钮范围 min:20 max:29 包含 20/21（与 4 的答案临近）| 4 个按钮中 1 个是 answer，外圈 23/24/26/27 等扰动项；与 L4 step 3 的 min:11 max:20 同款 |
 | 5 步比 L4 长（用户耐心）| 5 步 × 10 round = 50 步；每步平均 4s 完成约 3.5 分钟；可接受 |
-| User 选 l5-* 前缀而非 l3-* 复用 | 优点：L4 改不动 L5 也倒过来；缺点：99 个 MP3 vs L4 的 ~64 个。但用户已选 |
+| User 选 l5-* 前缀而非 l3-* 复用 | 优点：L4 改不动 L5 也倒过来；缺点：153 个 MP3 vs L4 的 ~64 个。但用户已选 |
 | rotate-hint / portrait | 沿用 L4，不需要新处理 |
 
 ---
@@ -378,7 +383,7 @@ L4 沿用 L3 的「无 intro」策略（per-round step 1 音频自含引导）�
 - [ ] 5 步 stepBar 文本正确（拆 a / 拆 b / 加个位 / 加十位 / 加起来）
 - [ ] L5 卡片显示「十几加十几」标题 + 绿色徽章
 - [ ] L5 解锁后 L4 卡片的「▶」仍可点（L4 没被破坏）
-- [ ] 32 步不进位（个位相加 < 10 严格保持）
+- [ ] 36 个 round 全部不进位（个位相加 < 10 严格保持）
 - [ ] 锚揭示 reserve 不偏移（reveal 「19」后整行不左偏）
 - [ ] 每步 sub 揭示后下一按钮范围匹配
 - [ ] 答错 streak 不增（与 L4 一致）
