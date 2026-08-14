@@ -133,13 +133,16 @@ export default function gameWhack(k) {
   // Panda.
   const buddy = panda(k, { x: 130, y: 800, size: 200 });
 
-  // Equation (placeholder slots — overwritten per question in later tasks).
-  const eq = expression(k, {
+  // Equation — re-rendered per question via destroy + recreate (see
+  // buildAndSpawn below). The component exposes only slotCenters /
+  // slotSizes / slotY — not textNodes — so in-place text mutation isn't
+  // available. `let` (not const) so the next round's buildAndSpawn can
+  // reassign after destroying the current root.
+  let eq = expression(k, {
     slots: ["□", "+", "□", "=", "□"],
     x: 748, y: 320, size: 100,
     boxMode: true,
   });
-  eq.slots.forEach((_, i) => { if (eq.textNodes[i]) eq.textNodes[i].text = "?"; });
 
   // Hint.
   k.add([
@@ -169,14 +172,67 @@ export default function gameWhack(k) {
     holes.push(whackHole(k, { x, y, variant: variants[i] }));
   }
 
-  // Placeholder first-question spawn (real spawn loop lives in Task 7).
-  // For this task: just pop up 6 moles with random 1..9 so the chrome
-  // looks right.
-  for (let i = 0; i < HOLE_COUNT; i++) {
-    holes[i].popUp(1 + Math.floor(Math.random() * 9));
+  // === State container for runtime mutables (declared early so handlers
+  // can close over). `pending` is the index of the hole currently being
+  // considered — single-tap-answer: flash on the first pick. `finished`
+  // is set when the 90-second timer expires and we transition to the
+  // results scene.
+  const state = {
+    finished: false,
+    pending: null,
+  };
+
+  // === Question builder ===
+  //
+  // Pulls a fresh question from the data layer, re-renders the equation
+  // (destroy + recreate since textNodes isn't exposed), pops up 6 moles
+  // with the question's candidates, then fires the "算一算 a 加 b"
+  // read-out chain. stopAllAudio() before playSequence enforces the
+  // single-active-audio invariant (panda memory).
+  let currentQ = null;
+  function buildAndSpawn() {
+    const type = pickType(roundIdx);
+    currentQ = buildQuestion(type, prevKey);
+    prevKey = currentQ.key;
+    roundIdx += 1;
+
+    // Update equation — destroy the old root and re-render with the new
+    // slots. Keep the same x / y / size / boxMode so the row sits in the
+    // same place on screen. Last slot stays "□" so the unknown reads as
+    // a hand-drawn box, not a "?" glyph (per user feedback 2026-08-11:
+    // "用这个方格子表示未知，不要用问号了").
+    eq.destroy();
+    eq = expression(k, {
+      slots: [String(currentQ.a), "+", String(currentQ.b), "=", "□"],
+      x: 748, y: 320, size: 100,
+      boxMode: true,
+    });
+
+    // Populate 6 holes — each hole shows one of the 6 candidates (the
+    // correct answer + 5 distractors, shuffled by buildQuestion).
+    for (let i = 0; i < HOLE_COUNT; i++) {
+      holes[i].popUp(currentQ.candidates[i]);
+    }
+
+    // Read-out: "算一算 a 加 b" — [whack-q-pre, n-A, q-plus, n-B].
+    // stopAllAudio() first so any in-flight audio from scene init or a
+    // previous round's cue doesn't bleed into this chain (single-active
+    // invariant).
+    window.PandaAudio.stopAllAudio();
+    const readChain = [
+      "whack-q-pre",
+      `n-${currentQ.a}`,
+      "q-plus",
+      `n-${currentQ.b}`,
+    ];
+    window.PandaAudio.playSequence(readChain, 200, 0);
   }
 
-  // Scene entry audio.
-  window.PandaAudio.stopAllAudio();
-  window.PandaAudio.playSequence(["whack-intro", "whack-start"], 200, 0);
+  // Initial spawn (replaces the random 1..9 placeholder loop). buildAndSpawn
+  // handles both the mole pop-up AND the first question's read-out audio —
+  // the scene-entry `whack-intro + whack-start` chain that previously lived
+  // here would have cancelled the read-out mid-stride (single-active
+  // invariant), so the intro audio is dropped from the entry path. Tap-handler
+  // and win/lose flows can still fire it later if needed.
+  buildAndSpawn();
 }
