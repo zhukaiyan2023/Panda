@@ -83,9 +83,29 @@ function chainDurationSec(chain, seqGapMs) {
 export default function gameWhack(k) {
   sceneBg(k, "bg-meadow");
 
+  // === State container for runtime mutables (declared early so handlers
+  // can close over). `pending` is the index of the hole currently being
+  // considered — single-tap-answer: flash on the first pick. `finished`
+  // is set when the 90-second timer expires and we transition to the
+  // results scene. Also set by the back-button so surviving k.wait
+  // callbacks (which all check state.finished) don't fire on the
+  // destination scene and spawn stray moles/equation/audio.
+  const state = {
+    finished: false,
+    pending: null,
+  };
+
   iconButton(k, {
     label: "←", x: 84, y: 92, w: 96, h: 72, fontSize: 44,
-    onClick: () => { roundIdx = 0; streak = 0; k.go("gamesPicker"); },
+    onClick: () => {
+      // Gate surviving k.wait callbacks before navigating — otherwise
+      // the in-flight celebration chain (correct/wrong path) fires on
+      // gamesPicker and spawns stray moles + audio.
+      state.finished = true;
+      roundIdx = 0;
+      streak = 0;
+      k.go("gamesPicker");
+    },
   });
 
   // Step bar (steps are unbounded; render up to 30 ticks).
@@ -169,18 +189,13 @@ export default function gameWhack(k) {
     const row = Math.floor(i / HOLE_COLS);
     const x = GRID_X + col * HOLE_CELLW;
     const y = row === 0 ? GRID_Y0 : GRID_Y1;
-    holes.push(whackHole(k, { x, y, variant: variants[i] }));
+    const h = whackHole(k, { x, y, variant: variants[i] });
+    // Per-hole tap lock — first valid tap sets this; buildAndSpawn clears
+    // it on the next popUp. Prevents a fast double-tap inside the 0.5s
+    // flash phase from inflating streak/score + racing audio chains.
+    h._tapped = false;
+    holes.push(h);
   }
-
-  // === State container for runtime mutables (declared early so handlers
-  // can close over). `pending` is the index of the hole currently being
-  // considered — single-tap-answer: flash on the first pick. `finished`
-  // is set when the 90-second timer expires and we transition to the
-  // results scene.
-  const state = {
-    finished: false,
-    pending: null,
-  };
 
   // Map streak → celebration tier (matches audio/praise.js pickTier).
   // First-tier chains are enc-first-N only; streak-3+ add a panda-cue;
@@ -227,8 +242,10 @@ export default function gameWhack(k) {
     });
 
     // Populate 6 holes — each hole shows one of the 6 candidates (the
-    // correct answer + 5 distractors, shuffled by buildQuestion).
+    // correct answer + 5 distractors, shuffled by buildQuestion). Reset
+    // the per-hole tap lock here so the next question is tappable.
     for (let i = 0; i < HOLE_COUNT; i++) {
+      holes[i]._tapped = false;
       holes[i].popUp(currentQ.candidates[i]);
     }
 
@@ -299,6 +316,11 @@ export default function gameWhack(k) {
       if (state.finished) return;
       // Empty holes (post-retreat / not yet populated) can't be answered.
       if (!h.isOccupied()) return;
+      // Per-hole tap lock — first valid tap sets it, buildAndSpawn clears
+      // it on the next popUp. Prevents a fast double-tap inside the 0.5s
+      // flash phase from inflating streak/score + racing audio chains.
+      if (h._tapped) return;
+      h._tapped = true;
       const v = h.getValue();
       if (v === currentQ.answer) {
         // === CORRECT ===
