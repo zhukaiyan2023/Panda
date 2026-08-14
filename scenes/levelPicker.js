@@ -1,6 +1,6 @@
-// scenes/levelPicker.js — L1 / L2 / L3 / L4 selection screen.
+// scenes/levelPicker.js — L1 / L2 / L3 / L4 / L5 selection screen.
 //
-// Four large cards, one per math level. Locked levels show a lock badge
+// Five large cards, one per math level. Locked levels show a lock badge
 // and play level-locked.mp3 when tapped. Unlocked levels are reachable
 // from save data (window.PandaSave). The card row auto-sizes — adding
 // more levels shrinks the stride so the row stays inside the canvas.
@@ -8,12 +8,12 @@
 // The emoji lock and star are replaced by the SVG sprites in assets/art/, and
 // the panda now actually appears on the screen the game is named after.
 
-import panda from "../components/panda.js?v=20260812";
-import { card } from "../components/card.js?v=20260812";
-import sceneBg from "../components/sceneBg.js?v=20260812";
+import panda from "../components/panda.js?v=20260815";
+import { card } from "../components/card.js?v=20260815";
+import sceneBg from "../components/sceneBg.js?v=20260815";
 import {
-  INK, CARD, ORANGE, YELLOW, BLUE, PURPLE, FONT,
-} from "../components/theme.js?v=20260812";
+  INK, CARD, ORANGE, YELLOW, BLUE, PURPLE, FONT, SUCCESS,
+} from "../components/theme.js?v=20260815";
 
 const LOCKED_BG = [220, 213, 230];
 const LOCKED_INK = [150, 140, 170];
@@ -23,9 +23,10 @@ const SHORT_TITLES = {
   2: "两数凑十",
   3: "凑十法",
   4: "二十以内",
+  5: "十几加十几",
 };
 
-const CARD_ACCENT = { 1: BLUE, 2: ORANGE, 3: PURPLE, 4: YELLOW };
+const CARD_ACCENT = { 1: BLUE, 2: ORANGE, 3: PURPLE, 4: YELLOW, 5: SUCCESS };
 
 // Sprites are decoration: a missing art file must not blank the screen a child
 // needs in order to start playing.

@@ -957,7 +957,7 @@ const SPRITES = [
   "panda-idle", "panda-cheer", "panda-think",
   "bamboo", "leaf",
   "star", "lock",
-  "badge-1", "badge-2", "badge-3", "badge-4",
+  "badge-1", "badge-2", "badge-3", "badge-4", "badge-5",
   // panda-park migrated game props
   "boat", "boat-sel", "cloud", "balloon", "bubble", "bubble-sel",
   // ten-frame: a hollow slot plus interchangeable counters, so the frame can
