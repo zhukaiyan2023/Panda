@@ -1063,23 +1063,25 @@ watchOrientation();
     { default: level2 },
     { default: level3 },
     { default: level4 },
+    { default: level5 },
     { default: dailyDone },
     { default: gameBoat },
     { default: gameBounce },
     { default: gameCloud },
     { default: gameFeed },
   ] = await Promise.all([
-    import("./scenes/levelPicker.js?v=20260812"),
-    import("./scenes/gamesPicker.js?v=20260812"),
-    import("./scenes/level1.js?v=20260812"),
-    import("./scenes/level2.js?v=20260812"),
-    import("./scenes/level3.js?v=20260812"),
-    import("./scenes/level4.js?v=20260812"),
-    import("./scenes/dailyDone.js?v=20260812"),
-    import("./scenes/gameBoat.js?v=20260812"),
-    import("./scenes/gameBounce.js?v=20260812"),
-    import("./scenes/gameCloud.js?v=20260812"),
-    import("./scenes/gameFeed.js?v=20260814"),
+    import("./scenes/levelPicker.js?v=20260815"),
+    import("./scenes/gamesPicker.js?v=20260815"),
+    import("./scenes/level1.js?v=20260815"),
+    import("./scenes/level2.js?v=20260815"),
+    import("./scenes/level3.js?v=20260815"),
+    import("./scenes/level4.js?v=20260815"),
+    import("./scenes/level5.js?v=20260815"),
+    import("./scenes/dailyDone.js?v=20260815"),
+    import("./scenes/gameBoat.js?v=20260815"),
+    import("./scenes/gameBounce.js?v=20260815"),
+    import("./scenes/gameCloud.js?v=20260815"),
+    import("./scenes/gameFeed.js?v=20260815"),
   ]);
 
   // Sprites must be resolved before the first scene runs: scenes decide at build
@@ -1093,6 +1095,7 @@ watchOrientation();
   k.scene("level2", () => level2(k));
   k.scene("level3", () => level3(k));
   k.scene("level4", () => level4(k));
+  k.scene("level5", () => level5(k));
   k.scene("dailyDone", () => dailyDone(k));
   k.scene("gameBoat",   () => gameBoat(k));
   k.scene("gameBounce", () => gameBounce(k));
