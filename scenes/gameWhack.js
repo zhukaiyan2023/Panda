@@ -80,6 +80,64 @@ function chainDurationSec(chain, seqGapMs) {
   return total + 0.5;  // post-buffer
 }
 
+// Summary overlay shown after the 90s timer expires. Renders a full-screen
+// PAPER scrim at z=50 (above every scene element), the big "做对 N 题"
+// headline at z=51, and a 1-3 star row based on correctCount. Saves
+// progress via saveProgress(5, ...) and auto-returns to gamesPicker after
+// 3s. Stars: ≥10 → 3, ≥6 → 2, ≥2 → 1, else 0 (matches saveProgress's
+// star math so on-screen and saved stars agree).
+function showSummary(k, correctCount, buddy) {
+  const stars = correctCount >= 10 ? 3 : correctCount >= 6 ? 2 : correctCount >= 2 ? 1 : 0;
+  const W = k.width();
+
+  // Scrim.
+  k.add([
+    k.rect(W, k.height(), { radius: 0 }),
+    k.color(...PAPER),
+    k.opacity(0.6),
+    k.pos(W / 2, k.height() / 2),
+    k.anchor("center"),
+    k.z(50),
+  ]);
+
+  // Headline.
+  k.add([
+    k.text(`做对 ${correctCount} 题`, { size: 96, font: FONT }),
+    k.color(...INK),
+    k.pos(W / 2, 360),
+    k.anchor("center"),
+    k.z(51),
+  ]);
+
+  // Stars row — filled (ORANGE) for earned, dim+INK-tinted for unearned.
+  const starY = 540;
+  const starGap = 130;
+  for (let i = 0; i < 3; i++) {
+    const cx = W / 2 + (i - 1) * starGap;
+    const filled = i < stars;
+    k.add([
+      k.sprite("star"),
+      k.pos(cx, starY),
+      k.anchor("center"),
+      k.scale(0.4),
+      k.opacity(filled ? 1 : 0.25),
+      k.color(...(filled ? ORANGE : INK)),
+      k.z(51),
+    ]);
+  }
+
+  // Save once, then auto-return after 3s. Reset module-scoped counters so
+  // the next entry starts clean. saveProgress(5, correctCount) only fires
+  // here — the correct-tap branch never calls saveProgress, so we never
+  // double-save.
+  saveProgress(5, correctCount);
+  k.wait(3.0, () => {
+    roundIdx = 0;
+    streak = 0;
+    k.go("gamesPicker");
+  });
+}
+
 export default function gameWhack(k) {
   sceneBg(k, "bg-meadow");
 
@@ -90,9 +148,14 @@ export default function gameWhack(k) {
   // results scene. Also set by the back-button so surviving k.wait
   // callbacks (which all check state.finished) don't fire on the
   // destination scene and spawn stray moles/equation/audio.
+  // `sceneAlive` is cleared ONLY by the back button so the timeup chain's
+  // own k.wait callbacks can bail when the player hits ← during the
+  // post-timer celebration (otherwise the celebrate/playSequence/showSummary
+  // block would land on the gamesPicker scene after navigation).
   const state = {
     finished: false,
     pending: null,
+    sceneAlive: true,
   };
 
   iconButton(k, {
@@ -101,6 +164,7 @@ export default function gameWhack(k) {
       // Gate surviving k.wait callbacks before navigating — otherwise
       // the in-flight celebration chain (correct/wrong path) fires on
       // gamesPicker and spawns stray moles + audio.
+      state.sceneAlive = false;
       state.finished = true;
       roundIdx = 0;
       streak = 0;
@@ -403,5 +467,58 @@ export default function gameWhack(k) {
         });
       }
     });
+  });
+
+  // === 90s timer ===
+  // Decrements timerText every frame (display rounds to ceil). Below 10s,
+  // color flips to DANGER red and the text pulses 0.95→1.05 every second.
+  // At 0 the tick cancels itself, sets state.finished, and fires the
+  // time-up chain: whack-timeup cue → celebrate + cheer chain → summary
+  // overlay. chainDurationSec sums the full cheer chain so the fallback
+  // timer (inner k.wait) can't pre-empt the celebration mid-stride — per
+  // panda-audio-safety-ceiling-full-chain memory.
+  const start = k.time();
+  const tick = k.onUpdate(() => {
+    // Back button cleared sceneAlive; tick should also wind down so it
+    // doesn't keep mutating timerText on the gamesPicker scene.
+    if (state.finished) { tick.cancel(); return; }
+    const elapsed = k.time() - start;
+    const remaining = Math.max(0, Math.ceil(TIME_LIMIT - elapsed));
+    timerText.text = String(remaining);
+    if (remaining <= 10) {
+      timerText.color = k.rgb(...DANGER);
+      // Subtle 5% scale pulse, one cycle per second. Phase is the
+      // fractional second inside the current countdown window.
+      const phase = (TIME_LIMIT - elapsed) % 1;
+      const pulse = 1 + Math.sin(phase * Math.PI * 2) * 0.05;
+      timerText.scale = k.vec2(pulse, pulse);
+    }
+    if (elapsed >= TIME_LIMIT) {
+      tick.cancel();
+      state.finished = true;
+      // Time-up audio chain — stopAllAudio enforces single-active-audio
+      // invariant (panda memory). whack-timeup is a fixed cue, not the
+      // cheer chain, so reading its .duration from PandaAudio.audio gives
+      // an accurate wait without the chainDurationSec loop.
+      window.PandaAudio.stopAllAudio();
+      window.PandaAudio.playCue("whack-timeup");
+      const td = (window.PandaAudio?.audio?.["whack-timeup"]?.duration || 1) + 0.3;
+      k.wait(td, () => {
+        // Bail if the player tapped ← during the timeup cue.
+        if (!state.sceneAlive) return;
+        // Celebratory close based on score. tier controls particle burst
+        // count + panda hop per components/celebration.js.
+        const tier = correctCount >= 10 ? "level" : correctCount >= 6 ? "streak5" : "first";
+        celebrate(k, { tier, pandaBody: buddy?.body, pandaBaseSize: 200 });
+        const { chain } = pickCheerCue({ streak: 0, isRoundComplete: true, levelId: 5, hasDiscovery: false });
+        window.PandaAudio.playSequence(chain, 200, 0);
+        const dur = chainDurationSec(chain, 200);
+        k.wait(dur, () => {
+          // Bail if the player tapped ← during the cheer chain.
+          if (!state.sceneAlive) return;
+          showSummary(k, correctCount, buddy);
+        });
+      });
+    }
   });
 }
