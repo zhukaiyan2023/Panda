@@ -213,7 +213,7 @@ export default function gameWhack(k) {
       slots: [String(currentQ.a), "+", String(currentQ.b), "=", "□"],
       x: 748, y: 320, size: 100,
       boxMode: true,
-      reserve: ["11", "+", "9", "=", "11"],
+      reserve: ["17", "+", "9", "=", "11"],
     });
 
     // Populate 6 holes — each hole shows one of the 6 candidates (the
