@@ -16,20 +16,20 @@ import { poolGens } from "./data/pools.js?v=20260812";
 // 10 rounds per session from the full enumeration. This inline levelsData
 // only carries metadata (title, intro) for the menu UI.
 //
-// Four math levels (added 2026-08-11 when the original combined L1
-// was split into sum-≤-10 + two-sum-to-10, and 凑十法 / 二十以内 were
-// renumbered to L3 / L4):
+// Five math levels (added 2026-08-15 when L5「十几加十几」was added):
 //   L1 三数相加<10  sum of three 1-digit addends ≤ 10
 //   L2 两个数凑十   three addends where two sum to 10
 //   L3 凑十法       single-digit pair whose sum > 10, teach the
 //                   make-a-ten decomposition
 //   L4 二十以内     teen + digit, no-carry, use 10+ones strategy
+//   L5 十几加十几   two teens + two teens, no carry, 5-step decomposition
 const levelsData = {
   "levels": [
     { "id": 1, "title": "三数相加" },
     { "id": 2, "title": "两数凑十" },
     { "id": 3, "title": "凑十法" },
     { "id": 4, "title": "二十以内" },
+    { "id": 5, "title": "十几加十几" },
   ],
 };
 
@@ -569,6 +569,23 @@ function computePoolCueIds(levelId) {
       ids.add(`l3-s2-${ones}-${r.b}`);
       ids.add(`l3-s3-${sum}`);
       ids.add(`l3-rwd-${r.a}-${r.b}-${r.answer}`);
+    }
+  } else if (levelId === 5) {
+    // L5 十几加十几 — 5 步预生成 MP3 + 奖励。
+    // cue 模板：
+    //   l5-s1-{a}-{b}    拆 a
+    //   l5-s2-{a}-{b}    拆 b
+    //   l5-s3-{oA}-{oB}  加个位
+    //   l5-s4            静态"十加十等于 20"
+    //   l5-s5-{sum}      加起来
+    //   l5-rwd-{a}-{b}-{answer}   完整算式读出
+    for (const r of poolGens[5]()) {
+      ids.add(`l5-s1-${r.a}-${r.b}`);
+      ids.add(`l5-s2-${r.a}-${r.b}`);
+      ids.add(`l5-s3-${r.onesA}-${r.onesB}`);
+      ids.add(`l5-s4`);
+      ids.add(`l5-s5-${r.sum}`);
+      ids.add(`l5-rwd-${r.a}-${r.b}-${r.answer}`);
     }
   }
   return ids;
