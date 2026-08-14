@@ -217,6 +217,17 @@ export default function gameWhack(k) {
   // Panda.
   const buddy = panda(k, { x: 130, y: 800, size: 200 });
 
+  // Clicking the panda clears any pending selection (currently unused
+  // but mirrors pairScene for consistency).
+  if (buddy.root) {
+    buddy.root.onClick(() => {
+      if (state.pending !== null) {
+        holes[state.pending].setSelected(false);
+        state.pending = null;
+      }
+    });
+  }
+
   // Equation — re-rendered per question via destroy + recreate (see
   // buildAndSpawn below). The component exposes only slotCenters /
   // slotSizes / slotY — not textNodes — so in-place text mutation isn't
