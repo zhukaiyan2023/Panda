@@ -1096,6 +1096,7 @@ watchOrientation();
     { default: gameBounce },
     { default: gameCloud },
     { default: gameFeed },
+    { default: gameWhack },
   ] = await Promise.all([
     import("./scenes/levelPicker.js?v=20260815"),
     import("./scenes/gamesPicker.js?v=20260815"),
@@ -1109,6 +1110,7 @@ watchOrientation();
     import("./scenes/gameBounce.js?v=20260815"),
     import("./scenes/gameCloud.js?v=20260815"),
     import("./scenes/gameFeed.js?v=20260815"),
+    import("./scenes/gameWhack.js?v=20260815"),
   ]);
 
   // Sprites must be resolved before the first scene runs: scenes decide at build
@@ -1128,6 +1130,7 @@ watchOrientation();
   k.scene("gameBounce", () => gameBounce(k));
   k.scene("gameCloud",  () => gameCloud(k));
   k.scene("gameFeed",   () => gameFeed(k));
+  k.scene("gameWhack",  () => gameWhack(k));
 
   k.go("levelPicker");
 })();
