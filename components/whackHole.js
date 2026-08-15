@@ -1,74 +1,27 @@
-// components/whackHole.js — one hole + its mole for gameWhack.
-//
-// Each hole owns four kaplay entities: a hole sprite (one of 3 AI variants),
-// a mole sprite that pops up from below the rim, a yellow badge circle for
-// the candidate-answer number, and the digit text. z-order: hole(z=2) over
-// mole(z=1) so the grass rim covers the mole's lower body, head pokes above.
-//
-// Animation timings (slow for 3-6 year olds):
-//   popUp      1.0s ease-out, 180px rise, idle bob ±12px / 1.6s
-//   retreat    0.8s ease-in
-//   flashCorrect  0.5s (scale pulse + halo) then retreat
-//   shake      0.5s (horizontal jitter, ±12 then ±8)
-//
-// API:
-//   whackHole(k, { x, y, variant }) → hole
-//   hole.popUp(value)        — slow rise + show number, idle bob
-//   hole.retreat()           — sink back, opacity fade
-//   hole.setSelected(on)     — badge yellow → orange
-//   hole.flashCorrect()      — scale pulse + halo + retreat (call once per correct)
-//   hole.shake()             — horizontal jitter (call once per wrong)
-//   hole.isOccupied()        — true while a mole is up
-//   hole.getValue()          — current number on the badge, or null
+// components/whackHole.js — one hole + its mole + answer badge for gameWhack.
+// The mole and answer badge are treated as one visual unit: all movement,
+// hiding/showing, bobbing and retreat operations update both together.
 
 import { INK, YELLOW, ORANGE } from "./theme.js?v=20260815";
 
-// Sprite scale notes (2026-08-15):
-//   task-4 generated the 6 ink moles (mole-1..mole-6.png) at cutout
-//   bounding boxes 527-749×634-806, and the 3 holes (mole-hole-1..3.png)
-//   at 762-783×397-647. The brief's plan assumed 1024×1024 mole + 1248×832
-//   hole sprites, with MOLE_SCALE=0.16 / HOLE_SCALE=0.20 producing ~164×164
-//   moles and ~250×166 holes. With the actual cutout sizes those constants
-//   would yield only ~84-120 px wide moles (less than half the intended
-//   on-screen size, too small to read at iPad-arm's-length). Bumped
-//   MOLE_SCALE to 0.24 → 126-180 px wide moles, kept HOLE_SCALE at 0.20.
-//
-//   Final-review screenshot (2026-08-15) caught overlap that earlier per-
-//   task reviews missed: at MOLE_SCALE=0.24 the mole heads at y=GRID_Y0
-//   +MOLE_Y_OFFSET=420 land exactly on the hint text
-//   "点中头顶是答案的地鼠" at y=420, completely covering it and brushing
-//   the bottom of the equation at y=320 — unreadable for a 3-6 year-old.
-//   Reduced MOLE_SCALE to 0.14 → ~74-105 px wide × ~89-108 px tall moles.
-//   Smaller mole body fits INSIDE the hole sprite (hole half-height ≈52,
-//   mole half-height ≈50) so the body is hidden behind the hole rim and
-//   only the head pokes above — classic whack-a-mole look (previously
-//   0.18 made the body extend below the rim, looking like the mole was
-//   standing ON TOP of the hole). HOLE_SCALE stays at 0.20 → ~152-157 px
-//   wide holes — the planar 762-783 px source ratio means 0.20 already
-//   reads correctly.
-const HOLE_SCALE = 0.20;     // 762-783×397-647 source → ~152-157 wide
-const MOLE_SCALE = 0.14;     // 527-749×634-806 source → ~74-105 wide (reduced 0.18→0.14 so mole body fits inside hole, head pops above rim)
-const MOLE_Y_OFFSET = -50;   // mole center sits 50px above hole center: head fully visible above rim, lower body hidden behind hole sprite
-const BADGE_Y_OFFSET = -100; // badge sits on the forehead (head top at hole.y-100, badge at hole.y-100 = at forehead)
+const HOLE_SCALE = 0.20;
+const MOLE_SCALE = 0.14;
+const MOLE_Y_OFFSET = -50;
+const BADGE_OFFSET_X = 0;
+const BADGE_OFFSET_Y = -50; // relative to mole center
 const BADGE_RADIUS = 28;
 
-// Animation tunables (seconds). Tuned for 3-6 year olds on iPad Safari:
-// popUp travel 180px (was 120, gives the mole a clear rise from inside
-// the hole), POP_DUR 1.0s (was 0.8, gives kids time to see the rise),
-// RETREAT_DUR 0.8s (matches popUp for symmetry), bob ±12px (was ±8,
-// still subtle but readable at arm's-length).
 const POP_DUR = 1.0;
 const RETREAT_DUR = 0.8;
 const SHAKE_DUR = 0.5;
 const FLASH_DUR = 0.5;
 const BOB_AMP = 12;
-const BOB_FREQ = (2 * Math.PI) / 1.6;  // ω for 1.6s period
-const POP_TRAVEL = 180;  // px below the resting endY where the mole starts
+const BOB_FREQ = (2 * Math.PI) / 1.6;
+const POP_TRAVEL = 180;
 
 export default function whackHole(k, { x, y, variant }) {
-  const v = ((variant % 3) + 3) % 3;  // clamp variant to 0..2
+  const v = ((variant % 3) + 3) % 3;
 
-  // Hole sprite (AI ink-grass variant).
   const hole = k.add([
     k.sprite(`mole-hole-${v + 1}`),
     k.pos(x, y),
@@ -77,13 +30,9 @@ export default function whackHole(k, { x, y, variant }) {
     k.z(2),
   ]);
 
-  // Mole sprite, starts hidden below rim. Carries k.area() so taps on
-  // the visible mole register a click as a fallback to the invisible
-  // hit rect in scenes/gameWhack.js — the user reported taps having
-  // no response and we want belt-and-suspenders coverage.
   const mole = k.add([
-    k.sprite("mole-1"),  // placeholder variant; popUp swaps to a random variant
-    k.pos(x, y + MOLE_Y_OFFSET + POP_TRAVEL),  // start POP_TRAVEL px below pop position
+    k.sprite("mole-1"),
+    k.pos(x, y + MOLE_Y_OFFSET + POP_TRAVEL),
     k.anchor("center"),
     k.scale(MOLE_SCALE),
     k.opacity(0),
@@ -91,12 +40,13 @@ export default function whackHole(k, { x, y, variant }) {
     k.z(1),
   ]);
 
-  // Number badge + digit on the mole's forehead.
+  // Badge and digit are deliberately positioned relative to mole.pos,
+  // never the hole's fixed position. This makes them a single visual unit.
   const badge = k.add([
     k.circle(BADGE_RADIUS),
     k.color(...YELLOW),
     k.outline(3, k.rgb(...INK)),
-    k.pos(x, y + BADGE_Y_OFFSET),
+    k.pos(x, y + MOLE_Y_OFFSET + BADGE_OFFSET_Y),
     k.anchor("center"),
     k.opacity(0),
     k.z(3),
@@ -104,7 +54,7 @@ export default function whackHole(k, { x, y, variant }) {
   const num = k.add([
     k.text("0", { size: 36, font: "Arial Rounded MT Bold, Trebuchet MS, system-ui, sans-serif" }),
     k.color(...INK),
-    k.pos(x, y + BADGE_Y_OFFSET),
+    k.pos(x, y + MOLE_Y_OFFSET + BADGE_OFFSET_Y),
     k.anchor("center"),
     k.opacity(0),
     k.z(4),
@@ -113,49 +63,73 @@ export default function whackHole(k, { x, y, variant }) {
   let occupied = false;
   let value = null;
   let cancelBob = null;
+  let cancelAnimation = null;
 
   function cancelBobFn() {
-    // cancelBob is the KEventController returned by mole.onUpdate() — it
-    // exposes a .cancel() method, not call-as-function. Calling it
-    // directly throws "cancelBob is not a function" and aborts the
-    // caller (e.g. flashCorrect on a correct pick), which silently
-    // killed the entire celebrate + audio chain. The companion loops
-    // (popUp / retreat / flashCorrect / shake) all use handler.cancel();
-    // this was the only bare call left.
-    if (cancelBob) { cancelBob.cancel(); cancelBob = null; }
+    if (cancelBob) {
+      cancelBob.cancel();
+      cancelBob = null;
+    }
+  }
+
+  function cancelAnimationFn() {
+    if (cancelAnimation) {
+      cancelAnimation.cancel();
+      cancelAnimation = null;
+    }
+  }
+
+  function syncBadge() {
+    badge.pos.x = mole.pos.x + BADGE_OFFSET_X;
+    badge.pos.y = mole.pos.y + BADGE_OFFSET_Y;
+    num.pos.x = badge.pos.x;
+    num.pos.y = badge.pos.y;
+  }
+
+  function hideVisual() {
+    mole.opacity = 0;
+    badge.opacity = 0;
+    num.opacity = 0;
+  }
+
+  function showVisual() {
+    mole.opacity = 1;
+    badge.opacity = 1;
+    num.opacity = 1;
   }
 
   function popUp(v_) {
+    cancelBobFn();
+    cancelAnimationFn();
+
     occupied = true;
     value = v_;
     num.text = String(v_);
 
-    // Random mole variant for visual variety (1..6).
     const variantIdx = 1 + Math.floor(Math.random() * 6);
     mole.use(k.sprite(`mole-${variantIdx}`));
 
-    // Tween rise — solid mole, no fade. Position is set to startY (below
-    // hole rim) so the mole body rises visibly from inside the hole; opacity
-    // is 1 throughout so the mole reads as a solid pop-up, not a fade-in.
     const startY = y + MOLE_Y_OFFSET + POP_TRAVEL;
     const endY = y + MOLE_Y_OFFSET;
-    const t0 = k.time();
-    mole.opacity = 1;
-    badge.opacity = 1;
-    num.opacity = 1;
+    mole.pos.x = x;
     mole.pos.y = startY;
-    badge.pos.y = y + BADGE_Y_OFFSET;
-    num.pos.y = y + BADGE_Y_OFFSET;
-    let popHandler = mole.onUpdate(() => {
+    syncBadge();
+    showVisual();
+
+    const t0 = k.time();
+    cancelAnimation = mole.onUpdate(() => {
       const t = (k.time() - t0) / POP_DUR;
       if (t >= 1) {
         mole.pos.y = endY;
-        popHandler.cancel();
+        syncBadge();
+        cancelAnimation.cancel();
+        cancelAnimation = null;
         startBob();
         return;
       }
-      const ease = 1 - Math.pow(1 - t, 3);  // ease-out cubic
+      const ease = 1 - Math.pow(1 - t, 3);
       mole.pos.y = startY + (endY - startY) * ease;
+      syncBadge();
     });
   }
 
@@ -164,31 +138,45 @@ export default function whackHole(k, { x, y, variant }) {
     const baseY = y + MOLE_Y_OFFSET;
     const t0 = k.time();
     cancelBob = mole.onUpdate(() => {
-      if (!occupied) { cancelBobFn(); return; }
+      if (!occupied) {
+        cancelBobFn();
+        return;
+      }
       const t = k.time() - t0;
       mole.pos.y = baseY - Math.sin(t * BOB_FREQ) * BOB_AMP;
+      syncBadge();
     });
   }
 
   function retreat() {
     cancelBobFn();
+    cancelAnimationFn();
+
     occupied = false;
     value = null;
+
     const startY = mole.pos.y;
     const endY = y + MOLE_Y_OFFSET + POP_TRAVEL;
     const t0 = k.time();
-    let handler = mole.onUpdate(() => {
+    cancelAnimation = mole.onUpdate(() => {
       const t = (k.time() - t0) / RETREAT_DUR;
       if (t >= 1) {
         mole.pos.y = endY;
-        mole.opacity = 0;
-        badge.opacity = 0;
-        num.opacity = 0;
-        handler.cancel();
+        syncBadge();
+        hideVisual();
+        cancelAnimation.cancel();
+        cancelAnimation = null;
         return;
       }
-      const ease = t * t;  // ease-in quad
+      const ease = t * t;
       mole.pos.y = startY + (endY - startY) * ease;
+      // Keep the number attached while the mole sinks.
+      syncBadge();
+      // Fade the complete unit together during retreat.
+      const opacity = 1 - t;
+      mole.opacity = opacity;
+      badge.opacity = opacity;
+      num.opacity = opacity;
     });
   }
 
@@ -198,46 +186,56 @@ export default function whackHole(k, { x, y, variant }) {
 
   function flashCorrect() {
     cancelBobFn();
+    cancelAnimationFn();
+
     const startScale = MOLE_SCALE;
     const peakScale = MOLE_SCALE * 1.4;
     const baseY = mole.pos.y;
     const t0 = k.time();
-    let handler = mole.onUpdate(() => {
+    cancelAnimation = mole.onUpdate(() => {
       const t = (k.time() - t0) / FLASH_DUR;
       if (t >= 1) {
         mole.scale = k.vec2(startScale, startScale);
-        handler.cancel();
+        syncBadge();
+        cancelAnimation.cancel();
+        cancelAnimation = null;
         retreat();
         return;
       }
-      // Bell curve: peak at t=0.3.
       const bell = Math.sin(Math.min(t / 0.6, 1) * Math.PI);
       const s = startScale + (peakScale - startScale) * bell;
       mole.scale = k.vec2(s, s);
       mole.pos.y = baseY;
+      syncBadge();
     });
   }
 
   function shake() {
+    cancelBobFn();
+    cancelAnimationFn();
     const baseX = x;
     const t0 = k.time();
-    let handler = mole.onUpdate(() => {
+    cancelAnimation = mole.onUpdate(() => {
       const t = (k.time() - t0) / SHAKE_DUR;
       if (t >= 1) {
         mole.pos.x = baseX;
-        handler.cancel();
+        syncBadge();
+        cancelAnimation.cancel();
+        cancelAnimation = null;
+        startBob();
         return;
       }
-      // Decaying sine: amp 12 → 8 → 0.
       const amp = 12 * (1 - t);
       mole.pos.x = baseX + Math.sin(t * 60) * amp;
+      syncBadge();
     });
   }
 
   return {
-    x, y,
+    x,
+    y,
     variant: v,
-    mole,             // exposed for tap fallback (scenes/gameWhack.js)
+    mole,
     popUp,
     retreat,
     setSelected,
