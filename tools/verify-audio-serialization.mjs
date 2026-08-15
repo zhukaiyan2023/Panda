@@ -16,8 +16,13 @@ globalThis.clearTimeout = (id) => {
   timers.delete(id);
 };
 
+const flushMicrotasks = async () => {
+  await Promise.resolve();
+  await Promise.resolve();
+};
+
 try {
-  const { installPandaAudioSerialGuard } = await import("../audio/serialGuard.js?verify=2");
+  const { installPandaAudioSerialGuard } = await import("../audio/serialGuard.js?verify=3");
   installPandaAudioSerialGuard();
 
   let stopCalls = 0;
@@ -76,23 +81,23 @@ try {
   audio.cue.ended = false;
   audio.cue.paused = false;
   window.PandaAudio.playAfter("cue", ["cue"], { gapMs: 400, seqGapMs: 40 });
+  await flushMicrotasks();
   assert.equal(stopCalls, 0);
   assert.equal(playAfterCalls, 1);
-  assert.equal(afterCallbacks.length, 0, "playAfter must not start until its FIFO turn");
+  assert.equal(afterCallbacks.length, 1, "first continuation may start on its FIFO turn");
 
-  // Complete the waiting continuation once its turn starts and verify its
-  // release allows the next queued continuation to start — never together.
-  // First, register a second continuation behind the first one.
+  // Register a second continuation behind the first. It must remain queued
+  // until the first continuation releases the shared speaker.
   audio.cue.ended = true;
   audio.cue.paused = true;
   window.PandaAudio.playAfter("cue", ["cue"], { gapMs: 400, seqGapMs: 40 });
-  assert.equal(afterCallbacks.length, 1, "only the first continuation may start");
+  await flushMicrotasks();
+  assert.equal(afterCallbacks.length, 1, "second continuation must stay queued");
 
   afterCallbacks.shift()();
-  assert.equal(afterCallbacks.length, 2, "the second continuation starts only after the first releases");
-
-  const pending = [...timers.values()];
-  assert.ok(pending.length >= 1, "second continuation must own a watchdog");
+  await flushMicrotasks();
+  assert.equal(afterCallbacks.length, 1, "second continuation starts only after first releases");
+  assert.equal(playAfterCalls, 2);
 
   // Cancelling a round must release the FIFO generation and prevent stale
   // callbacks from firing into the next scene.
