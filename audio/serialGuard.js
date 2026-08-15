@@ -29,7 +29,10 @@ function sequenceEstimateMs(audio, ids, seqGapMs = 90, startDelayMs = 0) {
   const gap = Math.max(0, Number(seqGapMs) || 0);
   const start = Math.max(0, Number(startDelayMs) || 0);
   const cueMs = ids.reduce((sum, id) => sum + cueDurationMs(audio, id), 0);
-  return Math.max(MIN_GUARD_MS, start + cueMs + gap * Math.max(0, ids.length - 1) + SAFETY_BUFFER_MS);
+  return Math.max(
+    MIN_GUARD_MS,
+    start + cueMs + gap * Math.max(0, ids.length - 1) + SAFETY_BUFFER_MS,
+  );
 }
 
 function install(value) {
@@ -62,14 +65,19 @@ function install(value) {
     value.stopAllAudio();
 
     let completed = false;
+    let timer = null;
     const complete = () => {
       if (completed) return;
       completed = true;
+      if (timer != null) {
+        clearTimeout(timer);
+        guardTimers.delete(timer);
+      }
       if (onComplete) onComplete();
     };
 
     const timeoutMs = sequenceEstimateMs(value.audio, ids, seqGapMs, startDelayMs);
-    const timer = setTimeout(() => {
+    timer = setTimeout(() => {
       guardTimers.delete(timer);
       if (completed) return;
       // If the normal ended-event chain is stuck, stop the stale sequence
@@ -107,9 +115,14 @@ function install(value) {
     }
 
     let completed = false;
+    let timer = null;
     const complete = () => {
       if (completed) return;
       completed = true;
+      if (timer != null) {
+        clearTimeout(timer);
+        guardTimers.delete(timer);
+      }
       if (onComplete) onComplete();
     };
 
@@ -123,7 +136,7 @@ function install(value) {
       refWaitMs + gapMs + sequenceEstimateMs(value.audio, ids, seqGapMs, 0),
     );
 
-    const timer = setTimeout(() => {
+    timer = setTimeout(() => {
       guardTimers.delete(timer);
       if (completed) return;
       value.stopAllAudio();
@@ -133,8 +146,6 @@ function install(value) {
 
     try {
       originalPlayAfter(referenceId, ids, opts, () => {
-        guardTimers.delete(timer);
-        clearTimeout(timer);
         complete();
       });
     } catch (err) {
