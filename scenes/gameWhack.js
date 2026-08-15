@@ -12,6 +12,7 @@ import whackHole from "../components/whackHole.js?v=20260815";
 import { celebrate } from "../components/celebration.js?v=20260815";
 import { pickCheerCue, pickWrongCue } from "../audio/praise.js?v=20260815";
 import { buildQuestion, pickType } from "../data/whackRounds.js?v=20260815";
+import { ALL_SPRITE_NAMES } from "../data/whackPack.js?v=20260815";
 
 const TIME_LIMIT = 90;
 const HOLE_COUNT = 6;
@@ -107,6 +108,20 @@ function showSummary(k, count, buddy) {
 export default function gameWhack(k) {
   sceneBg(k, "bg-meadow");
 
+  // Preflight: check that all 54 baked mole+number sprites are loaded.
+  // If any are missing, fall back to the legacy badge + num path so the
+  // game still plays during partial asset delivery.
+  function hasSprite(name) {
+    try { return !!k.getSprite(name); } catch (_) { return false; }
+  }
+  const missingSprites = ALL_SPRITE_NAMES.filter((n) => !hasSprite(k, n));
+  const useBakedSprite = missingSprites.length === 0;
+  if (!useBakedSprite) {
+    console.warn(
+      `[whack] missing ${missingSprites.length} sprites, falling back to badge style. First few: ${missingSprites.slice(0, 5).join(", ")}`,
+    );
+  }
+
   const state = {
     finished: false,
     sceneAlive: true,
@@ -174,7 +189,7 @@ export default function gameWhack(k) {
     const row = Math.floor(i / HOLE_COLS);
     const x = GRID_X + col * HOLE_CELLW;
     const y = row === 0 ? GRID_Y0 : GRID_Y1;
-    const h = whackHole(k, { x, y, variant: variants[i] });
+    const h = whackHole(k, { x, y, variant: variants[i], useBakedSprite });
     h._tapped = false;
     holes.push(h);
   }
