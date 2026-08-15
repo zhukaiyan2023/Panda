@@ -149,8 +149,12 @@ export function buildManifest() {
     push(`l5-rwd-${a}-${b}-${answer}`,
       `${numZh(a)}加${numZh(b)}等于${numZh(answer)}`);
   }
-  // Static cue — every L5 round plays this on step 4.
-  push("l5-s4", "十加十等于二十");
+  // Static cue — every L5 round plays this on step 4. The phrasing is
+  // "十加十等于几" (ten plus ten equals what?), NOT "等于二十" — the answer
+  // options at step 4 are {18, 19, 20} so the kid needs to compute the
+  // answer themselves, the audio shouldn't give it away. Per user
+  // feedback 2026-08-15: "十加十等于二十应该改成十加十等于几".
+  push("l5-s4", "十加十等于几");
 
   // ---- Dedupe, and refuse to guess on conflicts -------------------------
   const seen = new Map();

@@ -115,7 +115,14 @@ export default function whackHole(k, { x, y, variant }) {
   let cancelBob = null;
 
   function cancelBobFn() {
-    if (cancelBob) { cancelBob(); cancelBob = null; }
+    // cancelBob is the KEventController returned by mole.onUpdate() — it
+    // exposes a .cancel() method, not call-as-function. Calling it
+    // directly throws "cancelBob is not a function" and aborts the
+    // caller (e.g. flashCorrect on a correct pick), which silently
+    // killed the entire celebrate + audio chain. The companion loops
+    // (popUp / retreat / flashCorrect / shake) all use handler.cancel();
+    // this was the only bare call left.
+    if (cancelBob) { cancelBob.cancel(); cancelBob = null; }
   }
 
   function popUp(v_) {
