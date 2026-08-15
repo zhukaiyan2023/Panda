@@ -6,8 +6,8 @@
 // mole(z=1) so the grass rim covers the mole's lower body, head pokes above.
 //
 // Animation timings (slow for 3-6 year olds):
-//   popUp      0.8s ease-out, 120px rise, idle bob ±8px / 1.6s
-//   retreat    0.6s ease-in
+//   popUp      1.0s ease-out, 180px rise, idle bob ±12px / 1.6s
+//   retreat    0.8s ease-in
 //   flashCorrect  0.5s (scale pulse + halo) then retreat
 //   shake      0.5s (horizontal jitter, ±12 then ±8)
 //
@@ -49,16 +49,17 @@ const BADGE_Y_OFFSET = -100; // badge sits on the forehead (head top at hole.y-1
 const BADGE_RADIUS = 28;
 
 // Animation tunables (seconds). Tuned for 3-6 year olds on iPad Safari:
-// popUp travel 120px (was 60, doubled so the rise is clearly visible),
-// retreat 0.6s (was 0.4, gives time to see the mole sink back), bob
-// ±8px (was ±4, still subtle but visible at arm's-length).
-const POP_DUR = 0.8;
-const RETREAT_DUR = 0.6;
+// popUp travel 180px (was 120, gives the mole a clear rise from inside
+// the hole), POP_DUR 1.0s (was 0.8, gives kids time to see the rise),
+// RETREAT_DUR 0.8s (matches popUp for symmetry), bob ±12px (was ±8,
+// still subtle but readable at arm's-length).
+const POP_DUR = 1.0;
+const RETREAT_DUR = 0.8;
 const SHAKE_DUR = 0.5;
 const FLASH_DUR = 0.5;
-const BOB_AMP = 8;
+const BOB_AMP = 12;
 const BOB_FREQ = (2 * Math.PI) / 1.6;  // ω for 1.6s period
-const POP_TRAVEL = 120;  // px below the resting endY where the mole starts
+const POP_TRAVEL = 180;  // px below the resting endY where the mole starts
 
 export default function whackHole(k, { x, y, variant }) {
   const v = ((variant % 3) + 3) % 3;  // clamp variant to 0..2
@@ -122,26 +123,28 @@ export default function whackHole(k, { x, y, variant }) {
     const variantIdx = 1 + Math.floor(Math.random() * 6);
     mole.use(k.sprite(`mole-${variantIdx}`));
 
-    // Tween rise + fade in.
+    // Tween rise — solid mole, no fade. Position is set to startY (below
+    // hole rim) so the mole body rises visibly from inside the hole; opacity
+    // is 1 throughout so the mole reads as a solid pop-up, not a fade-in.
     const startY = y + MOLE_Y_OFFSET + POP_TRAVEL;
     const endY = y + MOLE_Y_OFFSET;
     const t0 = k.time();
+    mole.opacity = 1;
+    badge.opacity = 1;
+    num.opacity = 1;
+    mole.pos.y = startY;
+    badge.pos.y = y + BADGE_Y_OFFSET;
+    num.pos.y = y + BADGE_Y_OFFSET;
     let popHandler = mole.onUpdate(() => {
       const t = (k.time() - t0) / POP_DUR;
       if (t >= 1) {
         mole.pos.y = endY;
-        mole.opacity = 1;
-        badge.opacity = 1;
-        num.opacity = 1;
         popHandler.cancel();
         startBob();
         return;
       }
       const ease = 1 - Math.pow(1 - t, 3);  // ease-out cubic
       mole.pos.y = startY + (endY - startY) * ease;
-      mole.opacity = ease;
-      badge.opacity = ease;
-      num.opacity = ease;
     });
   }
 
@@ -175,9 +178,6 @@ export default function whackHole(k, { x, y, variant }) {
       }
       const ease = t * t;  // ease-in quad
       mole.pos.y = startY + (endY - startY) * ease;
-      mole.opacity = 1 - ease;
-      badge.opacity = 1 - ease;
-      num.opacity = 1 - ease;
     });
   }
 
