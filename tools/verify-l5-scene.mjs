@@ -1,13 +1,10 @@
 #!/usr/bin/env node
-// tools/verify-l5-scene.mjs — L5 关卡专项验证。
+// tools/verify-l5-scene.mjs — L5 关卡专项验证 (v2 persistent layout)。
 //
-// 用 Playwright 启动游戏，进入 L5，跑 3 轮（每轮 5 步），断言：
-//   - 锚 +sub 正确
-//   - 每步正确按钮被接受
-//   - step 5 后锚揭示到 "a + b = answer"
-//
-// 不从 poolGens[5]()[0] 拿预计算的 a/b — 场景内 shuffle，
-// 我们从显式读取的 anchor 数字推算每步答案。
+// v2: 4 persistent sub-equations on screen at once, plus 7
+// decomposition lines between them. Per-step onAdvance reveals one
+// slot. We check each row's content (digits at that y) independently
+// rather than aggregating all sub-y text nodes.
 
 import { chromium } from "playwright";
 
@@ -34,12 +31,6 @@ await page.goto(URL, { waitUntil: "networkidle" });
 await page.waitForTimeout(2000);
 await page.evaluate(() => { window.__skipTimers = true; });
 await page.evaluate(() => { window.__skipDailyCap = true; });
-await page.evaluate(() =>
-  localStorage.setItem(
-    "panda-save-v1",
-    JSON.stringify({ unlockedLevel: 5, starsByLevel: {}, currentLevel: 1 }),
-  ),
-);
 
 await page.evaluate(() => window.kaplay.go("level5"));
 await page.waitForTimeout(1500);
@@ -59,33 +50,26 @@ async function readAllText() {
 }
 
 function readAnchorPair(nodes) {
-  // Anchor at y=220, two-digit numbers at the leftmost positions.
   const anchor = nodes.filter((n) => n.y >= 200 && n.y <= 240);
   const twoDigit = anchor.filter((n) => /^\d{2}$/.test(n.text));
   if (twoDigit.length < 2) return null;
-  // Sort by x to get left and right.
   twoDigit.sort((a, b) => a.x - b.x);
   return { a: parseInt(twoDigit[0].text, 10), b: parseInt(twoDigit[1].text, 10) };
 }
 
-function readSubTwoDigit(nodes) {
-  // Sub at y=440. First two-digit number is the addend ("a" or "b" or "20").
-  const sub = nodes.filter((n) => n.y >= 420 && n.y <= 460);
-  const twoDigit = sub.filter((n) => /^\d+$/.test(n.text));
-  if (twoDigit.length === 0) return null;
-  return twoDigit.map((n) => parseInt(n.text, 10));
-}
-
-function readButtonValues(nodes) {
+function readDigitsAtY(nodes, yCenter, tolerance = 30) {
   return nodes
-    .filter((n) => n.y >= 820 && n.y <= 860)
+    .filter((n) => Math.abs(n.y - yCenter) <= tolerance)
     .filter((n) => /^\d+$/.test(n.text))
-    .map((n) => ({ value: parseInt(n.text, 10), x: n.x, y: n.y }));
+    .map((n) => parseInt(n.text, 10));
 }
 
 async function clickButtonValue(value) {
   const all = await readAllText();
-  const btns = readButtonValues(all);
+  const btns = all
+    .filter((n) => n.y >= 820 && n.y <= 860)
+    .filter((n) => /^\d+$/.test(n.text))
+    .map((n) => ({ value: parseInt(n.text, 10), x: n.x, y: n.y }));
   const target = btns.find((b) => b.value === value);
   if (!target) return false;
   await page.mouse.click(target.x, target.y);
@@ -111,30 +95,74 @@ for (let roundIdx = 0; roundIdx < roundsToPlay; roundIdx++) {
   const sum = onesA + onesB;
   const answer = a + b;
   const correctSequence = [onesA, onesB, sum, 20, answer];
-  // Sub equation digit expectations (operators are sprite, not text, so
-  // we only list the numeric slot contents).
-  const subExpectations = [
-    [String(a), "10"],
-    [String(b), "10"],
-    [String(onesA), String(onesB)],
-    ["10", "10"],
-    ["20", String(sum)],
-  ];
-
   console.log(`\nRound ${roundIdx + 1}: a=${a}, b=${b} (onesA=${onesA}, onesB=${onesB}, sum=${sum}, answer=${answer})`);
 
+  // Row expectations per step (digits at each y position).
+  // y=360 split: should always contain {a, 10, b, 10}.
+  // y=480 ones: should contain onesA + onesB as addends from step 3,
+  //              and the answer (sum) after step 3's reveal.
+  // y=580 tens: should always contain {10, 10}.
+  // y=680 final: should always contain {20, sum}, plus answer after step 5.
+  //
+  // Step 1: reveals □_a → onesA (in split row only).
+  // Step 2: reveals □_b → onesB (in split row only).
+  // Step 3: reveals ? → sum in ones sum row (now shows onesA+onesB=sum).
+  // Step 4: reveals ? → 20 in tens sum row.
+  // Step 5: reveals ? → answer in final row.
   for (let step = 0; step < 5; step++) {
     await page.waitForTimeout(600);
     const stepAll = await readAllText();
-    const subDigits = readSubTwoDigit(stepAll);
-    const expectedSub = subExpectations[step];
-    const actualSub = subDigits.map(String);
-    const subMatches = JSON.stringify(actualSub) === JSON.stringify(expectedSub);
 
-    console.log(`  Step ${step + 1}: sub digits=${JSON.stringify(actualSub)} expected=${JSON.stringify(expectedSub)} ${subMatches ? "✓" : "✗"}`);
+    const splitDigits = readDigitsAtY(stepAll, 360).sort();
+    const onesDigits  = readDigitsAtY(stepAll, 480).sort();
+    const tensDigits  = readDigitsAtY(stepAll, 580).sort();
+    const finalDigits = readDigitsAtY(stepAll, 680).sort();
 
-    if (!subMatches) {
-      console.error(`  FAIL: sub equation digits mismatch at step ${step + 1}`);
+    // Build expected digits for each row at this step.
+    const expectedSplit = [a, 10, b, 10]; // □_a / □_b are box sprites
+    const expectedTens  = [10, 10];
+    const expectedFinal = [20, sum]; // sum is shown from start
+
+    // After step 1 click, □_a → onesA (in split row). After step 2,
+    // □_b → onesB (in split row). Step 3 builds the ones sum row
+    // with addends already revealed from steps 1-2 — so by the time
+    // the kid sees step 3, the ones row shows [onesA, onesB].
+    // Step 3's click reveals the answer slot to sum.
+    let onesAddedInSplit = [];
+    let onesAddedInOnesSum = [];
+    if (step >= 1) onesAddedInSplit.push(onesA);
+    if (step >= 2) onesAddedInSplit.push(onesB);
+    // Step 3 (index 2) builds the ones sum row with addends visible.
+    // Steps 0/1 (before step 3 builds the row) have no ones row.
+    if (step >= 2) {
+      onesAddedInOnesSum.push(onesA, onesB);
+    }
+    // Step 4 (index 3) is the first step where the ones row also has
+    // its answer slot revealed to sum.
+    if (step >= 3) {
+      onesAddedInOnesSum.push(sum);
+    }
+
+    const expSplit = [...expectedSplit, ...onesAddedInSplit].sort();
+    const expOnes  = [...onesAddedInOnesSum].sort();
+    const expTens  = [...expectedTens];
+    if (step >= 4) expTens.push(20);
+    const expFinal = [...expectedFinal];
+    if (step >= 5) expFinal.push(answer);
+
+    const splitOK = JSON.stringify(splitDigits) === JSON.stringify(expSplit);
+    const onesOK  = JSON.stringify(onesDigits)  === JSON.stringify(expOnes);
+    const tensOK  = JSON.stringify(tensDigits)  === JSON.stringify(expTens);
+    const finalOK = JSON.stringify(finalDigits) === JSON.stringify(expFinal);
+
+    console.log(`  Step ${step + 1}:`);
+    console.log(`    split y=360: ${JSON.stringify(splitDigits)} expected ${JSON.stringify(expSplit)} ${splitOK ? "✓" : "✗"}`);
+    console.log(`    ones  y=480: ${JSON.stringify(onesDigits)} expected ${JSON.stringify(expOnes)} ${onesOK ? "✓" : "✗"}`);
+    console.log(`    tens  y=580: ${JSON.stringify(tensDigits)} expected ${JSON.stringify(expTens)} ${tensOK ? "✓" : "✗"}`);
+    console.log(`    final y=680: ${JSON.stringify(finalDigits)} expected ${JSON.stringify(expFinal)} ${finalOK ? "✓" : "✗"}`);
+
+    if (!splitOK || !onesOK || !tensOK || !finalOK) {
+      console.error(`  FAIL: row digits mismatch at step ${step + 1}`);
       console.error("  all text nodes:", JSON.stringify(stepAll, null, 2));
       process.exit(1);
     }
@@ -148,12 +176,6 @@ for (let roundIdx = 0; roundIdx < roundsToPlay; roundIdx++) {
     totalQuestions++;
   }
 
-  // After step 5, the anchor reveals to "a + b = answer" before the
-  // round finishes. In test mode the next round loads within ~50ms
-  // (roundScene.advance kicks in via TEST_DELAY = 0.05s k.wait), so the
-  // reveal window is too narrow to capture reliably from outside. Skip
-  // the final-anchor check — the 5 step sub-equations + button picks
-  // already prove the scene teaches the full 5-step decomposition.
   console.log(`  ✓ 5 steps completed for (a=${a}, b=${b}, answer=${answer})`);
 }
 

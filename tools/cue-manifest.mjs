@@ -130,6 +130,28 @@ export function buildManifest() {
     push(`l3-rwd-${a}-${b}-${answer}`, `${numZh(a)}加${numZh(b)}等于${numZh(answer)}`);
   }
 
+  // ---- L5 十几加十几 (cue ids are l5-*) ------------------------------------
+  // Pool rule (data/pools.js generateL5Pool):
+  //   a, b ∈ [11, 19]; onesA + onesB ≤ 9 (no carry); sum = onesA+onesB;
+  //   answer = a + b ∈ [22, 29].
+  // 5-step teaching: 拆 a / 拆 b / 加个位 / 加十位 / 加起来.
+  for (const r of poolGens[5]()) {
+    const { a, b, onesA, onesB, sum, answer } = r;
+    push(`l5-s1-${a}-${b}`,
+      `${numZh(a)}加${numZh(b)}等于几，我们先把${numZh(a)}拆成十加几`);
+    push(`l5-s2-${a}-${b}`,
+      `我们再把${numZh(b)}拆成十加几`);
+    push(`l5-s3-${onesA}-${onesB}`,
+      `个位相加${numZh(onesA)}加${numZh(onesB)}等于几`);
+    // l5-s4 is a static cue — emitted once outside the loop below.
+    push(`l5-s5-${sum}`,
+      `二十加${numZh(sum)}等于几`);
+    push(`l5-rwd-${a}-${b}-${answer}`,
+      `${numZh(a)}加${numZh(b)}等于${numZh(answer)}`);
+  }
+  // Static cue — every L5 round plays this on step 4.
+  push("l5-s4", "十加十等于二十");
+
   // ---- Dedupe, and refuse to guess on conflicts -------------------------
   const seen = new Map();
   const deduped = [];
