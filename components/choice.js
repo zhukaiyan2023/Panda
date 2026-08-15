@@ -14,8 +14,27 @@ function hitShape(k, x, y, w, h) {
   return k.area({ shape: new k.Rect(k.vec2(x - w / 2, y - h / 2), w, h) });
 }
 
+// Answer interaction has one important cross-button invariant:
+// once a correct answer is accepted, no other answer button from that
+// step may fire while the encouragement / transition audio is still running.
+// The round scaffold creates a fresh set of choice buttons for every step.
+// We therefore use a tiny shared lock here: setCorrect() acquires it, and the
+// next choice() creation releases it. This prevents a child from tapping a
+// second answer while the first correct-answer feedback is playing and
+// accidentally creating a second cheer/advance chain.
+function isAnswerLocked() {
+  return typeof window !== "undefined" && window.__pandaAnswerLocked === true;
+}
+
+function resetAnswerLockForNewStep() {
+  if (typeof window !== "undefined") window.__pandaAnswerLocked = false;
+}
+
 export default function choice(parent, opts = {}) {
   const k = window.kaplay;
+  // Every newly-rendered answer row starts a fresh interaction window.
+  resetAnswerLockForNewStep();
+
   const label = String(opts.label);
   const x = opts.x;
   const y = opts.y;
@@ -52,7 +71,10 @@ export default function choice(parent, opts = {}) {
   if (opts.onClick && !opts.disabled) {
     // Kaplay is configured with touchToMouse, so onClick covers both mouse and
     // touch input without double-firing on iPad Safari.
-    root.onClick(() => opts.onClick());
+    root.onClick(() => {
+      if (isAnswerLocked()) return;
+      opts.onClick();
+    });
   }
 
   root.setDisabled = (disabled) => {
@@ -63,8 +85,10 @@ export default function choice(parent, opts = {}) {
   };
 
   // Marks a button as the confirmed correct answer, distinct from the dimmed
-  // "already tried this" state.
+  // "already tried this" state. It also locks the entire answer row until
+  // the next teaching step creates a fresh set of choice buttons.
   root.setCorrect = () => {
+    if (typeof window !== "undefined") window.__pandaAnswerLocked = true;
     face.color = k.rgb(...ORANGE);
     text.color = k.rgb(255, 255, 255);
   };
