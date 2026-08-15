@@ -40,8 +40,8 @@ html, body {
 
 #game {
   display: block;
-  max-width: 100vw;
-  max-height: 100vh;
+  width: 1366px;
+  height: 1024px;
   background: var(--c-paper);
   touch-action: none;
 }

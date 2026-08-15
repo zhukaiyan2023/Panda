@@ -38,7 +38,9 @@ const page = await ctx.newPage();
 page.on("pageerror", (err) => console.error("[pageerror]", err.message));
 page.on("console", (msg) => {
   if (msg.type() === "error") console.error("[console.error]", msg.text());
+  if (msg.type() === "log" && msg.text().includes("[whack]")) console.log("[console.log]", msg.text());
 });
+
 page.on("response", (res) => {
   if (res.status() >= 400) console.error("[404]", res.url(), "->", res.status());
 });
@@ -65,6 +67,20 @@ await page.waitForTimeout(400);
 const canvas = await page.$("canvas");
 if (!canvas) throw new Error("canvas not found — page did not boot");
 const box = await canvas.boundingBox();
+const dims = await page.evaluate(() => {
+  const c = document.getElementById("game");
+  const r = c.getBoundingClientRect();
+  return { width: c.width, height: c.height, cssWidth: r.width, cssHeight: r.height };
+});
+console.log("[canvas-dims]", JSON.stringify(dims));
+
+// Inspect world-level scene size from the kaplay instance.
+const sceneSize = await page.evaluate(() => {
+  const k = window.kaplay;
+  if (!k) return null;
+  return { width: k.width(), height: k.height(), dt: k.dt?.() };
+});
+console.log("[scene-size]", JSON.stringify(sceneSize));
 
 // Click the "小游戏" tab (levelPicker default scene).
 await page.mouse.click(box.x + 1166, box.y + 200);
