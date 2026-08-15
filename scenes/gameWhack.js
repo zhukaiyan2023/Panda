@@ -26,8 +26,8 @@ const HOLE_COLS = 3;
 const HOLE_CELLW = 320;
 const HOLE_CELLH = 220;
 const GRID_X = 748 - ((HOLE_COLS - 1) * HOLE_CELLW) / 2;  // 428
-const GRID_Y0 = 540;
-const GRID_Y1 = 760;
+const GRID_Y0 = 600;
+const GRID_Y1 = 820;
 
 // Mulberry32 for stable hole-variant assignment.
 function mulberry32(seed) {
@@ -241,13 +241,14 @@ export default function gameWhack(k) {
   ]);
 
   // Grass strip — thin band sitting in the gap between top-row mole bodies
-  // (bottom at y=555) and bottom-row badges (top at y≈610, BADGE_Y_OFFSET=-100
-  // → center y=660, radius ~50). The only clear horizontal space is y=555-610
-  // (55px). Scale the 1400×260 sprite to ~40px tall (scale_y=0.15) and center
-  // at y=582 so we leave ~10px breathing room on both sides.
+  // (bottom at y=615 with GRID_Y0=600) and bottom-row badges (top at y≈670,
+  // BADGE_Y_OFFSET=-100 → center y=720, radius ~50). The only clear
+  // horizontal space is y=615-670 (55px). Scale the 1400×260 sprite to ~40px
+  // tall (scale_y=0.15) and center at y=660 so we leave ~10px breathing room
+  // on both sides.
   k.add([
     k.sprite("grass-ground"),
-    k.pos(GRID_X - (1100 - HOLE_COLS * HOLE_CELLW) / 2, 582),
+    k.pos(GRID_X - (1100 - HOLE_COLS * HOLE_CELLW) / 2, 660),
     k.scale(1.0, 0.15),
     k.z(0),
   ]);
