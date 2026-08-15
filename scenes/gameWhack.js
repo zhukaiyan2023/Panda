@@ -365,23 +365,26 @@ export default function gameWhack(k) {
   // once the audio ends. Wrong → shake + wrong-cue + auto-advance after
   // the cue finishes (so the kid is never stuck on a wrong pick).
   //
-  // Hit-target sits above the hole rim, centered on the mole's face
-  // position (y - 120, per whackHole.js MOLE_Y_OFFSET). Width 220 ×
-  // height 200 — slightly larger than the mole's on-screen size so
-  // 3-6 year-olds can land it with a finger tap on iPad Safari.
+  // Hit-target covers the mole's on-screen body. Mole center sits at
+  // (h.x, h.y) now that MOLE_Y_OFFSET in whackHole.js is 0 (the hole
+  // sprite at z=2 covers the lower half, head pokes above the rim).
+  // Width 220 × height 280 — slightly larger than the mole's visible
+  // body (~95-135 wide × ~114-145 tall) so 3-6 year-olds can land it
+  // with a finger tap on iPad Safari. Slight upward bias (h.y - 20)
+  // favors the face/upper body where kids naturally tap.
   const TAP_HIT_W = 220;
-  const TAP_HIT_H = 200;
+  const TAP_HIT_H = 280;
   holes.forEach((h) => {
     const hit = k.add([
       k.rect(TAP_HIT_W, TAP_HIT_H, { radius: 20 }),
-      // Anchor center so k.pos(h.x, h.y - 120) lands the rect's center
-      // on the mole's face. Without k.anchor("center") — kaplay's rect
-      // default anchor is topleft — the box would extend rightward of
-      // h.x by TAP_HIT_W/2 (≈110px), so taps on the left half of the
-      // mole would miss entirely. The -120 matches MOLE_Y_OFFSET in
-      // whackHole.js (mole head pokes 120px above the hole rim).
+      // Anchor center so k.pos(h.x, h.y - 20) lands the rect's center
+      // on the mole's upper body. Without k.anchor("center") — kaplay's
+      // rect default anchor is topleft — the box would extend rightward
+      // of h.x by TAP_HIT_W/2 (≈110px), so taps on the left half of the
+      // mole would miss entirely. The geometry covers the mole's
+      // visible body now that MOLE_Y_OFFSET is 0 in whackHole.js.
       k.anchor("center"),
-      k.pos(h.x, h.y - 120),
+      k.pos(h.x, h.y - 20),
       k.opacity(0),
       k.area(),
     ]);
