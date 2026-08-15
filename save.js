@@ -1,3 +1,5 @@
+import "./audio/serialGuard.js?v=20260815";
+
 // save.js — localStorage.panda-save-v1 persistence.
 //
 // Shape:
@@ -22,8 +24,7 @@ const KEY = "panda-save-v1";
 // fast and easy — 6/day avoids burnout). L2-L5 cap at 10 (the
 // default sampleSize for those levels).
 const DAILY_CAPS = { 1: 6, 2: 10, 3: 10, 4: 10, 5: 10 };
-// 24h rolling window — starts at the first finished round of the
-// level's window, ends 24h later (lazy rollover on next read).
+// 24h rolling window — starts at the first finished round of the level's window, ends 24h later (lazy rollover on next read).
 const DAILY_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 const DEFAULT = {
