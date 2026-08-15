@@ -1,8 +1,5 @@
 import assert from "node:assert/strict";
 
-// The guard is a browser bootstrap module. Provide the minimum browser
-// surface before importing it; the real app already imports the module before
-// main.js creates window.PandaAudio.
 globalThis.window = {};
 
 const realSetTimeout = globalThis.setTimeout;
@@ -20,18 +17,17 @@ globalThis.clearTimeout = (id) => {
 };
 
 try {
-  const { installPandaAudioSerialGuard } = await import("../audio/serialGuard.js?verify=1");
+  const { installPandaAudioSerialGuard } = await import("../audio/serialGuard.js?verify=2");
   installPandaAudioSerialGuard();
 
   let stopCalls = 0;
   let playSequenceCalls = 0;
   let playAfterCalls = 0;
-  let sequenceCallback = null;
-  let afterCallback = null;
+  const sequenceCallbacks = [];
+  const afterCallbacks = [];
 
   const audio = {
     cue: { duration: 0.1, ended: false, paused: false },
-    endedCue: { duration: 0.1, ended: true, paused: true },
   };
 
   window.PandaAudio = {
@@ -41,14 +37,14 @@ try {
     },
     playSequence(ids, gapMs, startDelayMs, onComplete) {
       playSequenceCalls += 1;
-      sequenceCallback = onComplete;
+      sequenceCallbacks.push(onComplete);
       assert.deepEqual(ids, ["cue"]);
       assert.equal(gapMs, 40);
       assert.equal(startDelayMs, 0);
     },
     playAfter(referenceId, ids, opts, onComplete) {
       playAfterCalls += 1;
-      afterCallback = onComplete;
+      afterCallbacks.push(onComplete);
       assert.equal(referenceId, "cue");
       assert.deepEqual(ids, ["cue"]);
       assert.equal(opts.gapMs, 400);
@@ -56,46 +52,52 @@ try {
     },
   };
 
-  // A normal completion clears its guard timeout and propagates exactly once.
+  // Normal sequence completion clears its watchdog and calls onComplete once.
   let completed = 0;
   window.PandaAudio.playSequence(["cue"], 40, 0, () => { completed += 1; });
   assert.equal(playSequenceCalls, 1);
   assert.equal(timers.size, 1);
-  sequenceCallback();
+  sequenceCallbacks.shift()();
   assert.equal(completed, 1);
   assert.equal(timers.size, 0);
 
-  // A sequence whose ended callback never arrives must eventually release the
-  // caller. Drive the guard timer manually so the test is deterministic.
+  // Missing ended event must still release the caller through the watchdog.
   completed = 0;
   window.PandaAudio.playSequence(["cue"], 40, 0, () => { completed += 1; });
   assert.equal(timers.size, 1);
   const fallbackTimer = [...timers.values()][0];
   fallbackTimer.fn();
   assert.equal(completed, 1);
-  assert.ok(stopCalls >= 2, "fallback must stop the stale sequence before advancing");
+  assert.ok(stopCalls >= 2, "fallback must stop the stale sequence");
 
-  // playAfter may register while the reference is still speaking. It must
-  // not stop that reference; the final reward pattern depends on this.
+  // A continuation registered while its reference is still playing must wait
+  // for the reference and must not stop it.
   stopCalls = 0;
   audio.cue.ended = false;
   audio.cue.paused = false;
   window.PandaAudio.playAfter("cue", ["cue"], { gapMs: 400, seqGapMs: 40 });
   assert.equal(stopCalls, 0);
   assert.equal(playAfterCalls, 1);
-  afterCallback();
-  assert.equal(timers.size, 0);
+  assert.equal(afterCallbacks.length, 0, "playAfter must not start until its FIFO turn");
 
-  // Once the reference has ended, a newly requested continuation is allowed
-  // to clear an older waiting continuation. This is the de-duplication guard
-  // that prevents stale next-step prompts from stacking.
-  stopCalls = 0;
+  // Complete the waiting continuation once its turn starts and verify its
+  // release allows the next queued continuation to start — never together.
+  // First, register a second continuation behind the first one.
   audio.cue.ended = true;
   audio.cue.paused = true;
   window.PandaAudio.playAfter("cue", ["cue"], { gapMs: 400, seqGapMs: 40 });
-  window.PandaAudio.playAfter("cue", ["cue"], { gapMs: 400, seqGapMs: 40 });
-  assert.equal(stopCalls, 2);
-  assert.equal(playAfterCalls, 3);
+  assert.equal(afterCallbacks.length, 1, "only the first continuation may start");
+
+  afterCallbacks.shift()();
+  assert.equal(afterCallbacks.length, 2, "the second continuation starts only after the first releases");
+
+  const pending = [...timers.values()];
+  assert.ok(pending.length >= 1, "second continuation must own a watchdog");
+
+  // Cancelling a round must release the FIFO generation and prevent stale
+  // callbacks from firing into the next scene.
+  window.PandaAudio.stopAllAudio();
+  assert.equal(timers.size, 0);
 
   console.log("audio serialization verification passed");
 } finally {
