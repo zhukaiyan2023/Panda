@@ -34,7 +34,7 @@ export default function whackHole(k, { x, y, variant, useBakedSprite = false }) 
     k.pos(x, y),
     k.anchor("center"),
     k.scale(HOLE_SCALE),
-    k.z(2),
+    k.z(1),
   ]);
 
   const mole = k.add([
@@ -44,11 +44,12 @@ export default function whackHole(k, { x, y, variant, useBakedSprite = false }) 
     k.scale(MOLE_SCALE),
     k.opacity(0),
     k.area(),
-    k.z(1),
+    k.z(2),
   ]);
 
   // Outline overlay for the selected state in baked-sprite mode. Created
-  // up front but invisible until setSelected(true).
+  // up front but invisible until setSelected(true). z=3 sits above the mole
+  // so the orange ring is visible when the player taps.
   let outline = null;
   if (useBakedSprite) {
     outline = k.add([
@@ -58,7 +59,7 @@ export default function whackHole(k, { x, y, variant, useBakedSprite = false }) 
       k.opacity(0),
       k.pos(x, y + MOLE_Y_OFFSET),
       k.anchor("center"),
-      k.z(0),
+      k.z(3),
     ]);
   }
 
