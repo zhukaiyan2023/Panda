@@ -72,13 +72,17 @@ export default function whackHole(k, { x, y, variant }) {
     k.z(2),
   ]);
 
-  // Mole sprite, starts hidden below rim.
+  // Mole sprite, starts hidden below rim. Carries k.area() so taps on
+  // the visible mole register a click as a fallback to the invisible
+  // hit rect in scenes/gameWhack.js — the user reported taps having
+  // no response and we want belt-and-suspenders coverage.
   const mole = k.add([
     k.sprite("mole-1"),  // placeholder variant; popUp swaps to a random variant
     k.pos(x, y + MOLE_Y_OFFSET + POP_TRAVEL),  // start POP_TRAVEL px below pop position
     k.anchor("center"),
     k.scale(MOLE_SCALE),
     k.opacity(0),
+    k.area(),
     k.z(1),
   ]);
 
@@ -222,6 +226,7 @@ export default function whackHole(k, { x, y, variant }) {
   return {
     x, y,
     variant: v,
+    mole,             // exposed for tap fallback (scenes/gameWhack.js)
     popUp,
     retreat,
     setSelected,

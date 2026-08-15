@@ -360,20 +360,32 @@ export default function gameWhack(k) {
   const TAP_HIT_W = 220;
   const TAP_HIT_H = 280;
   holes.forEach((h) => {
+    // Build the invisible hit rect (kaplay's primary area() target).
+    // Anchor "center" so k.pos(h.x, h.y - 20) lands the rect's center on
+    // the mole's upper body. Without k.anchor("center") — kaplay's rect
+    // default anchor is topleft — the box would extend rightward of
+    // h.x by TAP_HIT_W/2 (≈110px), so taps on the left half of the mole
+    // would miss entirely. The geometry covers the mole's visible body
+    // (post-pop, MOLE_Y_OFFSET=-50 → mole center y = h.y-50, ~120 tall).
     const hit = k.add([
       k.rect(TAP_HIT_W, TAP_HIT_H, { radius: 20 }),
-      // Anchor center so k.pos(h.x, h.y - 20) lands the rect's center
-      // on the mole's upper body. Without k.anchor("center") — kaplay's
-      // rect default anchor is topleft — the box would extend rightward
-      // of h.x by TAP_HIT_W/2 (≈110px), so taps on the left half of the
-      // mole would miss entirely. The geometry covers the mole's
-      // visible body now that MOLE_Y_OFFSET is 0 in whackHole.js.
       k.anchor("center"),
       k.pos(h.x, h.y - 20),
       k.opacity(0),
       k.area(),
     ]);
-    hit.onClick(() => {
+
+    // Build the SAME handler shape used by other kaplay scenes: a named
+    // function declared once, attached via onClick. We attach it to BOTH
+    // the hit rect (primary, generous bbox) and the mole sprite
+    // (fallback, visible, guaranteed area() if the invisible rect's
+    // click ever fails to register). A closure-level `fired` flag dedupes
+    // in the window where both fire — kaplay routes a single click to
+    // every area() entity containing the click point.
+    const handler = () => {
+      // Diagnostic (2026-08-15): log every tap landing on this hole so
+      // we can confirm via DevTools whether the hit rect is firing.
+      console.log("[gameWhack] tap", { value: h.getValue(), occupied: h.isOccupied() });
       // Taps landing after the 90s timer has expired are no-ops; the
       // results scene is about to take over.
       if (state.finished) return;
@@ -464,7 +476,30 @@ export default function gameWhack(k) {
           });
         });
       }
-    });
+    };
+
+    // Dedup closure: if both the hit rect AND the mole sprite fire for
+    // the same tap (they can — kaplay calls every area() handler whose
+    // bounds contain the click), we want to handle it exactly once.
+    let fired = false;
+    const onTap = () => {
+      if (fired) return;
+      fired = true;
+      // Reset the flag on the next macrotask so subsequent taps on
+      // other holes (after buildAndSpawn advances the round) still
+      // fire. The real per-question answer lock is h._tapped inside
+      // handler().
+      setTimeout(() => { fired = false; }, 0);
+      handler();
+    };
+
+    hit.onClick(onTap);
+    // Mole-sprite fallback (the visible sprite is more likely to have
+    // a reliably wired area() than an invisible k.opacity(0) rect).
+    // whackHole exposes the sprite via h.mole so we can attach the
+    // handler directly without depending on kaplay's internal
+    // component tree shape.
+    if (h.mole) h.mole.onClick(onTap);
   });
 
   // === 90s timer ===
