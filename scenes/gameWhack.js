@@ -10,7 +10,6 @@
 // (panda memory) is enforced: every chain's total duration is summed for
 // the fallback timer, never a single lastEncourageId.duration.
 
-import stepBar from "../components/stepBar.js?v=20260815";
 import panda from "../components/panda.js?v=20260815";
 import { iconButton } from "../components/choice.js?v=20260815";
 import { INK, PAPER, FONT, GREEN, ORANGE, DANGER } from "../components/theme.js?v=20260815";
@@ -170,13 +169,6 @@ export default function gameWhack(k) {
       streak = 0;
       k.go("gamesPicker");
     },
-  });
-
-  // Step bar (steps are unbounded; render up to 30 ticks).
-  const bar = stepBar(k, {
-    labels: Array.from({ length: 31 }, (_, i) => i === 0 ? "开始" : `${i}`),
-    step: 0,
-    x: 748, y: 84, w: 1060, h: 36,
   });
 
   // Title.
@@ -410,7 +402,6 @@ export default function gameWhack(k) {
         streak += 1;
         correctCount += 1;
         scoreText.text = `做对 ${correctCount} 题`;
-        bar.setStep(Math.min(correctCount + 1, 30));
         const tier = streakTier(streak);
 
         // Visual: flashCorrect (which calls retreat internally once the
