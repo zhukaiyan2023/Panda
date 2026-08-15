@@ -279,9 +279,15 @@ export default function createRoundScene(config) {
       // steps (L2 step 1's >/< compare, anything with 2 large emojis
       // instead of digits) want small SQUARE buttons — pass
       // buttonW=buttonH to swap. The gap auto-fits any value count.
+      //
+      // buttonY optionally overrides LAYOUT.buttonY for this step.
+      // Used by L5 to push the whole button row down so 5 stacked
+      // equations fit cleanly between the step bar and the buttons
+      // (default buttonY=838 would collide with the bottom equation).
       const buttonW = opts.buttonW ?? 180;
       const buttonH = opts.buttonH ?? 132;
       const gap = opts.gap ?? 24;
+      const buttonY = opts.buttonY ?? LAYOUT.buttonY;
       const ordered = shuffle(values);
       const totalW = ordered.length * buttonW + (ordered.length - 1) * gap;
       const startX = LAYOUT.barX - totalW / 2 + buttonW / 2;
@@ -291,11 +297,11 @@ export default function createRoundScene(config) {
         const btn = choice(k, {
           label: String(v),
           x: bx,
-          y: LAYOUT.buttonY,
+          y: buttonY,
           w: buttonW, h: buttonH,
           onClick: () => onPick(v, i),
         });
-        state.buttons.push({ btn, value: v, x: bx, y: LAYOUT.buttonY });
+        state.buttons.push({ btn, value: v, x: bx, y: buttonY });
       });
       return state.buttons;
     }
@@ -354,6 +360,12 @@ export default function createRoundScene(config) {
             buttonW: built.question.buttonW,
             buttonH: built.question.buttonH,
             gap: built.question.gap,
+            // Optional per-step button row y override. L5 uses this to
+            // shift the whole button row down so 5 stacked equations +
+            // the buttons fit between the top step bar (y≈120) and the
+            // bottom of the screen — without it the bottom row would
+            // collide with the default buttonY=838.
+            buttonY: built.question.buttonY,
           },
         );
       }

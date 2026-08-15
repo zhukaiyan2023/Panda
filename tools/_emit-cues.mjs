@@ -98,6 +98,17 @@ for (const r of l4) {
   push(`l3-rwd-${r.a}-${r.b}-${r.answer}`);
 }
 
+const l5 = poolGens[5]();
+for (const r of l5) {
+  const push = (id) => { if (!seen.has(id)) { seen.add(id); ids.push(id); } };
+  push(`l5-s1-${r.a}-${r.b}`);
+  push(`l5-s2-${r.a}-${r.b}`);
+  push(`l5-s3-${r.onesA}-${r.onesB}`);
+  push(`l5-s4`);
+  push(`l5-s5-${r.sum}`);
+  push(`l5-rwd-${r.a}-${r.b}-${r.answer}`);
+}
+
 console.log("// total pool-driven composite cues:", ids.length);
 // Emit as a single string array literal, 6 ids per line.
 let out = "";

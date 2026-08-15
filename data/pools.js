@@ -21,6 +21,9 @@
 //                       sum > 10. 36 pairs. Sample 10 per session.
 //   L4 二十以内        — a ∈ [11, 19], b ∈ [1, 9], ones(a)+b < 10.
 //                       36 ordered pairs. Sample 10 per session.
+//   L5 十几加十几     — a, b ∈ [11, 19]，ones(a) + ones(b) ≤ 9（严格 < 10）。
+//                       36 个有序 (a, b) 对。5 步教学（拆 a / 拆 b / 加个位 /
+//                       加十位 / 加起来）。Sample 10 per session.
 //
 // All generators are pure functions of the level schema — no I/O, no
 // randomness. The shuffle lives in roundScene.js so poolGen can be
@@ -154,6 +157,41 @@ function generateL4Pool() {
   return pool;
 }
 
+// L5 — 十几加十几（无进位）。
+// 约束：a, b ∈ [11, 19]（都是十几），ones(a) + ones(b) ≤ 9（严格 < 10）。
+// 教学策略：5 步 — 拆 a → 拆 b → 加个位 → 加十位 → 加起来。
+//   step 1 答 onesA
+//   step 2 答 onesB
+//   step 3 答 onesA + onesB
+//   step 4 答 20
+//   step 5 答 a + b
+//
+// 池计数：每个 a，b 的 ones 范围 [1, 9 - onesA]（inclusive）：
+//   a=11 (ones=1): 8 b｜a=12 (ones=2): 7 b｜a=13 (ones=3): 6 b
+//   a=14 (ones=4): 5 b｜a=15 (ones=5): 4 b｜a=16 (ones=6): 3 b
+//   a=17 (ones=7): 2 b｜a=18 (ones=8): 1 b｜a=19 (ones=9): 0 b
+// 合计 8+7+6+5+4+3+2+1+0 = 36 个有序 (a, b) 对。
+function generateL5Pool() {
+  const pool = [];
+  for (let a = 11; a <= 19; a++) {
+    const onesA = a % 10;
+    const bMaxDigit = 9 - onesA;
+    for (let b = 11; b <= 19; b++) {
+      const onesB = b % 10;
+      if (onesB > bMaxDigit) continue;
+      pool.push({
+        a,
+        b,
+        onesA,
+        onesB,
+        sum: onesA + onesB,
+        answer: a + b,
+      });
+    }
+  }
+  return pool;
+}
+
 // Per-level pool arrays. roundScene imports these (or poolGens below)
 // to sample a fresh batch of rounds on each entry.
 export const levelPools = {
@@ -161,6 +199,7 @@ export const levelPools = {
   2: generateL2Pool(),
   3: generateL3Pool(),
   4: generateL4Pool(),
+  5: generateL5Pool(),
 };
 
 // Re-export the generators so tools/build-composite-audio.mjs (or a
@@ -171,4 +210,5 @@ export const poolGens = {
   2: generateL2Pool,
   3: generateL3Pool,
   4: generateL4Pool,
+  5: generateL5Pool,
 };

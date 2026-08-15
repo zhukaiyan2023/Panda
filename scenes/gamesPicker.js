@@ -12,7 +12,7 @@
 import panda from "../components/panda.js?v=20260812";
 import sceneBg from "../components/sceneBg.js?v=20260812";
 import {
-  INK, CARD, ORANGE, YELLOW, BLUE, PURPLE, PINK, FONT,
+  INK, CARD, ORANGE, YELLOW, BLUE, PURPLE, PINK, GREEN, FONT,
 } from "../components/theme.js?v=20260812";
 
 const LOCKED_BG = [220, 213, 230];
@@ -23,6 +23,7 @@ const GAMES = [
   { id: 2, title: "气球",  sub: "扎破凑十",  scene: "gameBounce", sprite: "balloon", accent: PINK },
   { id: 3, title: "云朵",  sub: "看算式找答案", scene: "gameCloud",  sprite: "cloud",  accent: PURPLE },
   { id: 4, title: "喂食",  sub: "帮熊猫吃饱", scene: "gameFeed",   sprite: "bubble", accent: ORANGE },
+  { id: 5, title: "打地鼠", sub: "水墨出题", scene: "gameWhack",  sprite: "mole-1", accent: GREEN },
 ];
 
 function hasSprite(k, name) {

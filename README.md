@@ -40,6 +40,8 @@ audio**. No build step, no PWA, no Chinese narration — just open
 | 1 | Numbers up to 5 | Plain addition with totals ≤ 5 | fill the blank in `a + ? = answer` |
 | 2 | Make a Ten | Decompose b into `need + rest` so `a + need = 10` | fill the blank in `a + ? = 10` |
 | 3 | Up to 20 | Two-digit addition without the make-ten scaffold | fill the blank in `a + ? = answer` |
+| 4 | 二十以内 | Teen + digit, no carry via 10+ones strategy | fill the blank in `a + ? = answer` |
+| 5 | 十几加十几 | Two teens + two teens, no carry, 5-step decomposition | fill the blank in `a + ? = answer` |
 
 Each level has 6 rounds. Completing a level unlocks the next; stars accumulate
 per level.
@@ -62,12 +64,13 @@ level means writing a config, not copying a scene.
 
 ### Panda-park games
 
-A second tab — "Games" — opens four pair-finding activities ported from
+A second tab — "Games" — opens five pair-finding + whack activities ported from
 [panda-park](https://example.com). Each is a thin wrapper around either
 `scenes/pairScene.js` (Boat, Cloud, Feed) or a self-contained scene (Bounce).
-The four games all teach the same "make 10" idea but with different
-constraints, so a child who finds Level 2's 4-button question too easy can
-move to a more physical / time-pressured version of the same content:
+The five games teach the make-10 idea (Boat/Bounce/Cloud/Feed) and the
+make-teen idea (Whack) with different constraints, so a child who finds
+Level 2's 4-button question too easy can move to a more physical or
+time-pressured version of the same content:
 
 | Game | Mechanic | Round shape |
 | --- | --- | --- |
@@ -75,8 +78,9 @@ move to a more physical / time-pressured version of the same content:
 | Bounce | 4 balloons, pop the one that completes 10 | Single pick |
 | Cloud | 6 clouds, find 2–3 pairs in a round | Multi-pair per round |
 | Feed | 3/5/7 bubbles, panda eats any valid pair | Multi-pair, escalating size |
+| Whack | 6 moles, tap the one whose number equals a + b | 90s timed, single-tap |
 
-All four games save progress under `unlockedGame` / `starsByGame` (separate
+All five games save progress under `unlockedGame` / `starsByGame` (separate
 from the math track). The math and games tracks unlock independently so a
 child can play either path first.
 

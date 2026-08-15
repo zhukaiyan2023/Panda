@@ -30,6 +30,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { cutout } from "./cutout.mjs";
+import { resizePng } from "./resize-png.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, "..");
@@ -177,6 +178,15 @@ export const ART = [
     tolerance: 90,
     allowText: true,
   },
+  {
+    // L5 十几加十几 — added 2026-08-15, matches the badge-1..4 style
+    // but in green (SUCCESS theme color).
+    name: "badge-5",
+    prompt: "a cute round green medal badge with the single big white number 5 in the center, chunky rounded ring border, glossy",
+    ratio: "1:1",
+    tolerance: 90,
+    allowText: true,
+  },
 
   // ---- Ten-frame ---------------------------------------------------------
   // The ten-frame has to stay dynamic (cells fill as the child counts), so it
@@ -237,6 +247,76 @@ export const ART = [
     ratio: "4:3",
     cutout: false,
   },
+
+  // ---- Whack-a-mole scene -----------------------------------------------
+  // Six mole sprites, three hole sprites, and one wide grass strip.
+  // Moles carry the candidate answer on top of their head (rendered as live
+  // text in scene), so the sprite only needs the mole body + expression.
+  // Holes are flat ground sprites — the mole appears to pop out of them.
+  // Grass is a wide full-bleed strip for the bottom of the scene; cutout:false
+  // because it's an opaque backdrop, and resize forces the on-disk asset to
+  // 1400x260 to match the design spec.
+  {
+    name: "mole-1",
+    prompt: "a cute chubby baby mole with round eyes looking up at the sky and a sweet gentle smile, soft brown fur, tiny pink nose, large round pink ears, friendly face, front view, simple",
+    ratio: "1:1",
+    tolerance: 100,
+  },
+  {
+    name: "mole-2",
+    prompt: "a cute chubby baby mole laughing with closed crescent eyes and one paw raised waving hello, soft brown fur, tiny pink nose, large round pink ears, joyful, front view, simple",
+    ratio: "1:1",
+    tolerance: 100,
+  },
+  {
+    name: "mole-3",
+    prompt: "a cute chubby baby mole with one eye winking and head tilted to one side, soft brown fur, tiny pink nose, large round pink ears, playful, front view, simple",
+    ratio: "1:1",
+    tolerance: 100,
+  },
+  {
+    name: "mole-4",
+    prompt: "a cute chubby baby mole with big wide surprised eyes and a small open mouth, soft brown fur, tiny pink nose, large round pink ears, amazed expression, front view, simple",
+    ratio: "1:1",
+    tolerance: 100,
+  },
+  {
+    name: "mole-5",
+    prompt: "a cute chubby baby mole shyly covering its eyes with both paws, soft brown fur, tiny pink nose, large round pink ears, blushing cheeks, bashful, front view, simple",
+    ratio: "1:1",
+    tolerance: 70,
+  },
+  {
+    name: "mole-6",
+    prompt: "a cute chubby baby mole looking proud with both ears perked straight up and a big confident smile, soft brown fur, tiny pink nose, large round pink ears, thumbs up, front view, simple",
+    ratio: "1:1",
+    tolerance: 100,
+  },
+  {
+    name: "mole-hole-1",
+    prompt: "a round dark brown mole hole in the ground with three small clusters of green ink grass growing around its rim, viewed from the front, soft earthy dirt texture",
+    ratio: "1:1",
+    tolerance: 100,
+  },
+  {
+    name: "mole-hole-2",
+    prompt: "an oval dark brown empty mole hole opening in the ground with a few scattered autumn fallen leaves around its rim, no animal, no character, no face, no eyes, no smile, no mouth, soft earthy dirt texture",
+    ratio: "1:1",
+    tolerance: 100,
+  },
+  {
+    name: "mole-hole-3",
+    prompt: "a round dark brown mole hole in the ground with one large green leaf leaning against its rim, viewed from the front, soft earthy dirt texture",
+    ratio: "1:1",
+    tolerance: 100,
+  },
+  {
+    name: "grass-ground",
+    prompt: "a wide horizontal strip of soft green grass ground, gentle rolling grass texture, a few tiny wildflowers scattered along the bottom, bright cheerful meadow look",
+    ratio: "16:9",
+    cutout: false,
+    resize: { w: 1400, h: 260 },
+  },
 ];
 
 const BY_NAME = new Map(ART.map((a) => [a.name, a]));
@@ -269,21 +349,31 @@ function generate(art) {
     throw new Error(`image generation failed: ${combined}`);
   }
 
+  let result;
   if (art.cutout === false) {
     // Full-bleed art still goes through the helper so every asset in the
     // directory ends up a PNG, but the background must survive intact.
-    return cutout({ in: raw, out, tolerance: 0, feather: 0, pad: 0, trim: false });
+    result = cutout({ in: raw, out, tolerance: 0, feather: 0, pad: 0, trim: false });
+  } else {
+    result = cutout({
+      in: raw,
+      out,
+      tolerance: art.tolerance ?? 110,
+      feather: 1,
+      pad: 6,
+      // Hollow art (frames, slots) must key out its enclosed center too.
+      mode: art.hollow ? "global" : "flood",
+      despill: true,
+    });
   }
-  return cutout({
-    in: raw,
-    out,
-    tolerance: art.tolerance ?? 110,
-    feather: 1,
-    pad: 6,
-    // Hollow art (frames, slots) must key out its enclosed center too.
-    mode: art.hollow ? "global" : "flood",
-    despill: true,
-  });
+
+  // Optional post-cutout resize. Used for grass-ground so the on-disk
+  // asset is exactly the design-spec 1400x260 strip rather than whatever
+  // 16:9 aspect the API happened to return.
+  if (art.resize) {
+    return resizePng({ in: out, out, w: art.resize.w, h: art.resize.h });
+  }
+  return result;
 }
 
 function main() {
