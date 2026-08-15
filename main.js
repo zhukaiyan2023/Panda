@@ -10,6 +10,7 @@
 import kaplay from "./assets/vendor/kaplay.mjs";
 import "./save.js?v=20260812";
 import { poolGens } from "./data/pools.js?v=20260812";
+import { ALL_SPRITE_NAMES } from "./data/whackPack.js?v=20260815";
 
 // Per-level round data is now generated on the fly by data/pools.js —
 // each level scene passes a `poolGen` to createRoundScene which samples
@@ -999,6 +1000,8 @@ const SPRITES = [
   "mole-1", "mole-2", "mole-3", "mole-4", "mole-5", "mole-6",
   "mole-hole-1", "mole-hole-2", "mole-hole-3",
   "grass-ground",
+  // baked mole+number PNGs (6 variants × 9 numbers = 54) — added 2026-08-15
+  ...ALL_SPRITE_NAMES,
 ];
 
 // Bumped whenever boat.png / boat-sel.png (or any other regenerated
@@ -1008,7 +1011,7 @@ const SPRITES = [
 // (2026-08-12: top row of the boat grid was the cached old tan-sail
 // boat.png while the bottom row got the new white-sail version, because
 // the JS imports were cache-busted but the sprite URLs weren't).
-const ART_VERSION = "20260815";
+const ART_VERSION = "20260815-mole";
 
 function loadArt() {
   return Promise.all(
