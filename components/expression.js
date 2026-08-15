@@ -205,12 +205,28 @@ export default function expression(parent, opts = {}) {
     return reserve[i] == null ? own : Math.max(own, slotWidth(reserve[i]));
   });
   const MIN_EDGE_GAP = size * 0.22;
-  const totalWidth = widths.reduce((a, b) => a + b, 0)
+  const naturalWidth = widths.reduce((a, b) => a + b, 0)
     + MIN_EDGE_GAP * Math.max(0, slots.length - 1);
+  // Optional uniform row width — pass `totalWidth` to force this row to a
+  // specific pixel width, padding the inter-slot gap to absorb the extra.
+  // Use case: a multi-row scene (L4's anchor + split + bottom) where each
+  // row has a different slot count and would otherwise center independently
+  // around the same barX, putting slot 0 of each row at a different x. With
+  // totalWidth pinned to the widest row, all rows share the same total
+  // width AND the same per-slot widths (caller must use the same `size`),
+  // so slot 0 lines up across rows and the eye doesn't see a column-shift
+  // when a new row appears in a later step. Falls back to naturalWidth
+  // when not set or when the row is naturally wider than the requested
+  // total (we never shrink below the MIN_EDGE_GAP to avoid overlapping
+  // slots).
+  const totalWidth = Math.max(naturalWidth, opts.totalWidth ?? naturalWidth);
+  const slotGaps = Math.max(0, slots.length - 1);
+  const desiredGap = slotGaps > 0 ? (totalWidth - widths.reduce((a, b) => a + b, 0)) / slotGaps : 0;
+  const gap = Math.max(MIN_EDGE_GAP, desiredGap);
   let cursor = x - totalWidth / 2;
   const centers = widths.map((w) => {
     const center = cursor + w / 2;
-    cursor += w + MIN_EDGE_GAP;
+    cursor += w + gap;
     return center;
   });
 

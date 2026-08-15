@@ -209,6 +209,8 @@ export default function createRoundScene(config) {
         // "选中正确答案之后，9和3的位置移动了，应该是 ◻ 只占了一个
         // 位置，但是 > 或者 < 占位不一致."
         boxMode: opts.boxMode,
+        // Optional uniform row width — see setAnchorEquation's note.
+        totalWidth: opts.totalWidth,
       };
       if (eq.slots) {
         props.slots = eq.slots;
@@ -241,6 +243,14 @@ export default function createRoundScene(config) {
         // symmetry and to keep the call surface identical to
         // setEquation.
         boxMode: opts.boxMode,
+        // Optional uniform row width — forward to expression.js so the
+        // anchor row uses the same totalWidth as the sub-rows in scenes
+        // where multiple rows need to share a column grid (L4's anchor /
+        // split / bottom diagram). Without this each row independently
+        // centers around LAYOUT.barX, putting slot 0 at a different x per
+        // row and making the sub-rows appear "shifted" when they pop in
+        // during later steps.
+        totalWidth: opts.totalWidth,
       };
       if (eq.slots) {
         props.slots = eq.slots;

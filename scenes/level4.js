@@ -55,6 +55,22 @@ const COL_SMALL = PINK;    // the 1-digit addend (b)
 const COL_TEN   = YELLOW;  // the literal "10" in sub-questions
 const COL_NEED  = ORANGE;  // the unknown / just-computed slot
 
+// All three rows in L4 (anchor / split / bottom) share the same `size`
+// (100) and the same `totalWidth` (616 = split row's natural width at
+// size=100). Without this, each row independently centers around
+// LAYOUT.barX — and since anchor/bottom have 5 slots while split has 7,
+// slot 0 of each row lands at a different x, making the bottom row appear
+// "shifted" when it pops in at step 2's audio onComplete. The eye reads
+// that as the layout moving between steps. With totalWidth pinned and
+// size uniform, slot 0 of every row lines up at the same x (the eye sees
+// the bottom row's "10" directly under the anchor's "a" and split's
+// "10") and the column-anchored arrows drawn from slotCenters stay
+// visually stable. Verified by tools/probe-l4-walkthrough.mjs: all
+// per-row slot centers stable across every transition; cross-row slot-0
+// centers within 0.5 px of each other.
+const ROW_SIZE = 100;
+const ROW_TOTAL_WIDTH = 616;
+
 // Persistent anchor ("a + b = ?") rendered at the top.
 //
 // `reserve` pins each slot's width to its widest lifetime content: the sum
@@ -122,7 +138,8 @@ function renderL4Step1Split(ctx, round, ones, answerSlot = "?") {
     reserve: splitReserve(round),
     x: LAYOUT.barX,
     y: 440,
-    size: 82,
+    size: ROW_SIZE,
+    totalWidth: ROW_TOTAL_WIDTH,
   });
 
   for (const point of splitLinkPoints(ctx.anchorEqNode, ctx.step1SplitNode)) {
@@ -165,7 +182,8 @@ function renderL4BottomRow(ctx, round, slot2, answer = "?") {
     reserve: bottomReserve(round),
     x: LAYOUT.barX,
     y: 600,
-    size: 82,
+    size: ROW_SIZE,
+    totalWidth: ROW_TOTAL_WIDTH,
   });
   ctx.step1NextLinks?.forEach((node) => node.destroy());
   ctx.step1NextLinks = [];
@@ -215,7 +233,8 @@ function renderL4SplitRow(ctx, round, ones, answer = "?") {
     reserve: splitReserve(round),
     x: LAYOUT.barX,
     y: 440,
-    size: 82,
+    size: ROW_SIZE,
+    totalWidth: ROW_TOTAL_WIDTH,
   });
   return ctx.step1SplitNode;
 }
@@ -318,7 +337,7 @@ export default createRoundScene({
     // its ones digit, with links from the top addend to those two slots.
     (ctx, round) => {
       const ones = round.a % TEN;
-      ctx.setAnchorEquation(anchorSlots(round, "?"), { y: 220 });
+      ctx.setAnchorEquation(anchorSlots(round, "?"), { y: 220, totalWidth: ROW_TOTAL_WIDTH });
       const renderStep1 = () => renderL4Step1Split(ctx, round, null);
       fireL3StepAudio(
         ctx, buildL3Step1Ids(round.a, round.b), 1,
@@ -331,7 +350,7 @@ export default createRoundScene({
           colors: [COL_TEN, undefined, COL_NEED, undefined, COL_SMALL, undefined, undefined],
           reserve: splitReserve(round),
         },
-        equationOpts: { y: 440, size: 82 },
+        equationOpts: { y: 440, size: ROW_SIZE, totalWidth: ROW_TOTAL_WIDTH },
         question: {
           correct: ones,
           values: options(ones, { min: 0, max: 9 }),
@@ -356,7 +375,7 @@ export default createRoundScene({
       const sum = ones + round.b;
       // Keep the three-line teaching diagram from step 1. Only the lower
       // calculation row is active for this step.
-      ctx.setAnchorEquation(anchorSlots(round, "?"), { y: 220 });
+      ctx.setAnchorEquation(anchorSlots(round, "?"), { y: 220, totalWidth: ROW_TOTAL_WIDTH });
       // Bottom row + split → bottom merge lines render AFTER step 2's
       // ones-addition audio finishes, not synchronously here — so the
       // child hears the prompt ("个位相加 [ones] 加 [b] 等于几") before
@@ -384,7 +403,7 @@ export default createRoundScene({
     (ctx, round) => {
       const ones = round.a % TEN;
       const sum = ones + round.b;
-      ctx.setAnchorEquation(anchorSlots(round, "?"), { y: 220 });
+      ctx.setAnchorEquation(anchorSlots(round, "?"), { y: 220, totalWidth: ROW_TOTAL_WIDTH });
       renderL4BottomRow(ctx, round, sum);
       fireL3StepAudio(ctx, buildL3Step3Ids(sum), 3);
       return {
@@ -398,7 +417,7 @@ export default createRoundScene({
           // only the answer slot of each row is rewritten. Per user
           // feedback 2026-08-12: "最后结果选中时，你把所有都清了，
           // 更不对了" (don't tear everything down on the final pick).
-          ctx.setAnchorEquation(anchorSlots(round, round.answer), { y: 220 });
+          ctx.setAnchorEquation(anchorSlots(round, round.answer), { y: 220, totalWidth: ROW_TOTAL_WIDTH });
           // Split row reveals its `?` to the real answer. Without this
           // the kid would see "anchor 12+7=19, bottom 10+9=19, split
           // still 10+2+7=?" — the unrevealed `?` reads as a layout bug.
