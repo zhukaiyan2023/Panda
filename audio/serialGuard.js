@@ -43,6 +43,15 @@ function install(value) {
   const originalPlayAfter = value.playAfter;
   const guardTimers = new Set();
 
+  // Multiple playAfter() calls can legitimately reference the same
+  // encouragement cue. Level 3 is the important case: after the first
+  // correct pick, the comparison read-back and the next-step prompt were
+  // both chained from the same lastEncourageId. The old guard let both
+  // continuations wait on that same cue and then start at nearly the same
+  // time. Keep a strict FIFO of pending continuations instead.
+  let continuationTail = Promise.resolve();
+  let generation = 0;
+
   const clearGuardTimers = () => {
     for (const timer of guardTimers) clearTimeout(timer);
     guardTimers.clear();
@@ -50,6 +59,8 @@ function install(value) {
 
   value.stopAllAudio = function guardedStopAllAudio() {
     clearGuardTimers();
+    generation += 1;
+    continuationTail = Promise.resolve();
     return originalStopAllAudio();
   };
 
@@ -59,9 +70,6 @@ function install(value) {
     startDelayMs = 0,
     onComplete,
   ) {
-    // A new top-level sequence is the current audio owner. The shared
-    // manager already promises "at most one active audio" for direct cues;
-    // enforce the same rule for sequences too.
     value.stopAllAudio();
 
     let completed = false;
@@ -72,17 +80,15 @@ function install(value) {
       if (timer != null) {
         clearTimeout(timer);
         guardTimers.delete(timer);
+        timer = null;
       }
-      if (onComplete) onComplete();
+      onComplete?.();
     };
 
     const timeoutMs = sequenceEstimateMs(value.audio, ids, seqGapMs, startDelayMs);
     timer = setTimeout(() => {
       guardTimers.delete(timer);
       if (completed) return;
-      // If the normal ended-event chain is stuck, stop the stale sequence
-      // before releasing the scene. Otherwise the old audio could continue
-      // into the next step and overlap with its prompt.
       value.stopAllAudio();
       complete();
     }, timeoutMs);
@@ -103,58 +109,75 @@ function install(value) {
     opts = {},
     onComplete,
   ) {
-    const ref = value.audio?.[referenceId];
+    const requestedGeneration = generation;
+    const previous = continuationTail;
 
-    // If the reference cue has already ended (or is paused because its play
-    // failed), this is a newly-requested continuation. Clear any older
-    // continuation that was waiting on the same reference, but DO NOT stop
-    // a currently-playing reference: final-step reward chains intentionally
-    // register while the encouragement cue is still speaking.
-    if (ref && (ref.ended || ref.paused)) {
-      value.stopAllAudio();
-    }
+    // Append this continuation after every continuation that was already
+    // registered. This is deliberately global rather than keyed only by
+    // referenceId: one audio chain owns the speaker, so no later chain may
+    // start until the earlier chain has released it.
+    let releaseCurrent;
+    const current = new Promise((resolve) => { releaseCurrent = resolve; });
+    continuationTail = previous.then(() => current);
 
-    let completed = false;
-    let timer = null;
-    const complete = () => {
-      if (completed) return;
-      completed = true;
-      if (timer != null) {
-        clearTimeout(timer);
-        guardTimers.delete(timer);
+    const start = () => {
+      if (requestedGeneration !== generation) {
+        releaseCurrent();
+        onComplete?.();
+        return;
       }
-      if (onComplete) onComplete();
+
+      const ref = value.audio?.[referenceId];
+      // Do not call stopAllAudio when the reference is already ended/paused.
+      // Original playAfter() is designed to kick off immediately in this
+      // state; calling stopAllAudio here would cancel the queue generation.
+      void ref;
+
+      let completed = false;
+      let timer = null;
+      const finish = () => {
+        if (completed) return;
+        completed = true;
+        if (timer != null) {
+          clearTimeout(timer);
+          guardTimers.delete(timer);
+          timer = null;
+        }
+        releaseCurrent();
+        onComplete?.();
+      };
+
+      const gapMs = Math.max(0, Number(opts?.gapMs) || 0);
+      const seqGapMs = Math.max(0, Number(opts?.seqGapMs) || 90);
+      const refWaitMs = ref
+        ? (Number.isFinite(ref.duration) && ref.duration > 0 ? ref.duration * 1000 : UNKNOWN_CUE_MS)
+        : 4000;
+      const timeoutMs = Math.max(
+        MIN_GUARD_MS,
+        refWaitMs + gapMs + sequenceEstimateMs(value.audio, ids, seqGapMs, 0),
+      );
+
+      timer = setTimeout(() => {
+        guardTimers.delete(timer);
+        if (completed) return;
+        value.stopAllAudio();
+        finish();
+      }, timeoutMs);
+      guardTimers.add(timer);
+
+      try {
+        originalPlayAfter(referenceId, ids, opts, finish);
+      } catch (err) {
+        console.warn("[panda-audio] guarded playAfter failed:", err?.message || err);
+        value.stopAllAudio();
+        finish();
+      }
     };
 
-    const gapMs = Math.max(0, Number(opts?.gapMs) || 0);
-    const seqGapMs = Math.max(0, Number(opts?.seqGapMs) || 90);
-    const refWaitMs = ref
-      ? (Number.isFinite(ref.duration) && ref.duration > 0 ? ref.duration * 1000 : UNKNOWN_CUE_MS)
-      : 4000;
-    const timeoutMs = Math.max(
-      MIN_GUARD_MS,
-      refWaitMs + gapMs + sequenceEstimateMs(value.audio, ids, seqGapMs, 0),
-    );
-
-    timer = setTimeout(() => {
-      guardTimers.delete(timer);
-      if (completed) return;
-      value.stopAllAudio();
-      complete();
-    }, timeoutMs);
-    guardTimers.add(timer);
-
-    try {
-      originalPlayAfter(referenceId, ids, opts, () => {
-        complete();
-      });
-    } catch (err) {
-      clearTimeout(timer);
-      guardTimers.delete(timer);
-      console.warn("[panda-audio] guarded playAfter failed:", err?.message || err);
-      value.stopAllAudio();
-      complete();
-    }
+    // Waiting here is intentional: the previous continuation may itself
+    // be waiting on the same encouragement cue. This prevents two
+    // playAfter() chains from starting together after one `ended` event.
+    previous.then(start);
   };
 
   Object.defineProperty(value, "__audioSerialGuardInstalled", {
