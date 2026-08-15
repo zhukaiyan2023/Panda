@@ -1,8 +1,9 @@
-// components/expression.js — renders an arithmetic expression as a fixed slot row.
+// components/expression.js — renders arithmetic expressions with fixed slot geometry.
 import { INK, MUTED, FONT, CARD } from "./theme.js?v=20260812";
 
 const OP_SCALE = 0.7;
 const DEFAULT_UNKNOWN_RESERVE = "10";
+const layoutCache = new Map();
 
 function isOperator(s) {
   return s === "+" || s === "-" || s === "=" || s === "×" || s === "÷"
@@ -90,11 +91,8 @@ export default function expression(parent, opts = {}) {
     return estimateWidth(slot, nodeSize, false);
   };
 
-  // A row that contains an unknown is a teaching-state row: later steps
-  // replace the unknown with a number or comparison operator. Keep that
-  // slot at the widest normal child-facing width even when the caller did
-  // not explicitly provide `reserve`, so an overlooked level cannot make
-  // the whole equation jump when the box is revealed.
+  // Unknown slots are always reserved to a normal two-digit number. This is
+  // the fallback safety net for any level that forgot to provide a reserve.
   const reserve = slots.map((slot, i) => {
     if (callerReserve[i] != null) return callerReserve[i];
     if (isBoxSlot(slot, boxMode)) return DEFAULT_UNKNOWN_RESERVE;
@@ -107,15 +105,32 @@ export default function expression(parent, opts = {}) {
     return Math.max(own, slotWidth(reserve[i]));
   });
 
-  const MIN_EDGE_GAP = size * 0.22;
-  const totalWidth = widths.reduce((a, b) => a + b, 0)
-    + MIN_EDGE_GAP * Math.max(0, slots.length - 1);
-  let cursor = x - totalWidth / 2;
-  const centers = widths.map((w) => {
-    const center = cursor + w / 2;
-    cursor += w + MIN_EDGE_GAP;
-    return center;
-  });
+  // The layout key intentionally excludes the current slot CONTENT. It
+  // describes the row geometry only. Any re-render of the same teaching row
+  // therefore reuses its original absolute slot centers instead of
+  // recalculating/re-centering the expression.
+  const layoutKey = opts.layoutId
+    || JSON.stringify({
+      x,
+      y,
+      size,
+      reserve,
+      slotCount: slots.length,
+    });
+
+  let centers = layoutCache.get(layoutKey);
+  if (!centers) {
+    const MIN_EDGE_GAP = size * 0.22;
+    const totalWidth = widths.reduce((a, b) => a + b, 0)
+      + MIN_EDGE_GAP * Math.max(0, slots.length - 1);
+    let cursor = x - totalWidth / 2;
+    centers = widths.map((w) => {
+      const center = cursor + w / 2;
+      cursor += w + MIN_EDGE_GAP;
+      return center;
+    });
+    layoutCache.set(layoutKey, centers.slice());
+  }
 
   const root = parent.add([k.pos(0, 0), k.z(opts.z ?? 0)]);
   const tokens = [];
@@ -130,7 +145,7 @@ export default function expression(parent, opts = {}) {
     tokens.push(node);
   });
 
-  root.slotCenters = centers;
+  root.slotCenters = centers.slice();
   root.slotSizes = slots.map((s) => {
     const isBox = isBoxSlot(s, boxMode);
     if (isBox) return size * 0.9;
@@ -140,6 +155,7 @@ export default function expression(parent, opts = {}) {
   root.slotY = y;
   root.layoutReserve = widths.slice();
   root.layoutContract = {
+    key: layoutKey,
     x,
     y,
     size,
