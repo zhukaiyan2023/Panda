@@ -31,9 +31,9 @@ const TYPE_A_POOL = (() => {
 const TYPE_B_POOL = (() => {
   const pairs = [];
   for (let teen = 11; teen <= 18; teen++) {
-    for (let d = 1; d <= 18 - teen; d++) {
-      // 18-teen is the max digit that keeps the sum ≤18 (no carry-out of teens).
-      // For teen=18: d≤0 → no entries (18+1=19 is out of range).
+    // 19-teen is the max digit that keeps the sum ≤19 (no carry-out of teens).
+    // For teen=18: d≤1 → 18+1=19 is included. For teen=11: d≤8 → 11+8=19 is included.
+    for (let d = 1; d <= 19 - teen; d++) {
       if (d >= 1) pairs.push([teen, d]);
     }
   }
@@ -63,21 +63,25 @@ function buildQuestion(type, prevKey = null) {
   const [a, b] = pick;
   const answer = a + b;
   const candidates = [answer];
+  // Clamp candidate band to [11..19] — these are the only digits that have
+  // a baked sprite. Distractor offsets up to ±4 from an answer in [11..18]
+  // can otherwise drop into 7..23, which has no asset.
   for (const off of DISTRACTOR_OFFSETS) {
     const d = answer + off;
-    if (d >= 1 && d <= 19 && !candidates.includes(d)) {
+    if (d >= 11 && d <= 19 && !candidates.includes(d)) {
       candidates.push(d);
       if (candidates.length === 6) break;
     }
   }
-  // Defensive: if we somehow couldn't fill 6 (e.g. answer at the edge of
-  // 1..19), top up from the pool of valid neighbours. Unreachable in
-  // practice since answer ∈ [11..18] and offsets span ±4 leaving ample room.
+  // Topup from immediate neighbors if we couldn't fill 6 (e.g. answer=11
+  // with offset=-4 → 7 → skipped; offset=-3 → 8 → skipped; etc.)
   let topup = 1;
   while (candidates.length < 6 && topup <= 9) {
-    if (!candidates.includes(answer - topup)) candidates.push(answer - topup);
+    const lo = answer - topup;
+    const hi = answer + topup;
+    if (lo >= 11 && !candidates.includes(lo)) candidates.push(lo);
     if (candidates.length === 6) break;
-    if (!candidates.includes(answer + topup)) candidates.push(answer + topup);
+    if (hi <= 19 && !candidates.includes(hi)) candidates.push(hi);
     topup++;
   }
   // Fisher–Yates shuffle in place — Math.random is fine (test harness can stub).

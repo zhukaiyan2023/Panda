@@ -30,7 +30,7 @@ for (const [teen, d] of TYPE_B_POOL) {
   if (teen < 11 || teen > 18) fail(`Type B teen ${teen} not in 11..18`);
   if (d < 1 || d > 9) fail(`Type B digit ${d} not in 1..9`);
   const s = teen + d;
-  if (s < 11 || s > 18) fail(`Type B sum (${teen}+${d}) = ${s}, not in 11..18`);
+  if (s < 11 || s > 19) fail(`Type B sum (${teen}+${d}) = ${s}, not in 11..19`);
 }
 
 // --- buildQuestion invariants ---
@@ -44,13 +44,13 @@ for (let i = 0; i < 1000; i++) {
   if (q.a < 1 || q.a > 18) fail(`roundIdx=${i}: a=${q.a} out of range`);
   if (q.b < 1 || q.b > 9)  fail(`roundIdx=${i}: b=${q.b} out of range`);
   if (q.answer !== q.a + q.b) fail(`roundIdx=${i}: answer=${q.answer} but a+b=${q.a + q.b}`);
-  if (q.answer < 11 || q.answer > 18) fail(`roundIdx=${i}: answer=${q.answer} not in 11..18`);
+  if (q.answer < 11 || q.answer > 19) fail(`roundIdx=${i}: answer=${q.answer} not in 11..19`);
   if (q.candidates.length !== 6) fail(`roundIdx=${i}: candidates has ${q.candidates.length} entries`);
   const uniq = new Set(q.candidates);
   if (uniq.size !== 6) fail(`roundIdx=${i}: candidates has duplicates: ${JSON.stringify(q.candidates)}`);
   if (!uniq.has(q.answer)) fail(`roundIdx=${i}: answer ${q.answer} not in candidates ${JSON.stringify(q.candidates)}`);
   for (const c of q.candidates) {
-    if (c < 1 || c > 19) fail(`roundIdx=${i}: candidate ${c} out of 1..19`);
+    if (c < 11 || c > 19) fail(`roundIdx=${i}: candidate ${c} out of 11..19`);
   }
   seenKeys.add(q.key);
 }
