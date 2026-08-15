@@ -171,13 +171,7 @@ export default function gameWhack(k) {
     },
   });
 
-  // Title.
-  k.add([
-    k.text("打地鼠 · 水墨出题", { size: 36, font: FONT }),
-    k.color(...INK),
-    k.pos(748, 160),
-    k.anchor("center"),
-  ]);
+  // Title — removed per user feedback (2026-08-15).
 
   // Score pill (top-right).
   const scoreText = k.add([
@@ -231,14 +225,7 @@ export default function gameWhack(k) {
     boxMode: true,
   });
 
-  // Hint.
-  k.add([
-    k.text("点中头顶是答案的地鼠", { size: 32, font: FONT }),
-    k.color(...INK),
-    k.opacity(0.7),
-    k.pos(748, 420),
-    k.anchor("center"),
-  ]);
+  // Hint — removed per user feedback (2026-08-15).
 
   // Grass strip — thin band sitting in the gap between top-row mole bodies
   // (bottom at y=615 with GRID_Y0=600) and bottom-row badges (top at y≈670,
