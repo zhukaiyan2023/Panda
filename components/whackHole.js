@@ -1,8 +1,14 @@
 // components/whackHole.js — one hole + its mole + answer badge for gameWhack.
 // The mole and answer badge are treated as one visual unit: all movement,
 // hiding/showing, bobbing and retreat operations update both together.
+//
+// When useBakedSprite=true, the mole sprite is swapped to a pre-baked
+// "mole + number on belly" asset (one image = one visual unit). The
+// badge/num elements are skipped and replaced with an outline overlay
+// that signals the selected state.
 
 import { INK, YELLOW, ORANGE } from "./theme.js?v=20260815";
+import { spriteName } from "../data/whackPack.js?v=20260815";
 
 const HOLE_SCALE = 0.20;
 const MOLE_SCALE = 0.14;
@@ -10,6 +16,7 @@ const MOLE_Y_OFFSET = -50;
 const BADGE_OFFSET_X = 0;
 const BADGE_OFFSET_Y = -50; // relative to mole center
 const BADGE_RADIUS = 28;
+const OUTLINE_SIZE = 180;
 
 const POP_DUR = 1.0;
 const RETREAT_DUR = 0.8;
@@ -19,11 +26,11 @@ const BOB_AMP = 12;
 const BOB_FREQ = (2 * Math.PI) / 1.6;
 const POP_TRAVEL = 180;
 
-export default function whackHole(k, { x, y, variant }) {
-  const v = ((variant % 3) + 3) % 3;
+export default function whackHole(k, { x, y, variant, useBakedSprite = false }) {
+  const v = ((variant % 6) + 6) % 6;  // 0..5 for baked sprite variant
 
   const hole = k.add([
-    k.sprite(`mole-hole-${v + 1}`),
+    k.sprite(`mole-hole-${(v % 3) + 1}`),  // 3 hole variants
     k.pos(x, y),
     k.anchor("center"),
     k.scale(HOLE_SCALE),
@@ -31,7 +38,7 @@ export default function whackHole(k, { x, y, variant }) {
   ]);
 
   const mole = k.add([
-    k.sprite("mole-1"),
+    k.sprite("mole-1"),  // placeholder; popUp() will use the real one
     k.pos(x, y + MOLE_Y_OFFSET + POP_TRAVEL),
     k.anchor("center"),
     k.scale(MOLE_SCALE),
@@ -40,25 +47,43 @@ export default function whackHole(k, { x, y, variant }) {
     k.z(1),
   ]);
 
-  // Badge and digit are deliberately positioned relative to mole.pos,
-  // never the hole's fixed position. This makes them a single visual unit.
-  const badge = k.add([
-    k.circle(BADGE_RADIUS),
-    k.color(...YELLOW),
-    k.outline(3, k.rgb(...INK)),
-    k.pos(x, y + MOLE_Y_OFFSET + BADGE_OFFSET_Y),
-    k.anchor("center"),
-    k.opacity(0),
-    k.z(3),
-  ]);
-  const num = k.add([
-    k.text("0", { size: 36, font: "Arial Rounded MT Bold, Trebuchet MS, system-ui, sans-serif" }),
-    k.color(...INK),
-    k.pos(x, y + MOLE_Y_OFFSET + BADGE_OFFSET_Y),
-    k.anchor("center"),
-    k.opacity(0),
-    k.z(4),
-  ]);
+  // Outline overlay for the selected state in baked-sprite mode. Created
+  // up front but invisible until setSelected(true).
+  let outline = null;
+  if (useBakedSprite) {
+    outline = k.add([
+      k.rect(OUTLINE_SIZE, OUTLINE_SIZE, { radius: 30 }),
+      k.outline(4, k.rgb(...ORANGE)),
+      k.color(255, 255, 255),
+      k.opacity(0),
+      k.pos(x, y + MOLE_Y_OFFSET),
+      k.anchor("center"),
+      k.z(0),
+    ]);
+  }
+
+  // Legacy badge + num (only when NOT using baked sprites).
+  let badge = null;
+  let num = null;
+  if (!useBakedSprite) {
+    badge = k.add([
+      k.circle(BADGE_RADIUS),
+      k.color(...YELLOW),
+      k.outline(3, k.rgb(...INK)),
+      k.pos(x, y + MOLE_Y_OFFSET + BADGE_OFFSET_Y),
+      k.anchor("center"),
+      k.opacity(0),
+      k.z(3),
+    ]);
+    num = k.add([
+      k.text("0", { size: 36, font: "Arial Rounded MT Bold, Trebuchet MS, system-ui, sans-serif" }),
+      k.color(...INK),
+      k.pos(x, y + MOLE_Y_OFFSET + BADGE_OFFSET_Y),
+      k.anchor("center"),
+      k.opacity(0),
+      k.z(4),
+    ]);
+  }
 
   let occupied = false;
   let value = null;
@@ -80,22 +105,33 @@ export default function whackHole(k, { x, y, variant }) {
   }
 
   function syncBadge() {
-    badge.pos.x = mole.pos.x + BADGE_OFFSET_X;
-    badge.pos.y = mole.pos.y + BADGE_OFFSET_Y;
-    num.pos.x = badge.pos.x;
-    num.pos.y = badge.pos.y;
+    if (useBakedSprite) {
+      if (outline) {
+        outline.pos.x = mole.pos.x;
+        outline.pos.y = mole.pos.y;
+      }
+      return;
+    }
+    if (badge && num) {
+      badge.pos.x = mole.pos.x + BADGE_OFFSET_X;
+      badge.pos.y = mole.pos.y + BADGE_OFFSET_Y;
+      num.pos.x = badge.pos.x;
+      num.pos.y = badge.pos.y;
+    }
   }
 
   function hideVisual() {
     mole.opacity = 0;
-    badge.opacity = 0;
-    num.opacity = 0;
+    if (outline) outline.opacity = 0;
+    if (badge) badge.opacity = 0;
+    if (num) num.opacity = 0;
   }
 
   function showVisual() {
     mole.opacity = 1;
-    badge.opacity = 1;
-    num.opacity = 1;
+    if (outline) outline.opacity = 0;  // outline stays hidden until selected
+    if (badge) badge.opacity = 1;
+    if (num) num.opacity = 1;
   }
 
   function popUp(v_) {
@@ -104,10 +140,15 @@ export default function whackHole(k, { x, y, variant }) {
 
     occupied = true;
     value = v_;
-    num.text = String(v_);
 
-    const variantIdx = 1 + Math.floor(Math.random() * 6);
-    mole.use(k.sprite(`mole-${variantIdx}`));
+    if (useBakedSprite) {
+      // Swap the mole sprite to the baked "mole + number on belly" image.
+      mole.use(k.sprite(spriteName(v + 1, v_)));
+    } else {
+      num.text = String(v_);
+      const variantIdx = 1 + Math.floor(Math.random() * 6);
+      mole.use(k.sprite(`mole-${variantIdx}`));
+    }
 
     const startY = y + MOLE_Y_OFFSET + POP_TRAVEL;
     const endY = y + MOLE_Y_OFFSET;
@@ -175,13 +216,18 @@ export default function whackHole(k, { x, y, variant }) {
       // Fade the complete unit together during retreat.
       const opacity = 1 - t;
       mole.opacity = opacity;
-      badge.opacity = opacity;
-      num.opacity = opacity;
+      if (outline && outline.opacity > 0) outline.opacity = opacity;
+      if (badge) badge.opacity = opacity;
+      if (num) num.opacity = opacity;
     });
   }
 
   function setSelected(on) {
-    badge.color = k.rgb(...(on ? ORANGE : YELLOW));
+    if (useBakedSprite) {
+      if (outline) outline.opacity = on ? 1 : 0;
+    } else if (badge) {
+      badge.color = k.rgb(...(on ? ORANGE : YELLOW));
+    }
   }
 
   function flashCorrect() {
