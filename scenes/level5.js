@@ -146,12 +146,15 @@ function renderSlot(ctx, key, slots, opts) {
   ctx[key].slots = slots.slots;
 }
 
-// ---------- 8 drawLink lines -------------------------------------------
+// ---------- 11 drawLink lines ------------------------------------------
+// Each line is drawn only when both endpoints exist AND the target
+// slot contains a number (not a "?" box).
 function linkPoints(anchor, s1, s2, tens, onesFinal) {
   const pts = [];
   if (!anchor?.slotCenters) return pts;
 
-  // L1: anchor a → split-1 left slot (slot 0) — only after step 1 reveal
+  // L1: anchor a (slot 0) → split-1 left (slot 0, becomes "10" after
+  //     step 1 reveal).
   if (s1?.slotCenters?.[0] != null && anchor.slotCenters[0] != null
       && typeof s1.slots?.[0] === "number") {
     pts.push({
@@ -160,31 +163,53 @@ function linkPoints(anchor, s1, s2, tens, onesFinal) {
       color: COL_TEN,
     });
   }
-  // L2: anchor b → split-1 right slot (slot 2) — only at step 1 pre-click
-  if (s1?.slotCenters?.[2] != null && anchor.slotCenters[2] != null) {
+  // L2: anchor b (slot 2) → split-1 b slot (slot 4, always = round.b).
+  if (s1?.slotCenters?.[4] != null && anchor.slotCenters[2] != null) {
     pts.push({
       from: { x: anchor.slotCenters[2], y: anchor.slotY + anchor.slotSizes[2] / 2 },
-      to:   { x: s1.slotCenters[2], y: s1.slotY - s1.slotSizes[2] / 2 },
+      to:   { x: s1.slotCenters[4], y: s1.slotY - s1.slotSizes[4] / 2 },
       color: COL_SMALL,
     });
   }
-  // L3: anchor b → split-2 b-left (slot 4) — after step 1 reveal
-  if (s2?.slotCenters?.[4] != null && anchor.slotCenters[2] != null) {
+  // L3: anchor a (slot 0) → split-2 left (slot 0, becomes "10" after
+  //     step 2 reveal).
+  if (s2?.slotCenters?.[0] != null && anchor.slotCenters[0] != null
+      && typeof s2.slots?.[0] === "number") {
+    pts.push({
+      from: { x: anchor.slotCenters[0], y: anchor.slotY + anchor.slotSizes[0] / 2 },
+      to:   { x: s2.slotCenters[0], y: s2.slotY - s2.slotSizes[0] / 2 },
+      color: COL_TEN,
+    });
+  }
+  // L4: anchor b (slot 2) → split-2 b-left (slot 4, becomes "10" after
+  //     step 2 reveal).
+  if (s2?.slotCenters?.[4] != null && anchor.slotCenters[2] != null
+      && typeof s2.slots?.[4] === "number") {
     pts.push({
       from: { x: anchor.slotCenters[2], y: anchor.slotY + anchor.slotSizes[2] / 2 },
       to:   { x: s2.slotCenters[4], y: s2.slotY - s2.slotSizes[4] / 2 },
       color: COL_TEN,
     });
   }
-  // L4: split-2's 10_a (slot 0) → combine-tens 10_left (slot 0)
-  if (s2?.slotCenters?.[0] != null && tens?.slotCenters?.[0] != null) {
+  // L5: split-2 10_a (slot 0) → combine-tens 10_left (slot 0).
+  if (s2?.slotCenters?.[0] != null && tens?.slotCenters?.[0] != null
+      && typeof s2.slots?.[0] === "number") {
     pts.push({
       from: { x: s2.slotCenters[0], y: s2.slotY + s2.slotSizes[0] / 2 },
       to:   { x: tens.slotCenters[0], y: tens.slotY - tens.slotSizes[0] / 2 },
       color: COL_TEN,
     });
   }
-  // L5: split-2's 10_b (slot 4) → combine-tens 10_right (slot 2)
+  // L6: split-2 onesA (slot 2) → combine-tens ones_sum (slot 4).
+  if (s2?.slotCenters?.[2] != null && tens?.slotCenters?.[4] != null
+      && typeof s2.slots?.[2] === "number") {
+    pts.push({
+      from: { x: s2.slotCenters[2], y: s2.slotY + s2.slotSizes[2] / 2 },
+      to:   { x: tens.slotCenters[4], y: tens.slotY - tens.slotSizes[4] / 2 },
+      color: COL_BIG,
+    });
+  }
+  // L7: split-2 10_b (slot 4) → combine-tens 10_right (slot 2).
   if (s2?.slotCenters?.[4] != null && tens?.slotCenters?.[2] != null
       && typeof s2.slots?.[4] === "number") {
     pts.push({
@@ -193,24 +218,34 @@ function linkPoints(anchor, s1, s2, tens, onesFinal) {
       color: COL_TEN,
     });
   }
-  // L6: split-2's onesA (slot 2) → combine-ones+final left (slot 0)
-  if (s2?.slotCenters?.[2] != null && onesFinal?.slotCenters?.[0] != null) {
-    pts.push({
-      from: { x: s2.slotCenters[2], y: s2.slotY + s2.slotSizes[2] / 2 },
-      to:   { x: onesFinal.slotCenters[0], y: onesFinal.slotY - onesFinal.slotSizes[0] / 2 },
-      color: COL_BIG,
-    });
-  }
-  // L7: split-2's onesB (slot 6) → combine-ones+final right (slot 2)
-  if (s2?.slotCenters?.[6] != null && onesFinal?.slotCenters?.[2] != null) {
+  // L8: split-2 onesB (slot 6) → combine-tens ones_sum (slot 4).
+  if (s2?.slotCenters?.[6] != null && tens?.slotCenters?.[4] != null
+      && typeof s2.slots?.[6] === "number") {
     pts.push({
       from: { x: s2.slotCenters[6], y: s2.slotY + s2.slotSizes[6] / 2 },
-      to:   { x: onesFinal.slotCenters[2], y: onesFinal.slotY - onesFinal.slotSizes[2] / 2 },
+      to:   { x: tens.slotCenters[4], y: tens.slotY - tens.slotSizes[4] / 2 },
       color: COL_SMALL,
     });
   }
-  // L8: combine-tens ones_sum (slot 4) → combine-ones+final right (slot 2)
-  //     Only after step 4 reveal (when ones_sum = sum).
+  // L9: combine-tens 10_left (slot 0) → combine-ones+final tens_sum (slot 0).
+  if (tens?.slotCenters?.[0] != null && onesFinal?.slotCenters?.[0] != null) {
+    pts.push({
+      from: { x: tens.slotCenters[0], y: tens.slotY + tens.slotSizes[0] / 2 },
+      to:   { x: onesFinal.slotCenters[0], y: onesFinal.slotY - onesFinal.slotSizes[0] / 2 },
+      color: COL_TEN,
+    });
+  }
+  // L10: combine-tens 10_right (slot 2) → combine-ones+final tens_sum
+  //      (slot 0). The two 10s both feed into tens_sum (= 20).
+  if (tens?.slotCenters?.[2] != null && onesFinal?.slotCenters?.[0] != null) {
+    pts.push({
+      from: { x: tens.slotCenters[2], y: tens.slotY + tens.slotSizes[2] / 2 },
+      to:   { x: onesFinal.slotCenters[0], y: onesFinal.slotY - onesFinal.slotSizes[0] / 2 },
+      color: COL_TEN,
+    });
+  }
+  // L11: combine-tens ones_sum (slot 4) → combine-ones+final ones_sum
+  //      (slot 2). Only after step 4 reveal (when slot 4 = sum).
   if (tens?.slotCenters?.[4] != null && onesFinal?.slotCenters?.[2] != null
       && typeof tens.slots?.[4] === "number") {
     pts.push({
