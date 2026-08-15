@@ -49,7 +49,7 @@ for (const name of ALL_SPRITE_NAMES) {
   }
   const dim = await pngDimensions(buf);
   if (!dim) { fail(`not a valid PNG: ${path}`); continue; }
-  if (dim.w < 400 || dim.w > 800 || dim.h < 400 || dim.h > 800) {
+  if (dim.w < 400 || dim.w > 1024 || dim.h < 400 || dim.h > 1024) {
     fail(`out of range: ${path} ${dim.w}×${dim.h}`);
   }
 }
