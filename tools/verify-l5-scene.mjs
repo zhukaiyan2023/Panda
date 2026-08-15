@@ -1,17 +1,12 @@
 #!/usr/bin/env node
-// tools/verify-l5-scene.mjs — L5 关卡专项验证 (v5 cascading 6-row)。
+// tools/verify-l5-scene.mjs — L5 v6 verification.
 //
-// v5 layout (6 persistent rows + anchor):
-//   y=200  anchor        a + b = ?
-//   y=320  split-1       □ + □ + b = ?
-//   y=400  split-2       10 + 1 + □ + □ = ?
-//   y=480  split-3       10 + 1 + 10 + 1 = ?
-//   y=600  combine-tens  10 + 10 = ?
-//   y=680  combine-ones  □ + □ = ?
-//   y=760  final         □ + □ = ?
-//
-// All 7 rows persistent across all 5 steps; only slot CONTENT
-// (□ → digit) changes as the kid answers.
+// v6 layout (each step introduces ONE new row):
+//   y=200  anchor         a + b = ?
+//   y=320  split-1        ? + ? + b = ? → 10 + 1 + b = ?
+//   y=400  split-2        10 + 1 + ? + ? = ? → 10 + 1 + 10 + 1 = ?
+//   y=540  combine-tens   10 + 10 + ? = ? → 10 + 10 + sum = 20
+//   y=640  combine-ones+final  ? + ? = ? → ? + sum = ? → 20 + sum = answer
 
 import { chromium } from "playwright";
 
@@ -93,7 +88,6 @@ for (let roundIdx = 0; roundIdx < roundsToPlay; roundIdx++) {
   const pair = readAnchorPair(all);
   if (!pair) {
     console.error(`FAIL round ${roundIdx + 1}: anchor pair not found`);
-    console.error("all nodes:", JSON.stringify(all, null, 2));
     process.exit(1);
   }
   const { a, b } = pair;
@@ -110,65 +104,48 @@ for (let roundIdx = 0; roundIdx < roundsToPlay; roundIdx++) {
 
     const split1 = readDigitsAtY(stepAll, 320).sort();
     const split2 = readDigitsAtY(stepAll, 400).sort();
-    const split3 = readDigitsAtY(stepAll, 480).sort();
-    const tensDigits  = readDigitsAtY(stepAll, 600).sort();
-    const onesDigits  = readDigitsAtY(stepAll, 680).sort();
-    const finalDigits = readDigitsAtY(stepAll, 760).sort();
+    const tensDigits = readDigitsAtY(stepAll, 540).sort();
+    const onesFinal = readDigitsAtY(stepAll, 640).sort();
 
-    // split-1: "? + ? + b = ?" (step 1 pre-click) → "10 + onesA + b = ?"
-    //   digits: [b] pre-click, [10, onesA, b] post-click.
+    // split-1: only visible from step 1.
+    //   step 1 pre:  [b]                  (left and onesA are boxes)
+    //   step 1 post: [10, onesA, b]       (a revealed)
     let expSplit1 = [];
     if (step >= 1) expSplit1.push(10, onesA);
     expSplit1.push(b);
 
-    // split-2: "10 + onesA + ? + ? = ?" (step 2 pre-click) →
-//          "10 + onesA + 10 + onesB = ?" (step 2 reveal onwards).
-    //   digits: [10, onesA] pre-click, [10, onesA, 10, onesB] post-click.
-    let expSplit2 = [10, onesA];
+    // split-2: only visible from step 2 onwards.
+    let expSplit2 = [];
+    if (step >= 1) expSplit2 = [10, onesA];
     if (step >= 2) expSplit2.push(10, onesB);
 
-    // split-3: "10 + onesA + 10 + onesB = ?" — always fully revealed.
-    //   But on step 1 pre-click, the kid hasn't picked yet so the
-    //   onesA / onesB are technically unknown — we still show them
-    //   (the cascading rows are persistent and the kid will see all
-    //   the splits as "given"). Digits: [10, onesA, 10, onesB].
-    let expSplit3 = [10, onesA, 10, onesB];
-
-    // combine-tens: "10 + 10 = ?" (step 3 reveal: → 20).
-    let expTens = [10, 10];
+    // combine-tens: only visible from step 3 onwards.
+    let expTens = [];
+    if (step >= 2) expTens = [10, 10];
     if (step >= 3) expTens.push(20);
+    if (step >= 4) expTens.push(sum);
 
-    // combine-ones: "□ + □ = ?" — at step 4 (加个位) the addends
-    // onesA + onesB are pre-filled (revealed from steps 1-2); sum is
-    // the answer slot to be picked. After step 4 reveal, sum shows.
-    let expOnes = [];
-    if (step >= 3) expOnes.push(onesA, onesB);
-    if (step >= 4) expOnes.push(sum);
-
-    // final: "□ + □ = ?" — at step 5 (加起来) the 20 is pre-filled
-    // (revealed from step 3) and sum is pre-filled (revealed from
-    // step 4); answer is the answer slot to be picked.
-    let expFinal = [];
-    if (step >= 3) expFinal.push(20);
-    if (step >= 4) expFinal.push(sum);
-    if (step >= 5) expFinal.push(answer);
+    // combine-ones+final: only visible from step 4 onwards.
+    //   step 4 pre-click:    []               (all boxes)
+    //   step 4 post-click:   [sum]            (right filled with sum)
+    //   step 5 pre-click:    [sum]            (held from step 4 reveal)
+    //   step 5 post-click:   [20, sum, answer] (all filled)
+    let expOnesFinal = [];
+    if (step >= 4) expOnesFinal.push(sum);
+    if (step >= 5) expOnesFinal.push(20, answer);
 
     const s1OK = JSON.stringify(split1) === JSON.stringify(expSplit1.sort());
     const s2OK = JSON.stringify(split2) === JSON.stringify(expSplit2.sort());
-    const s3OK = JSON.stringify(split3) === JSON.stringify(expSplit3.sort());
     const tOK  = JSON.stringify(tensDigits) === JSON.stringify(expTens.sort());
-    const oOK  = JSON.stringify(onesDigits) === JSON.stringify(expOnes.sort());
-    const fOK  = JSON.stringify(finalDigits) === JSON.stringify(expFinal.sort());
+    const oOK  = JSON.stringify(onesFinal) === JSON.stringify(expOnesFinal.sort());
 
     console.log(`  Step ${step + 1}:`);
     console.log(`    split1 y=320: ${JSON.stringify(split1)} expected ${JSON.stringify(expSplit1.sort())} ${s1OK ? "✓" : "✗"}`);
     console.log(`    split2 y=400: ${JSON.stringify(split2)} expected ${JSON.stringify(expSplit2.sort())} ${s2OK ? "✓" : "✗"}`);
-    console.log(`    split3 y=480: ${JSON.stringify(split3)} expected ${JSON.stringify(expSplit3.sort())} ${s3OK ? "✓" : "✗"}`);
-    console.log(`    tens   y=600: ${JSON.stringify(tensDigits)} expected ${JSON.stringify(expTens.sort())} ${tOK ? "✓" : "✗"}`);
-    console.log(`    ones   y=680: ${JSON.stringify(onesDigits)} expected ${JSON.stringify(expOnes.sort())} ${oOK ? "✓" : "✗"}`);
-    console.log(`    final  y=760: ${JSON.stringify(finalDigits)} expected ${JSON.stringify(expFinal.sort())} ${fOK ? "✓" : "✗"}`);
+    console.log(`    tens   y=540: ${JSON.stringify(tensDigits)} expected ${JSON.stringify(expTens.sort())} ${tOK ? "✓" : "✗"}`);
+    console.log(`    o+f    y=640: ${JSON.stringify(onesFinal)} expected ${JSON.stringify(expOnesFinal.sort())} ${oOK ? "✓" : "✗"}`);
 
-    if (!s1OK || !s2OK || !s3OK || !tOK || !oOK || !fOK) {
+    if (!s1OK || !s2OK || !tOK || !oOK) {
       console.error(`  FAIL: row digits mismatch at step ${step + 1}`);
       console.error("  all text nodes:", JSON.stringify(stepAll, null, 2));
       process.exit(1);
