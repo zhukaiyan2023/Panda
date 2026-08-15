@@ -1,16 +1,12 @@
 #!/usr/bin/env node
-// tools/verify-l5-scene.mjs — L5 关卡专项验证 (v3 cascading layout)。
+// tools/verify-l5-scene.mjs — L5 关卡专项验证 (v4 cascading layout)。
 //
-// v3: 4 persistent sub-equations at y=370 (split), y=490 (tens sum),
-// y=590 (ones sum), y=690 (final). 5 steps in order:
-//   1. 拆 a   (fill split "□_a")
-//   2. 拆 b   (fill split "□_b")
-//   3. 加十位 (fill tens sum "?")
-//   4. 加个位 (fill ones sum "?")
-//   5. 加起来 (fill final "?")
-//
-// At step 5, the final row is pre-built with left=20, right=sum to
-// give the kid a reference for the answer.
+// v4 layout (persistent across all 5 steps):
+//   y=200  anchor        a + b = ?
+//   y=320  split row     cascading 4 stages (boxes fill in over steps 1-2)
+//   y=460  tens sum      10 + 10 = ?
+//   y=540  ones sum      □ + □ = ?
+//   y=620  final         □ + □ = ?
 
 import { chromium } from "playwright";
 
@@ -56,7 +52,7 @@ async function readAllText() {
 }
 
 function readAnchorPair(nodes) {
-  const anchor = nodes.filter((n) => n.y >= 200 && n.y <= 240);
+  const anchor = nodes.filter((n) => n.y >= 180 && n.y <= 220);
   const twoDigit = anchor.filter((n) => /^\d{2}$/.test(n.text));
   if (twoDigit.length < 2) return null;
   twoDigit.sort((a, b) => a.x - b.x);
@@ -107,51 +103,52 @@ for (let roundIdx = 0; roundIdx < roundsToPlay; roundIdx++) {
     await page.waitForTimeout(600);
     const stepAll = await readAllText();
 
-    const splitDigits = readDigitsAtY(stepAll, 370).sort();
-    const tensDigits  = readDigitsAtY(stepAll, 490).sort();
-    const onesDigits  = readDigitsAtY(stepAll, 590).sort();
-    const finalDigits = readDigitsAtY(stepAll, 690).sort();
+    const splitDigits = readDigitsAtY(stepAll, 320).sort();
+    const tensDigits  = readDigitsAtY(stepAll, 460).sort();
+    const onesDigits  = readDigitsAtY(stepAll, 540).sort();
+    const finalDigits = readDigitsAtY(stepAll, 620).sort();
 
-    // Per-step expected digits (operators are sprites, so only digits).
-    // Split row: baseline 10×2 (the two "10"s in (10+□)(10+□)).
-    // The □ slots are boxes; the "=" and "?" are boxes too. The
-    // ("(" ")" are operators (sprites). After step 1 reveal, split
-    // gets +onesA. After step 2, +onesB.
-    const expectedSplit = [10, 10];
-    if (step >= 1) expectedSplit.push(onesA);
-    if (step >= 2) expectedSplit.push(onesB);
+    // Split row stages at each loop step (BEFORE click):
+    //   step=0 (拆 a pre):    stage 0 → [b]
+    //   step=1 (拆 b pre):    stage 2 → [10, onesA]   (b is now split into boxes)
+    //   step=2 (加十位 pre): stage 3 → [10, onesA, 10, onesB]
+    //   step=3 (加个位 pre): stage 3 (held)
+    //   step=4 (加起来 pre): stage 3 (held)
+    let expSplit = [];
+    if (step === 0) expSplit.push(b);
+    if (step >= 1) expSplit.push(10, onesA);
+    if (step >= 2) expSplit.push(10, onesB);
 
-    // Tens sum row: baseline 10×2. After step 3 reveal, +20.
-    const expectedTens = [10, 10];
-    if (step >= 3) expectedTens.push(20);
+    // Tens sum row: 10 + 10 = ?. Step 3 (加十位 pre-click) shows
+    // only the two 10s. Step 3 reveal adds 20 — so step 4 onwards
+    // shows [10, 10, 20].
+    let expTens = [10, 10];
+    if (step >= 3) expTens.push(20);
 
-    // Ones sum row: starts blank. Step 3 (加十位, index 2) builds
-    // the row with addends (onesA, onesB) already revealed from
-    // steps 1-2. Step 4 (index 3, pre-click) shows the same addends
-    // (kid hasn't picked sum yet). Step 5 (index 4) after step 4
-    // reveal: includes sum.
-    let expectedOnes = [];
-    if (step >= 2) expectedOnes.push(onesA, onesB);
-    if (step >= 4) expectedOnes.push(sum);
+    // Ones sum row: ? + ? = ?. Step 3 (加十位 pre-click) builds
+    // the row with addends visible (onesA, onesB). Step 4 (加个位
+    // pre-click) has the same. After step 4 reveal, sum is added.
+    let expOnes = [];
+    if (step >= 2) expOnes.push(onesA, onesB);
+    if (step >= 4) expOnes.push(sum);
 
-    // Final row: starts blank. Step 4 (加个位, index 3) pre-fills
-    // 20 (from step 3 reveal). Step 5 (index 4) adds sum (from step
-    // 4 reveal). Step 5 click reveals answer.
-    let expectedFinal = [];
-    if (step >= 3) expectedFinal.push(20);
-    if (step >= 4) expectedFinal.push(sum);
-    if (step >= 5) expectedFinal.push(answer);
+    // Final row: □ + □ = ?. Step 4 (加个位 pre-click) pre-fills 20.
+    // Step 5 (加起来 pre-click) adds sum.
+    let expFinal = [];
+    if (step >= 3) expFinal.push(20);
+    if (step >= 4) expFinal.push(sum);
+    if (step >= 5) expFinal.push(answer);
 
-    const splitOK = JSON.stringify(splitDigits) === JSON.stringify(expectedSplit.sort());
-    const tensOK  = JSON.stringify(tensDigits)  === JSON.stringify(expectedTens.sort());
-    const onesOK  = JSON.stringify(onesDigits)  === JSON.stringify(expectedOnes.sort());
-    const finalOK = JSON.stringify(finalDigits) === JSON.stringify(expectedFinal.sort());
+    const splitOK = JSON.stringify(splitDigits) === JSON.stringify(expSplit.sort());
+    const tensOK  = JSON.stringify(tensDigits)  === JSON.stringify(expTens.sort());
+    const onesOK  = JSON.stringify(onesDigits)  === JSON.stringify(expOnes.sort());
+    const finalOK = JSON.stringify(finalDigits) === JSON.stringify(expFinal.sort());
 
     console.log(`  Step ${step + 1}:`);
-    console.log(`    split y=370: ${JSON.stringify(splitDigits)} expected ${JSON.stringify(expectedSplit.sort())} ${splitOK ? "✓" : "✗"}`);
-    console.log(`    tens  y=490: ${JSON.stringify(tensDigits)} expected ${JSON.stringify(expectedTens.sort())} ${tensOK ? "✓" : "✗"}`);
-    console.log(`    ones  y=590: ${JSON.stringify(onesDigits)} expected ${JSON.stringify(expectedOnes.sort())} ${onesOK ? "✓" : "✗"}`);
-    console.log(`    final y=690: ${JSON.stringify(finalDigits)} expected ${JSON.stringify(expectedFinal.sort())} ${finalOK ? "✓" : "✗"}`);
+    console.log(`    split y=320: ${JSON.stringify(splitDigits)} expected ${JSON.stringify(expSplit.sort())} ${splitOK ? "✓" : "✗"}`);
+    console.log(`    tens  y=460: ${JSON.stringify(tensDigits)} expected ${JSON.stringify(expTens.sort())} ${tensOK ? "✓" : "✗"}`);
+    console.log(`    ones  y=540: ${JSON.stringify(onesDigits)} expected ${JSON.stringify(expOnes.sort())} ${onesOK ? "✓" : "✗"}`);
+    console.log(`    final y=620: ${JSON.stringify(finalDigits)} expected ${JSON.stringify(expFinal.sort())} ${finalOK ? "✓" : "✗"}`);
 
     if (!splitOK || !tensOK || !onesOK || !finalOK) {
       console.error(`  FAIL: row digits mismatch at step ${step + 1}`);
