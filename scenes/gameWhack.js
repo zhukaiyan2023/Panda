@@ -1,7 +1,7 @@
 // scenes/gameWhack.js — whack-a-mole answer game.
-// A round shows one math question and six answer moles. Only one answer
-// interaction may be active at a time; this prevents concurrent audio,
-// animations and round transitions from racing each other.
+// A round shows one math question and six large answer moles arranged in a
+// spacious 3x2 board. The board is deliberately uncluttered so preschool
+// children can see each mole and number immediately.
 
 import panda from "../components/panda.js?v=20260815";
 import { iconButton } from "../components/choice.js?v=20260815";
@@ -16,10 +16,13 @@ import { buildQuestion, pickType } from "../data/whackRounds.js?v=20260815";
 const TIME_LIMIT = 90;
 const HOLE_COUNT = 6;
 const HOLE_COLS = 3;
-const HOLE_CELLW = 320;
+
+// Wider cells + more vertical separation give the larger moles room to move
+// without touching each other or the equation area.
+const HOLE_CELLW = 380;
 const GRID_X = 748 - ((HOLE_COLS - 1) * HOLE_CELLW) / 2;
-const GRID_Y0 = 600;
-const GRID_Y1 = 820;
+const GRID_Y0 = 610;
+const GRID_Y1 = 850;
 
 function mulberry32(seed) {
   let a = seed >>> 0;
@@ -153,14 +156,15 @@ export default function gameWhack(k) {
 
   let eq = expression(k, {
     slots: ["□", "+", "□", "=", "□"],
-    x: 748, y: 320, size: 100,
+    x: 748, y: 315, size: 94,
     boxMode: true,
   });
 
+  // Ground is behind the entire mole/hole board.
   k.add([
     k.sprite("grass-ground"),
-    k.pos(GRID_X - (1100 - HOLE_COLS * HOLE_CELLW) / 2, 660),
-    k.scale(1.0, 0.15),
+    k.pos(748, 748),
+    k.scale(1.15, 0.16),
     k.z(0),
   ]);
 
@@ -168,13 +172,19 @@ export default function gameWhack(k) {
     [0, 0, 1, 1, 2, 2],
     mulberry32((Date.now() ^ 0xA53F19B1) >>> 0),
   );
+
   const holes = [];
   for (let i = 0; i < HOLE_COUNT; i++) {
     const col = i % HOLE_COLS;
     const row = Math.floor(i / HOLE_COLS);
     const x = GRID_X + col * HOLE_CELLW;
     const y = row === 0 ? GRID_Y0 : GRID_Y1;
-    const h = whackHole(k, { x, y, variant: variants[i] });
+    const h = whackHole(k, {
+      x,
+      y,
+      variant: variants[i],
+      slotIndex: i,
+    });
     h._tapped = false;
     holes.push(h);
   }
@@ -204,7 +214,7 @@ export default function gameWhack(k) {
     eq.destroy();
     eq = expression(k, {
       slots: [String(currentQ.a), "+", String(currentQ.b), "=", "□"],
-      x: 748, y: 320, size: 100,
+      x: 748, y: 315, size: 94,
       boxMode: true,
       reserve: ["17", "+", "9", "=", "11"],
     });
@@ -237,18 +247,15 @@ export default function gameWhack(k) {
   window.PandaAudio.playSequence(["whack-intro", "whack-start"], 200, 0);
   buildAndSpawn(true);
 
-  // The previous implementation used 220x280 overlapping hit rectangles
-  // and also attached the same click to the mole. A single tap could then
-  // activate two holes, race multiple audio chains and schedule multiple
-  // round transitions. Keep one compact, non-overlapping hit target per
-  // hole and use a global input lock for the whole answer transition.
-  const TAP_HIT_W = 150;
-  const TAP_HIT_H = 150;
+  // Larger tap targets match the larger visuals, but remain centered on each
+  // mole so neighboring holes cannot accidentally overlap.
+  const TAP_HIT_W = 190;
+  const TAP_HIT_H = 190;
   for (const h of holes) {
     const hit = k.add([
-      k.rect(TAP_HIT_W, TAP_HIT_H, { radius: 30 }),
+      k.rect(TAP_HIT_W, TAP_HIT_H, { radius: 40 }),
       k.anchor("center"),
-      k.pos(h.x, h.y - 50),
+      k.pos(h.x, h.y - 70),
       k.opacity(0),
       k.area(),
       k.z(10),
@@ -272,7 +279,7 @@ export default function gameWhack(k) {
         h.flashCorrect();
         celebrate(k, {
           tier,
-          anchor: { x: h.x, y: h.y - 40 },
+          anchor: { x: h.x, y: h.y - 70 },
           pandaBody: buddy?.body,
           pandaBaseSize: 200,
         });
