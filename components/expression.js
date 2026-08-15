@@ -1,7 +1,13 @@
-// components/expression.js — renders an arithmetic expression as a row of slots.
-import { INK, MUTED, ACCENT, FONT, CARD } from "./theme.js?v=20260812";
+// components/expression.js — renders an arithmetic expression as a fixed slot row.
+import { INK, MUTED, FONT, CARD } from "./theme.js?v=20260812";
 
 const OP_SCALE = 0.7;
+const DEFAULT_UNKNOWN_RESERVE = "10";
+
+function isOperator(s) {
+  return s === "+" || s === "-" || s === "=" || s === "×" || s === "÷"
+    || s === "(" || s === ")" || s === ">" || s === "<";
+}
 
 function estimateWidth(text, nodeSize, isBox) {
   if (isBox) return nodeSize * 0.9;
@@ -62,11 +68,6 @@ function token(parent, k, text, size, muted, color, isBox) {
   ]);
 }
 
-function isOperator(s) {
-  return s === "+" || s === "-" || s === "=" || s === "×" || s === "÷"
-    || s === "(" || s === ")" || s === ">" || s === "<";
-}
-
 export default function expression(parent, opts = {}) {
   const k = window.kaplay;
   const x = opts.x;
@@ -80,9 +81,7 @@ export default function expression(parent, opts = {}) {
     return t === "?" || t === "□";
   });
   const boxMode = opts.boxMode ?? wantsBox;
-  const reserve = opts.reserve || [];
-
-  const root = parent.add([k.pos(0, 0), k.z(opts.z ?? 0)]);
+  const callerReserve = opts.reserve || [];
 
   const slotWidth = (slot) => {
     if (isBoxSlot(slot, boxMode)) return estimateWidth(slot, size, true);
@@ -91,13 +90,22 @@ export default function expression(parent, opts = {}) {
     return estimateWidth(slot, nodeSize, false);
   };
 
-  // When reserve[] is supplied it is the canonical layout contract for the
-  // row. Do not let current content widen/shrink a reserved slot: otherwise
-  // replacing "?" with the final answer can re-center the entire equation.
-  // The caller is responsible for reserving the widest lifetime content.
-  const widths = slots.map((slot, i) => (
-    reserve[i] == null ? slotWidth(slot) : slotWidth(reserve[i])
-  ));
+  // A row that contains an unknown is a teaching-state row: later steps
+  // replace the unknown with a number or comparison operator. Keep that
+  // slot at the widest normal child-facing width even when the caller did
+  // not explicitly provide `reserve`, so an overlooked level cannot make
+  // the whole equation jump when the box is revealed.
+  const reserve = slots.map((slot, i) => {
+    if (callerReserve[i] != null) return callerReserve[i];
+    if (isBoxSlot(slot, boxMode)) return DEFAULT_UNKNOWN_RESERVE;
+    return null;
+  });
+
+  const widths = slots.map((slot, i) => {
+    const own = slotWidth(slot);
+    if (reserve[i] == null) return own;
+    return Math.max(own, slotWidth(reserve[i]));
+  });
 
   const MIN_EDGE_GAP = size * 0.22;
   const totalWidth = widths.reduce((a, b) => a + b, 0)
@@ -109,6 +117,8 @@ export default function expression(parent, opts = {}) {
     return center;
   });
 
+  const root = parent.add([k.pos(0, 0), k.z(opts.z ?? 0)]);
+  const tokens = [];
   slots.forEach((slot, i) => {
     const isBox = isBoxSlot(slot, boxMode);
     const op = !isBox && isOperator(String(slot));
@@ -117,6 +127,7 @@ export default function expression(parent, opts = {}) {
     const node = token(root, k, slot, nodeSize, muted, colors[i], isBox);
     node.pos.x = centers[i];
     node.pos.y = y + (op ? nodeSize * 0.05 : 0);
+    tokens.push(node);
   });
 
   root.slotCenters = centers;
@@ -128,7 +139,14 @@ export default function expression(parent, opts = {}) {
   });
   root.slotY = y;
   root.layoutReserve = widths.slice();
-  root.layoutKey = JSON.stringify({ x, y, size, reserve, slots: slots.length });
+  root.layoutContract = {
+    x,
+    y,
+    size,
+    reserve: reserve.slice(),
+    slotCount: slots.length,
+  };
+  root.layoutTokens = tokens;
 
   return root;
 }
