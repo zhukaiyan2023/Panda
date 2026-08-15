@@ -114,7 +114,7 @@ export default function gameWhack(k) {
   function hasSprite(name) {
     try { return !!k.getSprite(name); } catch (_) { return false; }
   }
-  const missingSprites = ALL_SPRITE_NAMES.filter((n) => !hasSprite(k, n));
+  const missingSprites = ALL_SPRITE_NAMES.filter((n) => !hasSprite(n));
   const useBakedSprite = missingSprites.length === 0;
   if (!useBakedSprite) {
     console.warn(
