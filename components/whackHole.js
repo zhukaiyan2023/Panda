@@ -1,6 +1,5 @@
-// components/whackHole.js — one hole + its mole + answer badge for gameWhack.
-// The mole and answer badge are treated as one visual unit: all movement,
-// hiding/showing, bobbing and retreat operations update both together.
+// components/whackHole.js — one hole + its mole + answer as ONE visual unit.
+// The answer is rendered as a transform-synced overlay of the mole.
 
 import { INK, YELLOW, ORANGE } from "./theme.js?v=20260815";
 
@@ -8,8 +7,9 @@ const HOLE_SCALE = 0.20;
 const MOLE_SCALE = 0.14;
 const MOLE_Y_OFFSET = -50;
 const BADGE_OFFSET_X = 0;
-const BADGE_OFFSET_Y = -50; // relative to mole center
+const BADGE_OFFSET_Y = -50;
 const BADGE_RADIUS = 28;
+const NUMBER_SIZE = 36;
 
 const POP_DUR = 1.0;
 const RETREAT_DUR = 0.8;
@@ -40,21 +40,20 @@ export default function whackHole(k, { x, y, variant }) {
     k.z(1),
   ]);
 
-  // Badge and digit are deliberately positioned relative to mole.pos,
-  // never the hole's fixed position. This makes them a single visual unit.
   const badge = k.add([
     k.circle(BADGE_RADIUS),
     k.color(...YELLOW),
     k.outline(3, k.rgb(...INK)),
-    k.pos(x, y + MOLE_Y_OFFSET + BADGE_OFFSET_Y),
+    k.pos(x, y + MOLE_Y_OFFSET + POP_TRAVEL + BADGE_OFFSET_Y),
     k.anchor("center"),
     k.opacity(0),
     k.z(3),
   ]);
+
   const num = k.add([
-    k.text("0", { size: 36, font: "Arial Rounded MT Bold, Trebuchet MS, system-ui, sans-serif" }),
+    k.text("0", { size: NUMBER_SIZE, font: "Arial Rounded MT Bold, Trebuchet MS, system-ui, sans-serif" }),
     k.color(...INK),
-    k.pos(x, y + MOLE_Y_OFFSET + BADGE_OFFSET_Y),
+    k.pos(x, y + MOLE_Y_OFFSET + POP_TRAVEL + BADGE_OFFSET_Y),
     k.anchor("center"),
     k.opacity(0),
     k.z(4),
@@ -79,23 +78,36 @@ export default function whackHole(k, { x, y, variant }) {
     }
   }
 
-  function syncBadge() {
+  // Mole, badge and number share ONE transform state. Every frame derives
+  // the answer's position, scale and opacity from the mole itself.
+  function syncUnit() {
+    const visible = mole.opacity;
+    const overlayScale = mole.scale.x / MOLE_SCALE;
+
     badge.pos.x = mole.pos.x + BADGE_OFFSET_X;
     badge.pos.y = mole.pos.y + BADGE_OFFSET_Y;
     num.pos.x = badge.pos.x;
     num.pos.y = badge.pos.y;
+
+    badge.scale = k.vec2(overlayScale, overlayScale);
+    num.scale = k.vec2(overlayScale, overlayScale);
+    badge.opacity = visible;
+    num.opacity = visible;
   }
 
-  function hideVisual() {
-    mole.opacity = 0;
-    badge.opacity = 0;
-    num.opacity = 0;
+  function setUnitOpacity(opacity) {
+    mole.opacity = opacity;
+    badge.opacity = opacity;
+    num.opacity = opacity;
   }
 
-  function showVisual() {
-    mole.opacity = 1;
-    badge.opacity = 1;
-    num.opacity = 1;
+  function hideUnit() {
+    setUnitOpacity(0);
+  }
+
+  function showUnit() {
+    setUnitOpacity(1);
+    syncUnit();
   }
 
   function popUp(v_) {
@@ -108,20 +120,20 @@ export default function whackHole(k, { x, y, variant }) {
 
     const variantIdx = 1 + Math.floor(Math.random() * 6);
     mole.use(k.sprite(`mole-${variantIdx}`));
+    mole.scale = k.vec2(MOLE_SCALE, MOLE_SCALE);
 
     const startY = y + MOLE_Y_OFFSET + POP_TRAVEL;
     const endY = y + MOLE_Y_OFFSET;
     mole.pos.x = x;
     mole.pos.y = startY;
-    syncBadge();
-    showVisual();
+    showUnit();
 
     const t0 = k.time();
     cancelAnimation = mole.onUpdate(() => {
       const t = (k.time() - t0) / POP_DUR;
       if (t >= 1) {
         mole.pos.y = endY;
-        syncBadge();
+        syncUnit();
         cancelAnimation.cancel();
         cancelAnimation = null;
         startBob();
@@ -129,7 +141,7 @@ export default function whackHole(k, { x, y, variant }) {
       }
       const ease = 1 - Math.pow(1 - t, 3);
       mole.pos.y = startY + (endY - startY) * ease;
-      syncBadge();
+      syncUnit();
     });
   }
 
@@ -144,7 +156,7 @@ export default function whackHole(k, { x, y, variant }) {
       }
       const t = k.time() - t0;
       mole.pos.y = baseY - Math.sin(t * BOB_FREQ) * BOB_AMP;
-      syncBadge();
+      syncUnit();
     });
   }
 
@@ -162,21 +174,16 @@ export default function whackHole(k, { x, y, variant }) {
       const t = (k.time() - t0) / RETREAT_DUR;
       if (t >= 1) {
         mole.pos.y = endY;
-        syncBadge();
-        hideVisual();
+        syncUnit();
+        hideUnit();
         cancelAnimation.cancel();
         cancelAnimation = null;
         return;
       }
       const ease = t * t;
       mole.pos.y = startY + (endY - startY) * ease;
-      // Keep the number attached while the mole sinks.
-      syncBadge();
-      // Fade the complete unit together during retreat.
-      const opacity = 1 - t;
-      mole.opacity = opacity;
-      badge.opacity = opacity;
-      num.opacity = opacity;
+      setUnitOpacity(1 - t);
+      syncUnit();
     });
   }
 
@@ -196,7 +203,7 @@ export default function whackHole(k, { x, y, variant }) {
       const t = (k.time() - t0) / FLASH_DUR;
       if (t >= 1) {
         mole.scale = k.vec2(startScale, startScale);
-        syncBadge();
+        syncUnit();
         cancelAnimation.cancel();
         cancelAnimation = null;
         retreat();
@@ -206,7 +213,7 @@ export default function whackHole(k, { x, y, variant }) {
       const s = startScale + (peakScale - startScale) * bell;
       mole.scale = k.vec2(s, s);
       mole.pos.y = baseY;
-      syncBadge();
+      syncUnit();
     });
   }
 
@@ -219,7 +226,7 @@ export default function whackHole(k, { x, y, variant }) {
       const t = (k.time() - t0) / SHAKE_DUR;
       if (t >= 1) {
         mole.pos.x = baseX;
-        syncBadge();
+        syncUnit();
         cancelAnimation.cancel();
         cancelAnimation = null;
         startBob();
@@ -227,7 +234,7 @@ export default function whackHole(k, { x, y, variant }) {
       }
       const amp = 12 * (1 - t);
       mole.pos.x = baseX + Math.sin(t * 60) * amp;
-      syncBadge();
+      syncUnit();
     });
   }
 
