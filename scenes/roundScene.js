@@ -288,6 +288,12 @@ export default function createRoundScene(config) {
       const buttonH = opts.buttonH ?? 132;
       const gap = opts.gap ?? 24;
       const buttonY = opts.buttonY ?? LAYOUT.buttonY;
+      // Per-step label formatter. Defaults to the bare value; L4 step 1
+      // passes `(v) => "10+" + v` so its decomposition options read as
+      // "10+7 / 10+8 / 10+6 / 10+5" instead of bare digits — reinforces
+      // the "ten plus what" frame of the 凑十法 prompt. Correctness
+      // still compares the underlying value, not the label.
+      const labelFor = opts.labelFor || ((v) => String(v));
       const ordered = shuffle(values);
       const totalW = ordered.length * buttonW + (ordered.length - 1) * gap;
       const startX = LAYOUT.barX - totalW / 2 + buttonW / 2;
@@ -295,7 +301,7 @@ export default function createRoundScene(config) {
       ordered.forEach((v, i) => {
         const bx = startX + i * (buttonW + gap);
         const btn = choice(k, {
-          label: String(v),
+          label: labelFor(v),
           x: bx,
           y: buttonY,
           w: buttonW, h: buttonH,
@@ -366,6 +372,10 @@ export default function createRoundScene(config) {
             // bottom of the screen — without it the bottom row would
             // collide with the default buttonY=838.
             buttonY: built.question.buttonY,
+            // Optional per-step button label formatter. See renderButtons
+            // note. L4 step 1 uses this to render decomposition options
+            // as "10+7 / 10+8 / 10+6 / 10+5".
+            labelFor: built.question.labelFor,
           },
         );
       }

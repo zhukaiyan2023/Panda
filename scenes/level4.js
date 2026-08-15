@@ -335,6 +335,12 @@ export default createRoundScene({
         question: {
           correct: ones,
           values: options(ones, { min: 0, max: 9 }),
+          // Render decomposition options as "10+7 / 10+8 / 10+6 / 10+5"
+          // instead of bare digits — the kid is being asked to fill in
+          // the ones-part of the split row, so seeing every option in
+          // the same "10+?" shape matches the prompt ("拆成十加几") and
+          // the slot it's filling. Per user feedback 2026-08-15.
+          labelFor: (v) => `10+${v}`,
         },
         onAdvance: () => {
           // Only update the split row + anchor→split links here. The
