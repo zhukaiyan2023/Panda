@@ -1,46 +1,57 @@
-// components/whackHole.js — one hole + one large mole + its number.
-// Designed as a readable children's whack-a-mole target:
-// 1) the hole stays behind the mole instead of covering it;
-// 2) the mole is large enough to read at a glance;
-// 3) the answer is printed directly on the mole's belly;
-// 4) appearances follow a predictable staggered rhythm, not six random timers.
+// components/whackHole.js — a large, readable whack-a-mole target.
+// The visual treatment intentionally follows the new kid-friendly whack-a-mole
+// art direction: oversized cartoon mole, deep dirt hole, and a large number
+// printed directly on the mole's belly. Motion is a deterministic pop → hold
+// → retreat loop so the board has a learnable rhythm instead of random drift.
 
 import { INK, YELLOW, ORANGE } from "./theme.js?v=20260815";
 
-const HOLE_SCALE = 0.265;
-const MOLE_SCALE = 0.215;
-const MOLE_Y_OFFSET = -72;
-const NUMBER_OFFSET_X = 0;
-const NUMBER_OFFSET_Y = 22;
-const NUMBER_SIZE = 58;
+const MOLE_SCALE = 0.43;
+const HOLE_SCALE = 0.48;
+const MOLE_Y_OFFSET = -82;
+const POP_TRAVEL = 170;
+const NUMBER_OFFSET_Y = 50;
+const NUMBER_SIZE = 76;
 
 const POP_DUR = 0.46;
+const HOLD_DUR = 1.60;
 const RETREAT_DUR = 0.44;
+const CYCLE_GAP = 0.68;
 const SHAKE_DUR = 0.30;
-const FLASH_DUR = 0.34;
+const FLASH_DUR = 0.36;
 const BOB_AMP = 5;
 const BOB_FREQ = (2 * Math.PI) / 1.55;
-const POP_TRAVEL = 150;
 
-// Fixed slot rhythm. The six holes are intentionally choreographed rather
-// than independently randomized, so a child can learn the visual beat.
-const STAGGER_BY_SLOT = [0.00, 0.24, 0.48, 0.72, 0.96, 1.20];
-const HOLD_BY_SLOT = [1.55, 1.65, 1.55, 1.65, 1.55, 1.65];
-const RECYCLE_GAP = 0.22;
+// One fixed beat per slot. Every slot uses the same cycle duration after
+// startup, so the stagger never drifts after 5–10 rounds.
+const STAGGER = [0.00, 0.24, 0.48, 0.72, 0.96, 1.20];
 
-function slotDelay(slotIndex) {
-  return STAGGER_BY_SLOT[slotIndex % STAGGER_BY_SLOT.length] || 0;
+let artLoadPromise = null;
+
+function ensureWhackArt(k) {
+  if (!artLoadPromise) {
+    artLoadPromise = Promise.all([
+      ["whack-mole-blue", "assets/art/whack-mole-blue.svg?v=20260815"],
+      ["whack-mole-orange", "assets/art/whack-mole-orange.svg?v=20260815"],
+      ["whack-mole-green", "assets/art/whack-mole-green.svg?v=20260815"],
+      ["whack-hole", "assets/art/whack-hole.svg?v=20260815"],
+    ].map(([name, url]) => Promise.resolve(k.loadSprite(name, url))))
+      .catch((err) => console.warn("[whackHole] art preload failed:", err));
+  }
+  return artLoadPromise;
 }
 
-export default function whackHole(k, { x, y, variant, slotIndex = 0 }) {
-  const v = ((variant % 3) + 3) % 3;
+function moleSpriteName(slot) {
+  return ["whack-mole-blue", "whack-mole-orange", "whack-mole-green"][slot % 3];
+}
+
+export default function whackHole(k, { x, y, variant = 0, slotIndex = 0 }) {
   const slot = ((slotIndex % 6) + 6) % 6;
 
-  // Hole is a BACK layer. The mole sits above it so its head/body is never
-  // accidentally clipped by the hole sprite. The mole already retreats to
-  // the hidden position when it goes down.
+  // Hole is always behind the mole. The mole retreats deep enough into the
+  // hole that the hidden state looks like it actually went underground.
   const hole = k.add([
-    k.sprite(`mole-hole-${v + 1}`),
+    k.sprite("mole-hole-1"),
     k.pos(x, y),
     k.anchor("center"),
     k.scale(HOLE_SCALE),
@@ -57,16 +68,15 @@ export default function whackHole(k, { x, y, variant, slotIndex = 0 }) {
     k.z(4),
   ]);
 
-  // Large, high-contrast answer printed directly on the mole's belly.
-  // The yellow fill + dark outline stays readable across different mole skins.
+  // Large number lives on the belly, not as a floating badge.
   const num = k.add([
     k.text("0", {
       size: NUMBER_SIZE,
       font: "Arial Rounded MT Bold, Trebuchet MS, system-ui, sans-serif",
     }),
-    k.color(...YELLOW),
-    k.outline(6, k.rgb(...INK)),
-    k.pos(x + NUMBER_OFFSET_X, y + MOLE_Y_OFFSET + POP_TRAVEL + NUMBER_OFFSET_Y),
+    k.color(255, 255, 255),
+    k.outline(7, k.rgb(...INK)),
+    k.pos(x, y + MOLE_Y_OFFSET + POP_TRAVEL + NUMBER_OFFSET_Y),
     k.anchor("center"),
     k.opacity(0),
     k.z(5),
@@ -94,12 +104,11 @@ export default function whackHole(k, { x, y, variant, slotIndex = 0 }) {
   }
 
   function syncUnit() {
-    const visible = mole.opacity;
     const localScale = mole.scale.x / MOLE_SCALE;
-    num.pos.x = mole.pos.x + NUMBER_OFFSET_X;
+    num.pos.x = mole.pos.x;
     num.pos.y = mole.pos.y + NUMBER_OFFSET_Y;
     num.scale = k.vec2(localScale, localScale);
-    num.opacity = visible;
+    num.opacity = mole.opacity;
   }
 
   function setUnitOpacity(opacity) {
@@ -109,10 +118,8 @@ export default function whackHole(k, { x, y, variant, slotIndex = 0 }) {
 
   function hideUnit() {
     setUnitOpacity(0);
-  }
-
-  function showUnit() {
-    setUnitOpacity(1);
+    mole.pos.x = x;
+    mole.pos.y = y + MOLE_Y_OFFSET + POP_TRAVEL;
     syncUnit();
   }
 
@@ -121,10 +128,7 @@ export default function whackHole(k, { x, y, variant, slotIndex = 0 }) {
     const baseY = y + MOLE_Y_OFFSET;
     const t0 = k.time();
     cancelBob = mole.onUpdate(() => {
-      if (!occupied) {
-        cancelBobFn();
-        return;
-      }
+      if (!occupied) return;
       const t = k.time() - t0;
       mole.pos.y = baseY - Math.sin(t * BOB_FREQ) * BOB_AMP;
       syncUnit();
@@ -135,8 +139,7 @@ export default function whackHole(k, { x, y, variant, slotIndex = 0 }) {
     cancelBobFn();
     cancelAnimationFn();
     cycleToken += 1;
-    const retreatToken = cycleToken;
-
+    const token = cycleToken;
     occupied = false;
     const nextAnswer = answer ?? value;
     value = null;
@@ -145,24 +148,23 @@ export default function whackHole(k, { x, y, variant, slotIndex = 0 }) {
     const endY = y + MOLE_Y_OFFSET + POP_TRAVEL;
     const t0 = k.time();
     cancelAnimation = mole.onUpdate(() => {
+      if (token !== cycleToken) return;
       const t = (k.time() - t0) / RETREAT_DUR;
       if (t >= 1) {
         mole.pos.y = endY;
-        syncUnit();
-        hideUnit();
+        setUnitOpacity(0);
         cancelAnimation.cancel();
         cancelAnimation = null;
         if (recycle && !suppressAutoCycle && nextAnswer != null) {
-          const token = retreatToken;
-          k.wait(RECYCLE_GAP + slotDelay(slot), () => {
-            if (token !== cycleToken || suppressAutoCycle) return;
+          const nextToken = cycleToken;
+          k.wait(CYCLE_GAP, () => {
+            if (nextToken !== cycleToken || suppressAutoCycle) return;
             popUp(nextAnswer, true);
           });
         }
         return;
       }
-      // Strong ease-in means the mole visibly disappears into the hole.
-      const ease = t * t * t;
+      const ease = t * t * (3 - 2 * t);
       mole.pos.y = startY + (endY - startY) * ease;
       setUnitOpacity(1 - t);
       syncUnit();
@@ -175,38 +177,38 @@ export default function whackHole(k, { x, y, variant, slotIndex = 0 }) {
     occupied = true;
     value = valueToShow;
     num.text = String(valueToShow);
-    num.color = k.rgb(...YELLOW);
 
-    const variantIdx = 1 + Math.floor(Math.random() * 6);
-    mole.use(k.sprite(`mole-${variantIdx}`));
+    const artName = moleSpriteName(slot + variant);
+    const art = k.getSprite(artName);
+    if (art) mole.use(k.sprite(artName));
+
     mole.scale = k.vec2(MOLE_SCALE, MOLE_SCALE);
-
-    const startY = y + MOLE_Y_OFFSET + POP_TRAVEL;
-    const endY = y + MOLE_Y_OFFSET;
     mole.pos.x = x;
-    mole.pos.y = startY;
-    showUnit();
+    mole.pos.y = y + MOLE_Y_OFFSET + POP_TRAVEL;
+    setUnitOpacity(1);
+    syncUnit();
 
     const t0 = k.time();
     cancelAnimation = mole.onUpdate(() => {
+      if (token !== cycleToken) return;
       const t = (k.time() - t0) / POP_DUR;
       if (t >= 1) {
-        mole.pos.y = endY;
+        mole.pos.y = y + MOLE_Y_OFFSET;
         syncUnit();
         cancelAnimation.cancel();
         cancelAnimation = null;
         startBob();
 
-        const hold = HOLD_BY_SLOT[slot];
         const holdToken = cycleToken;
-        k.wait(hold, () => {
+        k.wait(HOLD_DUR, () => {
           if (holdToken !== cycleToken || !occupied || suppressAutoCycle) return;
           retreat({ recycle: true, answer: value });
         });
         return;
       }
       const ease = 1 - Math.pow(1 - t, 3);
-      mole.pos.y = startY + (endY - startY) * ease;
+      mole.pos.y = (y + MOLE_Y_OFFSET + POP_TRAVEL) +
+        ((y + MOLE_Y_OFFSET) - (y + MOLE_Y_OFFSET + POP_TRAVEL)) * ease;
       syncUnit();
     });
   }
@@ -216,8 +218,7 @@ export default function whackHole(k, { x, y, variant, slotIndex = 0 }) {
     cancelAnimationFn();
     cycleToken += 1;
     const token = cycleToken;
-
-    const delay = immediate ? 0 : slotDelay(slot);
+    const delay = immediate ? 0 : STAGGER[slot];
     k.wait(delay, () => {
       if (token !== cycleToken || suppressAutoCycle) return;
       beginPop(valueToShow, token);
@@ -226,32 +227,36 @@ export default function whackHole(k, { x, y, variant, slotIndex = 0 }) {
 
   function setSelected(on) {
     suppressAutoCycle = on;
-    num.color = k.rgb(...(on ? ORANGE : YELLOW));
+    num.color = k.rgb(...(on ? ORANGE : [255, 255, 255]));
+    if (on) {
+      mole.color = k.rgb(255, 220, 165);
+    } else {
+      mole.color = k.rgb(255, 255, 255);
+    }
   }
 
   function flashCorrect() {
     cancelBobFn();
     cancelAnimationFn();
     cycleToken += 1;
-    const flashToken = cycleToken;
-
-    const startScale = MOLE_SCALE;
-    const peakScale = MOLE_SCALE * 1.32;
+    const token = cycleToken;
+    const baseScale = MOLE_SCALE;
+    const peakScale = MOLE_SCALE * 1.18;
     const baseY = mole.pos.y;
     const t0 = k.time();
     cancelAnimation = mole.onUpdate(() => {
-      if (flashToken !== cycleToken) return;
+      if (token !== cycleToken) return;
       const t = (k.time() - t0) / FLASH_DUR;
       if (t >= 1) {
-        mole.scale = k.vec2(startScale, startScale);
+        mole.scale = k.vec2(baseScale, baseScale);
         syncUnit();
         cancelAnimation.cancel();
         cancelAnimation = null;
         retreat();
         return;
       }
-      const bell = Math.sin(Math.min(t / 0.6, 1) * Math.PI);
-      const s = startScale + (peakScale - startScale) * bell;
+      const bell = Math.sin(Math.min(t, 1) * Math.PI);
+      const s = baseScale + (peakScale - baseScale) * bell;
       mole.scale = k.vec2(s, s);
       mole.pos.y = baseY;
       syncUnit();
@@ -262,11 +267,11 @@ export default function whackHole(k, { x, y, variant, slotIndex = 0 }) {
     cancelBobFn();
     cancelAnimationFn();
     cycleToken += 1;
-    const shakeToken = cycleToken;
+    const token = cycleToken;
     const baseX = x;
     const t0 = k.time();
     cancelAnimation = mole.onUpdate(() => {
-      if (shakeToken !== cycleToken) return;
+      if (token !== cycleToken) return;
       const t = (k.time() - t0) / SHAKE_DUR;
       if (t >= 1) {
         mole.pos.x = baseX;
@@ -275,16 +280,25 @@ export default function whackHole(k, { x, y, variant, slotIndex = 0 }) {
         cancelAnimation = null;
         return;
       }
-      const amp = 14 * (1 - t);
-      mole.pos.x = baseX + Math.sin(t * 70) * amp;
+      mole.pos.x = baseX + Math.sin(t * Math.PI * 12) * 13 * (1 - t);
       syncUnit();
     });
   }
 
+  // Swap to the new art as soon as the SVG assets finish loading. This keeps
+  // the component safe during the initial scene boot while letting the new
+  // illustration actually become the live game art.
+  ensureWhackArt(k).then(() => {
+    if (k.getSprite("whack-hole")) hole.use(k.sprite("whack-hole"));
+    if (k.getSprite(moleSpriteName(slot + variant))) {
+      mole.use(k.sprite(moleSpriteName(slot + variant)));
+    }
+  });
+
   return {
     x,
     y,
-    variant: v,
+    variant,
     slotIndex: slot,
     hole,
     mole,
