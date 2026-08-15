@@ -413,7 +413,7 @@ export default function gameWhack(k) {
         h.flashCorrect();
         celebrate(k, {
           tier,
-          anchor: { x: h.x, y: h.y - 120 },
+          anchor: { x: h.x, y: h.y - 40 },
           pandaBody: buddy?.body,
           pandaBaseSize: 200,
         });
