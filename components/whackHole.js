@@ -38,14 +38,18 @@ import { INK, YELLOW, ORANGE } from "./theme.js?v=20260815";
 //   +MOLE_Y_OFFSET=420 land exactly on the hint text
 //   "点中头顶是答案的地鼠" at y=420, completely covering it and brushing
 //   the bottom of the equation at y=320 — unreadable for a 3-6 year-old.
-//   Reduced MOLE_SCALE to 0.18 → ~95-135 px wide × ~114-145 px tall moles.
-//   Smaller mole body means the head no longer reaches up into the hint
-//   row. HOLE_SCALE stays at 0.20 → ~152-157 px wide holes — the planar
-//   762-783 px source ratio means 0.20 already reads correctly.
+//   Reduced MOLE_SCALE to 0.14 → ~74-105 px wide × ~89-108 px tall moles.
+//   Smaller mole body fits INSIDE the hole sprite (hole half-height ≈52,
+//   mole half-height ≈50) so the body is hidden behind the hole rim and
+//   only the head pokes above — classic whack-a-mole look (previously
+//   0.18 made the body extend below the rim, looking like the mole was
+//   standing ON TOP of the hole). HOLE_SCALE stays at 0.20 → ~152-157 px
+//   wide holes — the planar 762-783 px source ratio means 0.20 already
+//   reads correctly.
 const HOLE_SCALE = 0.20;     // 762-783×397-647 source → ~152-157 wide
-const MOLE_SCALE = 0.18;     // 527-749×634-806 source → ~95-135 wide (reduced 0.24→0.18 to fit 3x2 grid + clear hint text)
+const MOLE_SCALE = 0.14;     // 527-749×634-806 source → ~74-105 wide (reduced 0.18→0.14 so mole body fits inside hole, head pops above rim)
 const MOLE_Y_OFFSET = -50;   // mole center sits 50px above hole center: head fully visible above rim, lower body hidden behind hole sprite
-const BADGE_Y_OFFSET = -100; // badge sits on the forehead (head top at hole.y-115, badge at hole.y-100 = 5px above forehead)
+const BADGE_Y_OFFSET = -100; // badge sits on the forehead (head top at hole.y-100, badge at hole.y-100 = at forehead)
 const BADGE_RADIUS = 28;
 
 // Animation tunables (seconds). Tuned for 3-6 year olds on iPad Safari:
