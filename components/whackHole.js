@@ -1,313 +1,313 @@
-// components/whackHole.js — a large, readable whack-a-mole target.
-// The visual treatment intentionally follows the new kid-friendly whack-a-mole
-// art direction: oversized cartoon mole, deep dirt hole, and a large number
-// printed directly on the mole's belly. Motion is a deterministic pop → hold
-// → retreat loop so the board has a learnable rhythm instead of random drift.
+// components/whackHole.js
+// One complete whack-a-mole target: hole + mole + number are treated as one
+// visual unit. The unit owns its position, animation token, value and input
+// state so the number can never drift away from the mole.
 
 import { INK, YELLOW, ORANGE } from "./theme.js?v=20260815";
 
-const MOLE_SCALE = 0.43;
+const MOLE_SCALE = 0.46;
 const HOLE_SCALE = 0.48;
-const MOLE_Y_OFFSET = -82;
-const POP_TRAVEL = 170;
-const NUMBER_OFFSET_Y = 50;
-const NUMBER_SIZE = 76;
+const HIDDEN_OFFSET = 150;
+const NUMBER_Y = 58;
+const NUMBER_SIZE = 78;
 
-const POP_DUR = 0.46;
-const HOLD_DUR = 1.60;
-const RETREAT_DUR = 0.44;
-const CYCLE_GAP = 0.68;
-const SHAKE_DUR = 0.30;
-const FLASH_DUR = 0.36;
-const BOB_AMP = 5;
-const BOB_FREQ = (2 * Math.PI) / 1.55;
+const POP_SECONDS = 0.48;
+const HOLD_SECONDS = 1.22;
+const RETREAT_SECONDS = 0.46;
+const BOB_SECONDS = 1.55;
+const BOB_AMPLITUDE = 5;
 
-// One fixed beat per slot. Every slot uses the same cycle duration after
-// startup, so the stagger never drifts after 5–10 rounds.
-const STAGGER = [0.00, 0.24, 0.48, 0.72, 0.96, 1.20];
+const ART = [
+  "whack-mole-blue",
+  "whack-mole-orange",
+  "whack-mole-green",
+];
 
-let artLoadPromise = null;
+let artPromise = null;
 
-function ensureWhackArt(k) {
-  if (!artLoadPromise) {
-    artLoadPromise = Promise.all([
-      ["whack-mole-blue", "assets/art/whack-mole-blue.svg?v=20260815"],
-      ["whack-mole-orange", "assets/art/whack-mole-orange.svg?v=20260815"],
-      ["whack-mole-green", "assets/art/whack-mole-green.svg?v=20260815"],
-      ["whack-hole", "assets/art/whack-hole.svg?v=20260815"],
+function ensureArt(k) {
+  if (!artPromise) {
+    artPromise = Promise.all([
+      ["whack-mole-blue", "assets/art/whack-mole-blue.svg?v=20260816"],
+      ["whack-mole-orange", "assets/art/whack-mole-orange.svg?v=20260816"],
+      ["whack-mole-green", "assets/art/whack-mole-green.svg?v=20260816"],
+      ["whack-hole", "assets/art/whack-hole.svg?v=20260816"],
     ].map(([name, url]) => Promise.resolve(k.loadSprite(name, url))))
-      .catch((err) => console.warn("[whackHole] art preload failed:", err));
+      .catch((error) => console.warn("[whack] art load failed", error));
   }
-  return artLoadPromise;
+  return artPromise;
 }
 
-function moleSpriteName(slot) {
-  return ["whack-mole-blue", "whack-mole-orange", "whack-mole-green"][slot % 3];
+function safeCancel(handle) {
+  if (!handle) return;
+  try { handle.cancel(); } catch (_) { /* animation already finished */ }
 }
 
-export default function whackHole(k, { x, y, variant = 0, slotIndex = 0 }) {
-  const slot = ((slotIndex % 6) + 6) % 6;
+export default function whackHole(k, {
+  x,
+  y,
+  slotIndex = 0,
+  variant = 0,
+}) {
+  const colorIndex = Math.abs((slotIndex + variant) % ART.length);
 
-  // Hole is always behind the mole. The mole retreats deep enough into the
-  // hole that the hidden state looks like it actually went underground.
+  // The hole is a BACK layer. Nothing here can cover the visible mole.
   const hole = k.add([
     k.sprite("mole-hole-1"),
-    k.pos(x, y),
+    k.pos(x, y + 36),
     k.anchor("center"),
     k.scale(HOLE_SCALE),
     k.z(2),
   ]);
 
-  const mole = k.add([
-    k.sprite("mole-1"),
-    k.pos(x, y + MOLE_Y_OFFSET + POP_TRAVEL),
+  // Everything that moves belongs to this root. The number is a child of the
+  // same root, so movement, scale and visibility are mathematically shared.
+  const unit = k.add([
+    k.pos(x, y - HIDDEN_OFFSET),
     k.anchor("center"),
-    k.scale(MOLE_SCALE),
-    k.opacity(0),
-    k.area(),
     k.z(4),
   ]);
 
-  // Large number lives on the belly, not as a floating badge.
-  const num = k.add([
+  const mole = unit.add([
+    k.sprite("mole-1"),
+    k.pos(0, 0),
+    k.anchor("center"),
+    k.scale(MOLE_SCALE),
+  ]);
+
+  const numberStroke = unit.add([
+    k.text("0", {
+      size: NUMBER_SIZE,
+      font: "Arial Rounded MT Bold, Trebuchet MS, system-ui, sans-serif",
+    }),
+    k.color(...INK),
+    k.pos(0, NUMBER_Y + 5),
+    k.anchor("center"),
+    k.z(2),
+  ]);
+
+  const number = unit.add([
     k.text("0", {
       size: NUMBER_SIZE,
       font: "Arial Rounded MT Bold, Trebuchet MS, system-ui, sans-serif",
     }),
     k.color(255, 255, 255),
-    k.outline(7, k.rgb(...INK)),
-    k.pos(x, y + MOLE_Y_OFFSET + POP_TRAVEL + NUMBER_OFFSET_Y),
+    k.pos(0, NUMBER_Y),
     k.anchor("center"),
-    k.opacity(0),
-    k.z(5),
+    k.z(3),
   ]);
 
-  let occupied = false;
+  // Use the new art as soon as it is available. The current frame keeps a
+  // harmless fallback sprite until the async load finishes.
+  ensureArt(k).then(() => {
+    if (k.getSprite("whack-hole")) hole.use(k.sprite("whack-hole"));
+    const spriteName = ART[colorIndex];
+    if (k.getSprite(spriteName)) mole.use(k.sprite(spriteName));
+  });
+
   let value = null;
-  let cancelBob = null;
-  let cancelAnimation = null;
-  let cycleToken = 0;
-  let suppressAutoCycle = false;
+  let visible = false;
+  let selected = false;
+  let animation = null;
+  let bob = null;
+  let generation = 0;
+  let baseX = x;
+  let baseY = y;
 
-  function cancelBobFn() {
-    if (cancelBob) {
-      cancelBob.cancel();
-      cancelBob = null;
-    }
+  function syncNumber() {
+    number.text = String(value ?? "");
+    numberStroke.text = String(value ?? "");
+    number.color = k.rgb(...(selected ? ORANGE : [255, 255, 255]));
+    numberStroke.color = k.rgb(...INK);
   }
 
-  function cancelAnimationFn() {
-    if (cancelAnimation) {
-      cancelAnimation.cancel();
-      cancelAnimation = null;
-    }
+  function stopMotion() {
+    safeCancel(animation);
+    safeCancel(bob);
+    animation = null;
+    bob = null;
   }
 
-  function syncUnit() {
-    const localScale = mole.scale.x / MOLE_SCALE;
-    num.pos.x = mole.pos.x;
-    num.pos.y = mole.pos.y + NUMBER_OFFSET_Y;
-    num.scale = k.vec2(localScale, localScale);
-    num.opacity = mole.opacity;
+  function setHiddenImmediate() {
+    stopMotion();
+    generation += 1;
+    visible = false;
+    unit.pos.x = baseX;
+    unit.pos.y = baseY - HIDDEN_OFFSET;
+    unit.opacity = 0;
+    selected = false;
+    syncNumber();
   }
 
-  function setUnitOpacity(opacity) {
-    mole.opacity = opacity;
-    num.opacity = opacity;
-  }
-
-  function hideUnit() {
-    setUnitOpacity(0);
-    mole.pos.x = x;
-    mole.pos.y = y + MOLE_Y_OFFSET + POP_TRAVEL;
-    syncUnit();
+  function animatePosition(fromY, toY, seconds, onDone) {
+    stopMotion();
+    const token = generation;
+    const started = k.time();
+    animation = unit.onUpdate(() => {
+      if (token !== generation) return;
+      const t = Math.min(1, (k.time() - started) / seconds);
+      const eased = t * t * (3 - 2 * t);
+      unit.pos.y = fromY + (toY - fromY) * eased;
+      if (t >= 1) {
+        safeCancel(animation);
+        animation = null;
+        onDone?.();
+      }
+    });
   }
 
   function startBob() {
-    cancelBobFn();
-    const baseY = y + MOLE_Y_OFFSET;
-    const t0 = k.time();
-    cancelBob = mole.onUpdate(() => {
-      if (!occupied) return;
-      const t = k.time() - t0;
-      mole.pos.y = baseY - Math.sin(t * BOB_FREQ) * BOB_AMP;
-      syncUnit();
+    safeCancel(bob);
+    const token = generation;
+    const started = k.time();
+    bob = unit.onUpdate(() => {
+      if (token !== generation || !visible) return;
+      const t = k.time() - started;
+      unit.pos.y = baseY - Math.sin((t / BOB_SECONDS) * Math.PI * 2) * BOB_AMPLITUDE;
     });
   }
 
-  function retreat({ recycle = false, answer = null } = {}) {
-    cancelBobFn();
-    cancelAnimationFn();
-    cycleToken += 1;
-    const token = cycleToken;
-    occupied = false;
-    const nextAnswer = answer ?? value;
-    value = null;
+  function hide({ animate = true } = {}) {
+    stopMotion();
+    generation += 1;
+    visible = false;
+    const token = generation;
+    selected = false;
+    syncNumber();
 
-    const startY = mole.pos.y;
-    const endY = y + MOLE_Y_OFFSET + POP_TRAVEL;
-    const t0 = k.time();
-    cancelAnimation = mole.onUpdate(() => {
-      if (token !== cycleToken) return;
-      const t = (k.time() - t0) / RETREAT_DUR;
-      if (t >= 1) {
-        mole.pos.y = endY;
-        setUnitOpacity(0);
-        cancelAnimation.cancel();
-        cancelAnimation = null;
-        if (recycle && !suppressAutoCycle && nextAnswer != null) {
-          const nextToken = cycleToken;
-          k.wait(CYCLE_GAP, () => {
-            if (nextToken !== cycleToken || suppressAutoCycle) return;
-            popUp(nextAnswer, true);
-          });
-        }
-        return;
-      }
-      const ease = t * t * (3 - 2 * t);
-      mole.pos.y = startY + (endY - startY) * ease;
-      setUnitOpacity(1 - t);
-      syncUnit();
-    });
-  }
-
-  function beginPop(valueToShow, token) {
-    if (token !== cycleToken || suppressAutoCycle) return;
-
-    occupied = true;
-    value = valueToShow;
-    num.text = String(valueToShow);
-
-    const artName = moleSpriteName(slot + variant);
-    const art = k.getSprite(artName);
-    if (art) mole.use(k.sprite(artName));
-
-    mole.scale = k.vec2(MOLE_SCALE, MOLE_SCALE);
-    mole.pos.x = x;
-    mole.pos.y = y + MOLE_Y_OFFSET + POP_TRAVEL;
-    setUnitOpacity(1);
-    syncUnit();
-
-    const t0 = k.time();
-    cancelAnimation = mole.onUpdate(() => {
-      if (token !== cycleToken) return;
-      const t = (k.time() - t0) / POP_DUR;
-      if (t >= 1) {
-        mole.pos.y = y + MOLE_Y_OFFSET;
-        syncUnit();
-        cancelAnimation.cancel();
-        cancelAnimation = null;
-        startBob();
-
-        const holdToken = cycleToken;
-        k.wait(HOLD_DUR, () => {
-          if (holdToken !== cycleToken || !occupied || suppressAutoCycle) return;
-          retreat({ recycle: true, answer: value });
-        });
-        return;
-      }
-      const ease = 1 - Math.pow(1 - t, 3);
-      mole.pos.y = (y + MOLE_Y_OFFSET + POP_TRAVEL) +
-        ((y + MOLE_Y_OFFSET) - (y + MOLE_Y_OFFSET + POP_TRAVEL)) * ease;
-      syncUnit();
-    });
-  }
-
-  function popUp(valueToShow, immediate = false) {
-    cancelBobFn();
-    cancelAnimationFn();
-    cycleToken += 1;
-    const token = cycleToken;
-    const delay = immediate ? 0 : STAGGER[slot];
-    k.wait(delay, () => {
-      if (token !== cycleToken || suppressAutoCycle) return;
-      beginPop(valueToShow, token);
-    });
-  }
-
-  function setSelected(on) {
-    suppressAutoCycle = on;
-    num.color = k.rgb(...(on ? ORANGE : [255, 255, 255]));
-    if (on) {
-      mole.color = k.rgb(255, 220, 165);
-    } else {
-      mole.color = k.rgb(255, 255, 255);
+    const fromY = unit.pos.y;
+    const toY = baseY - HIDDEN_OFFSET;
+    if (!animate) {
+      unit.pos.y = toY;
+      unit.opacity = 0;
+      return;
     }
+
+    const started = k.time();
+    animation = unit.onUpdate(() => {
+      if (token !== generation) return;
+      const t = Math.min(1, (k.time() - started) / RETREAT_SECONDS);
+      const eased = t * t * (3 - 2 * t);
+      unit.pos.y = fromY + (toY - fromY) * eased;
+      unit.opacity = 1 - t;
+      if (t >= 1) {
+        safeCancel(animation);
+        animation = null;
+        unit.opacity = 0;
+      }
+    });
+  }
+
+  function show(nextValue) {
+    stopMotion();
+    generation += 1;
+    const token = generation;
+    value = nextValue;
+    visible = true;
+    selected = false;
+    syncNumber();
+
+    const spriteName = ART[colorIndex];
+    if (k.getSprite(spriteName)) mole.use(k.sprite(spriteName));
+    mole.scale = k.vec2(MOLE_SCALE, MOLE_SCALE);
+
+    const fromY = baseY - HIDDEN_OFFSET;
+    const toY = baseY;
+    unit.pos.x = baseX;
+    unit.pos.y = fromY;
+    unit.opacity = 1;
+
+    const started = k.time();
+    animation = unit.onUpdate(() => {
+      if (token !== generation) return;
+      const t = Math.min(1, (k.time() - started) / POP_SECONDS);
+      const eased = 1 - Math.pow(1 - t, 3);
+      unit.pos.y = fromY + (toY - fromY) * eased;
+      if (t >= 1) {
+        safeCancel(animation);
+        animation = null;
+        startBob();
+        const holdToken = generation;
+        k.wait(HOLD_SECONDS, () => {
+          if (holdToken !== generation || !visible || selected) return;
+          hide();
+        });
+      }
+    });
   }
 
   function flashCorrect() {
-    cancelBobFn();
-    cancelAnimationFn();
-    cycleToken += 1;
-    const token = cycleToken;
-    const baseScale = MOLE_SCALE;
-    const peakScale = MOLE_SCALE * 1.18;
-    const baseY = mole.pos.y;
-    const t0 = k.time();
-    cancelAnimation = mole.onUpdate(() => {
-      if (token !== cycleToken) return;
-      const t = (k.time() - t0) / FLASH_DUR;
-      if (t >= 1) {
-        mole.scale = k.vec2(baseScale, baseScale);
-        syncUnit();
-        cancelAnimation.cancel();
-        cancelAnimation = null;
-        retreat();
-        return;
-      }
-      const bell = Math.sin(Math.min(t, 1) * Math.PI);
-      const s = baseScale + (peakScale - baseScale) * bell;
+    if (!visible) return;
+    stopMotion();
+    generation += 1;
+    const token = generation;
+    const started = k.time();
+    const startScale = MOLE_SCALE;
+    const peakScale = MOLE_SCALE * 1.20;
+    animation = unit.onUpdate(() => {
+      if (token !== generation) return;
+      const t = Math.min(1, (k.time() - started) / 0.34);
+      const s = startScale + (peakScale - startScale) * Math.sin(t * Math.PI);
       mole.scale = k.vec2(s, s);
-      mole.pos.y = baseY;
-      syncUnit();
+      if (t >= 1) {
+        safeCancel(animation);
+        animation = null;
+        mole.scale = k.vec2(startScale, startScale);
+        hide();
+      }
     });
   }
 
   function shake() {
-    cancelBobFn();
-    cancelAnimationFn();
-    cycleToken += 1;
-    const token = cycleToken;
-    const baseX = x;
-    const t0 = k.time();
-    cancelAnimation = mole.onUpdate(() => {
-      if (token !== cycleToken) return;
-      const t = (k.time() - t0) / SHAKE_DUR;
+    if (!visible) return;
+    stopMotion();
+    generation += 1;
+    const token = generation;
+    const started = k.time();
+    animation = unit.onUpdate(() => {
+      if (token !== generation) return;
+      const t = Math.min(1, (k.time() - started) / 0.28);
+      unit.pos.x = baseX + Math.sin(t * Math.PI * 12) * 14 * (1 - t);
       if (t >= 1) {
-        mole.pos.x = baseX;
-        syncUnit();
-        cancelAnimation.cancel();
-        cancelAnimation = null;
-        return;
+        safeCancel(animation);
+        animation = null;
+        unit.pos.x = baseX;
       }
-      mole.pos.x = baseX + Math.sin(t * Math.PI * 12) * 13 * (1 - t);
-      syncUnit();
     });
   }
 
-  // Swap to the new art as soon as the SVG assets finish loading. This keeps
-  // the component safe during the initial scene boot while letting the new
-  // illustration actually become the live game art.
-  ensureWhackArt(k).then(() => {
-    if (k.getSprite("whack-hole")) hole.use(k.sprite("whack-hole"));
-    if (k.getSprite(moleSpriteName(slot + variant))) {
-      mole.use(k.sprite(moleSpriteName(slot + variant)));
+  function setSelected(on) {
+    selected = !!on;
+    syncNumber();
+    if (on) {
+      safeCancel(bob);
+      bob = null;
+      mole.scale = k.vec2(MOLE_SCALE * 1.06, MOLE_SCALE * 1.06);
+    } else {
+      mole.scale = k.vec2(MOLE_SCALE, MOLE_SCALE);
     }
-  });
+  }
+
+  function setValue(nextValue) {
+    value = nextValue;
+    syncNumber();
+  }
 
   return {
-    x,
-    y,
-    variant,
-    slotIndex: slot,
+    x: baseX,
+    y: baseY,
     hole,
+    unit,
     mole,
-    popUp,
-    retreat,
-    setSelected,
+    number,
+    show,
+    hide,
     flashCorrect,
     shake,
-    isOccupied: () => occupied,
+    setSelected,
+    setValue,
+    reset: setHiddenImmediate,
+    isVisible: () => visible,
     getValue: () => value,
   };
 }
