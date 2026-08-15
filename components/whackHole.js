@@ -6,8 +6,8 @@
 // mole(z=1) so the grass rim covers the mole's lower body, head pokes above.
 //
 // Animation timings (slow for 3-6 year olds):
-//   popUp      0.6s ease-out, idle bob ±4px / 1.6s
-//   retreat    0.4s ease-in
+//   popUp      0.8s ease-out, 120px rise, idle bob ±8px / 1.6s
+//   retreat    0.6s ease-in
 //   flashCorrect  0.5s (scale pulse + halo) then retreat
 //   shake      0.5s (horizontal jitter, ±12 then ±8)
 //
@@ -48,13 +48,17 @@ const MOLE_Y_OFFSET = -50;   // mole center sits 50px above hole center: head fu
 const BADGE_Y_OFFSET = -100; // badge sits on the forehead (head top at hole.y-115, badge at hole.y-100 = 5px above forehead)
 const BADGE_RADIUS = 28;
 
-// Animation tunables (seconds).
-const POP_DUR = 0.6;
-const RETREAT_DUR = 0.4;
+// Animation tunables (seconds). Tuned for 3-6 year olds on iPad Safari:
+// popUp travel 120px (was 60, doubled so the rise is clearly visible),
+// retreat 0.6s (was 0.4, gives time to see the mole sink back), bob
+// ±8px (was ±4, still subtle but visible at arm's-length).
+const POP_DUR = 0.8;
+const RETREAT_DUR = 0.6;
 const SHAKE_DUR = 0.5;
 const FLASH_DUR = 0.5;
-const BOB_AMP = 4;
+const BOB_AMP = 8;
 const BOB_FREQ = (2 * Math.PI) / 1.6;  // ω for 1.6s period
+const POP_TRAVEL = 120;  // px below the resting endY where the mole starts
 
 export default function whackHole(k, { x, y, variant }) {
   const v = ((variant % 3) + 3) % 3;  // clamp variant to 0..2
@@ -71,7 +75,7 @@ export default function whackHole(k, { x, y, variant }) {
   // Mole sprite, starts hidden below rim.
   const mole = k.add([
     k.sprite("mole-1"),  // placeholder variant; popUp swaps to a random variant
-    k.pos(x, y + MOLE_Y_OFFSET + 60),  // start 60px below pop position
+    k.pos(x, y + MOLE_Y_OFFSET + POP_TRAVEL),  // start POP_TRAVEL px below pop position
     k.anchor("center"),
     k.scale(MOLE_SCALE),
     k.opacity(0),
@@ -115,7 +119,7 @@ export default function whackHole(k, { x, y, variant }) {
     mole.use(k.sprite(`mole-${variantIdx}`));
 
     // Tween rise + fade in.
-    const startY = y + MOLE_Y_OFFSET + 60;
+    const startY = y + MOLE_Y_OFFSET + POP_TRAVEL;
     const endY = y + MOLE_Y_OFFSET;
     const t0 = k.time();
     let popHandler = mole.onUpdate(() => {
@@ -153,7 +157,7 @@ export default function whackHole(k, { x, y, variant }) {
     occupied = false;
     value = null;
     const startY = mole.pos.y;
-    const endY = y + MOLE_Y_OFFSET + 60;
+    const endY = y + MOLE_Y_OFFSET + POP_TRAVEL;
     const t0 = k.time();
     let handler = mole.onUpdate(() => {
       const t = (k.time() - t0) / RETREAT_DUR;
