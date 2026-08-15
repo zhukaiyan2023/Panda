@@ -1,32 +1,47 @@
 // scenes/level5.js — 十几加十几 (no carry), 5 explicit teaching steps.
 //
-// v4 redesign (2026-08-15): cascading decomposition tree matching
-// the user-provided sketch — split row grows through 4 stages as
-// steps 1-2 reveal each piece, while tens/ones/final rows form a
-// funnel below.
+// v5 redesign (2026-08-15): completely matches the user-provided
+// sketch — anchor + 3 split rows (cascading reveal) + 3 combine/
+// final rows. All 7 rows persistent across all 5 steps; only the
+// SLOT CONTENT (□ → number) changes as the kid answers.
 //
 // Layout (canvas 1366×1024):
-//   y=84   stepBar (5 steps)
-//   y=200  Anchor: a + b = ?               size 88, persistent
-//   y=320  Split row (cascading):          size 56, grows over 2 steps
-//          step 1:    □ + □ + 13    = □        (a → ?+?, b intact)
-//          step 1r:   10 + 1 + 13   = □        (a → 10+1)
-//          step 2:    10 + 1 + □ + □ = □      (b → ?+?)
-//          step 2r:   10 + 1 + 10 + 1 = □      (fully decomposed)
-//   y=460  Tens sum row:                   size 64
-//          10 + 10 = ?
-//   y=540  Ones sum row:                   size 64
-//          □ + □ = ?
-//   y=620  Final row:                      size 70
-//          □ + □ = ?
+//   y=84   stepBar
+//   y=200  Anchor:  a + b = □                  size 80, persistent
+//   y=320  Split-1:  □ + □ + b = □            size 56, persistent
+//          Step 1 pre-click: a split into ?+?
+//          Step 1 reveal:    10 + 1 + b = □   (a → 10+1)
+//   y=400  Split-2:  10 + 1 + □ + □ = □      size 56, persistent
+//          Step 1 reveal:    a revealed, b split
+//          Step 2 reveal:    10 + 1 + 10 + 1 = □
+//   y=480  Split-3:  10 + 1 + 10 + 1 = □     size 56, persistent
+//          Step 2 reveal:    fully decomposed (held through 3-5)
+//   y=600  Combine-tens: 10 + 10 = ?         size 64, persistent
+//          Step 3 reveal:    → 10 + 10 = 20
+//   y=680  Combine-ones: □ + □ = ?           size 64, persistent
+//          Step 4 reveal:    → onesA + onesB = sum
+//   y=760  Final:    □ + □ = ?                size 70, persistent
+//          Step 5 reveal:    → 20 + sum = answer
 //   y=838  Buttons
 //
-// 5 teaching beats — each step fills ONE slot:
-//   Step 1 — 拆 a:   child picks onesA   (split row □_a → onesA)
-//   Step 2 — 拆 b:   child picks onesB   (split row □_b → onesB)
-//   Step 3 — 加十位: child picks 20       (tens sum "?" → 20)
-//   Step 4 — 加个位: child picks sum      (ones sum "?" → sum)
-//   Step 5 — 加起来: child picks answer  (final "?" → answer)
+// Lines (drawLink, opacity 0.4, thickness 7):
+//   L1: anchor a → split-1 slot 0 (the leftmost □)
+//   L2: anchor a → split-2 slot 0 (the 10_a after step 1 reveal)
+//   L3: anchor b → split-1 slot 2 (the rightmost □_b, only at step 1 pre-click)
+//   L4: anchor b → split-2 slot 2 (the □_b at step 2 pre-click)
+//   L5: split-3's 10_a (slot 0) → combine-tens slot 0
+//   L6: split-3's 10_b (slot 4) → combine-tens slot 2
+//   L7: split-3's onesA (slot 2) → combine-ones slot 0
+//   L8: split-3's onesB (slot 6) → combine-ones slot 2
+//   L9: combine-tens "20" (slot 4) → final slot 0  (after step 3 reveal)
+//   L10: combine-ones "sum" (slot 4) → final slot 2 (after step 4 reveal)
+//
+// 5 teaching beats:
+//   Step 1 — 拆 a:   child picks onesA   (reveals split-1 slot 0)
+//   Step 2 — 拆 b:   child picks onesB   (reveals split-2 slot 2)
+//   Step 3 — 加十位: child picks 20       (reveals combine-tens "?")
+//   Step 4 — 加个位: child picks sum      (reveals combine-ones "?")
+//   Step 5 — 加起来: child picks answer  (reveals final "?")
 //
 // Round data shape: { a, b, onesA, onesB, sum, answer } where
 //   a, b ∈ [11, 19]; onesA + onesB ≤ 9; sum = onesA+onesB; answer = a+b.
@@ -45,64 +60,63 @@ const COL_TEN   = YELLOW;
 const COL_NEED  = ORANGE;
 const COL_SUM   = SUCCESS;
 
-const SPLIT_SIZE = 56;
-const SUB_SIZE   = 64;
-const FINAL_SIZE = 70;
-const Y_ANCHOR   = 200;
-const Y_SPLIT    = 320;
-const Y_TENS     = 460;
-const Y_ONES     = 540;
-const Y_FINAL    = 620;
+const Y_ANCHOR = 200;
+const Y_SPLIT_1 = 320;
+const Y_SPLIT_2 = 400;
+const Y_SPLIT_3 = 480;
+const Y_TENS    = 600;
+const Y_ONES    = 680;
+const Y_FINAL   = 760;
 
-// ---------- equation slot layouts for each of the 4 split stages -----
+const ANCHOR_SIZE = 80;
+const SPLIT_SIZE  = 56;
+const COMBINE_SIZE = 64;
+const FINAL_SIZE  = 70;
 
-// Stage 0 (step 1 BEFORE pick): a → ?+?, b intact.
-//   slots: ["?", "+", "?", "+", b, "=", "?"]
-//         idx:   0     1     2     3    4   5   6
-function splitStage0(round) {
+// ---------- slot layouts for each of the 7 persistent rows ------------
+
+function anchorSlots(round, sumSlot) {
   return {
-    slots: ["?", "+", "?", "+", round.b, "=", "?"],
+    slots: [round.a, "+", round.b, "=", sumSlot],
+    colors: [COL_BIG, undefined, COL_SMALL, undefined, undefined],
+    reserve: [round.a, "+", round.b, "=", round.answer],
+  };
+}
+
+// split-1: "[left] + onesA + b = ?"   (a splits into left + onesA, b intact)
+// slots:    0:left 1:"+" 2:onesA 3:"+" 4:b 5:"=" 6:"?"
+//   pre-click (step 1):   left="?", onesA="?", b — all boxes
+//   post-click (step 1):  left="10", onesA=onesA, b — a revealed
+function split1Row(round, left = "?", onesA = "?") {
+  return {
+    slots: [left, "+", onesA, "+", round.b, "=", "?"],
     colors: [
-      COL_NEED, undefined, COL_NEED, undefined,
+      COL_TEN, undefined, COL_NEED, undefined,
       COL_SMALL, undefined, COL_NEED,
     ],
     reserve: ["10", "+", "10", "+", round.b, "=", round.answer],
   };
 }
 
-// Stage 1 (step 1 AFTER pick): a → 10+onesA, b intact.
-//   slots: [10, "+", onesA, "+", b, "=", "?"]
-//         idx:  0    1       2     3   4   5   6
-function splitStage1(round) {
+// split-2: "10 + onesA + b_left + b_right = ?"
+// slots:    0:"10" 1:"+" 2:onesA 3:"+" 4:b_left 5:"+" 6:b_right 7:"=" 8:"?"
+//   pre-click (step 2):  a revealed, b → ?+?  (b_left="?", b_right="?")
+//   post-click (step 2): b revealed (b_left=10, b_right=onesB)
+function split2Row(round, b_left = "?", b_right = "?") {
   return {
-    slots: [10, "+", round.onesA, "+", round.b, "=", "?"],
+    slots: [10, "+", round.onesA, "+", b_left, "+", b_right, "=", "?"],
     colors: [
       COL_TEN, undefined, COL_NEED, undefined,
-      COL_SMALL, undefined, COL_NEED,
-    ],
-    reserve: [10, "+", "10", "+", round.b, "=", round.answer],
-  };
-}
-
-// Stage 2 (step 2 BEFORE pick): a → 10+onesA, b → ?+?.
-//   slots: [10, "+", onesA, "+", "?", "+", "?", "=", "?"]
-//         idx:  0    1       2     3     4     5   6   7
-function splitStage2(round) {
-  return {
-    slots: [10, "+", round.onesA, "+", "?", "+", "?", "=", "?"],
-    colors: [
       COL_TEN, undefined, COL_NEED, undefined,
-      COL_NEED, undefined, COL_NEED, undefined,
       COL_NEED,
     ],
     reserve: [10, "+", "10", "+", "10", "+", "10", "=", round.answer],
   };
 }
 
-// Stage 3 (step 2 AFTER pick): both fully decomposed.
-//   slots: [10, "+", onesA, "+", 10, "+", onesB, "=", "?"]
-//         idx:  0    1       2     3   4    5       6   7
-function splitStage3(round) {
+// split-3: "10 + 1 + 10 + 1 = ?" (fully decomposed, persistent from step 2 reveal onwards)
+// slots:    0:"10" 1:"+" 2:onesA 3:"+" 4:"10" 5:"+" 6:onesB 7:"=" 8:"?"
+function split3Row(round) {
   return {
     slots: [10, "+", round.onesA, "+", 10, "+", round.onesB, "=", "?"],
     colors: [
@@ -114,7 +128,6 @@ function splitStage3(round) {
   };
 }
 
-// Tens sum row: 10 + 10 = ?
 function tensSumRow(round, val = "?") {
   return {
     slots: [10, "+", 10, "=", val],
@@ -123,7 +136,6 @@ function tensSumRow(round, val = "?") {
   };
 }
 
-// Ones sum row: □ + □ = ?
 function onesSumRow(round, left = "?", right = "?", ans = "?") {
   return {
     slots: [left, "+", right, "=", ans],
@@ -132,7 +144,6 @@ function onesSumRow(round, left = "?", right = "?", ans = "?") {
   };
 }
 
-// Final row: □ + □ = ?
 function finalRow(round, left = "?", right = "?", ans = "?") {
   return {
     slots: [left, "+", right, "=", ans],
@@ -141,143 +152,90 @@ function finalRow(round, left = "?", right = "?", ans = "?") {
   };
 }
 
-// Persistent anchor ("a + b = ?") rendered at the top.
-function anchorSlots(round, sumSlot) {
-  return {
-    slots: [round.a, "+", round.b, "=", sumSlot],
-    colors: [COL_BIG, undefined, COL_SMALL, undefined, undefined],
-    reserve: [round.a, "+", round.b, "=", round.answer],
-  };
-}
-
 // ---------- 10 drawLink lines -------------------------------------------
-// Returns [] if a required node hasn't been rendered yet.
-function linkPoints(anchor, split, tens, ones, final) {
+function linkPoints(anchor, s1, s2, s3, tens, ones, final) {
   const pts = [];
-  if (!anchor?.slotCenters || !split?.slotCenters) return pts;
+  if (!anchor?.slotCenters) return pts;
 
-  // L1: anchor a (slot 0) → split row's first □ (slot 0). Always
-  // present (split row always has at least 5 slots).
-  if (anchor.slotCenters[0] != null && split.slotCenters[0] != null) {
+  // L1: anchor a (slot 0) → split-1's first □ (slot 0)
+  if (s1?.slotCenters?.[0] != null && anchor.slotCenters[0] != null) {
     pts.push({
       from: { x: anchor.slotCenters[0], y: anchor.slotY + anchor.slotSizes[0] / 2 },
-      to:   { x: split.slotCenters[0], y: split.slotY - split.slotSizes[0] / 2 },
+      to:   { x: s1.slotCenters[0], y: s1.slotY - s1.slotSizes[0] / 2 },
       color: COL_NEED,
     });
   }
-  // L2: anchor a (slot 0) → split row's second □ (slot 2). Only after
-  // step 1 reveals onesA (i.e., when split is at stage 1 or later).
-  if (
-    anchor.slotCenters[0] != null &&
-    split.slotCenters[2] != null &&
-    // Stage 1+ has a numeric at slot 2 (onesA revealed). Stage 0
-    // still has "?" there.
-    !String(split.slots?.[2] ?? "").match(/^[?□]$/)
-  ) {
+  // L2: anchor a (slot 0) → split-2's "10_a" (slot 0) — only after step 1 reveal
+  if (s2?.slotCenters?.[0] != null && anchor.slotCenters[0] != null) {
     pts.push({
       from: { x: anchor.slotCenters[0], y: anchor.slotY + anchor.slotSizes[0] / 2 },
-      to:   { x: split.slotCenters[2], y: split.slotY - split.slotSizes[2] / 2 },
+      to:   { x: s2.slotCenters[0], y: s2.slotY - s2.slotSizes[0] / 2 },
+      color: COL_TEN,
+    });
+  }
+  // L3: anchor b (slot 2) → split-1's third □ (slot 2) — only at step 1 pre-click
+  //     when slot 2 is still "?". After reveal, it's a number.
+  if (s1?.slotCenters?.[2] != null && anchor.slotCenters[2] != null
+      && s1.slots?.[2] === "?") {
+    pts.push({
+      from: { x: anchor.slotCenters[2], y: anchor.slotY + anchor.slotSizes[2] / 2 },
+      to:   { x: s1.slotCenters[2], y: s1.slotY - s1.slotSizes[2] / 2 },
       color: COL_NEED,
     });
   }
-  // L3: anchor b (slot 2) → split row's b box. In stage 0/1 this
-  // is slot 4 (b as 2-digit number). In stage 2/3, b is split into
-  // ?+? at slots 4/6.
-  if (anchor.slotCenters[2] != null && split.slotCenters[4] != null) {
-    const slot4 = String(split.slots?.[4] ?? "");
+  // L4: anchor b (slot 2) → split-2's "?" slot (slot 4)
+  if (s2?.slotCenters?.[4] != null && anchor.slotCenters[2] != null) {
     pts.push({
       from: { x: anchor.slotCenters[2], y: anchor.slotY + anchor.slotSizes[2] / 2 },
-      to:   { x: split.slotCenters[4], y: split.slotY - split.slotSizes[4] / 2 },
-      color: slot4 === "?" || slot4 === "□" ? COL_NEED : COL_SMALL,
-    });
-  }
-  // L4: anchor b (slot 2) → split row's second-half b box. Only in
-  // stage 2/3 (after b is split).
-  if (
-    anchor.slotCenters[2] != null &&
-    split.slotCenters[6] != null
-  ) {
-    pts.push({
-      from: { x: anchor.slotCenters[2], y: anchor.slotY + anchor.slotSizes[2] / 2 },
-      to:   { x: split.slotCenters[6], y: split.slotY - split.slotSizes[6] / 2 },
+      to:   { x: s2.slotCenters[4], y: s2.slotY - s2.slotSizes[4] / 2 },
       color: COL_NEED,
     });
   }
-
-  // L5: split row's "10_a" (slot 0 of stage 1+) → tens sum "10_left" (slot 0).
-  //     Stage 0 still has "?" at slot 0, so the line is suppressed.
-  if (
-    split.slotCenters[0] != null &&
-    tens?.slotCenters?.[0] != null &&
-    !String(split.slots?.[0] ?? "").match(/^[?□]$/)
-  ) {
+  // L5: split-3's "10_a" (slot 0) → combine-tens "10" (slot 0)
+  if (s3?.slotCenters?.[0] != null && tens?.slotCenters?.[0] != null) {
     pts.push({
-      from: { x: split.slotCenters[0], y: split.slotY + split.slotSizes[0] / 2 },
+      from: { x: s3.slotCenters[0], y: s3.slotY + s3.slotSizes[0] / 2 },
       to:   { x: tens.slotCenters[0], y: tens.slotY - tens.slotSizes[0] / 2 },
       color: COL_TEN,
     });
   }
-  // L6: split row's "10_b" (slot 4 of stage 1/2/3) → tens sum "10_right"
-  //     (slot 2). Stage 0/1 has b as 2-digit at slot 4 (no line).
-  //     Stage 2/3 has "?" / "10" at slot 4.
-  if (
-    split.slotCenters[4] != null &&
-    tens?.slotCenters?.[2] != null &&
-    !String(split.slots?.[4] ?? "").match(/^[?□]$/) &&
-    split.slots.length >= 7  // stage 2 or 3
-  ) {
+  // L6: split-3's "10_b" (slot 4) → combine-tens "10" (slot 2)
+  if (s3?.slotCenters?.[4] != null && tens?.slotCenters?.[2] != null) {
     pts.push({
-      from: { x: split.slotCenters[4], y: split.slotY + split.slotSizes[4] / 2 },
+      from: { x: s3.slotCenters[4], y: s3.slotY + s3.slotSizes[4] / 2 },
       to:   { x: tens.slotCenters[2], y: tens.slotY - tens.slotSizes[2] / 2 },
       color: COL_TEN,
     });
   }
-  // L7: split row's "onesA" (slot 2 of stage 1+) → ones sum "□_left"
-  //     (slot 0). Only after step 1 reveal (stage 1+).
-  if (
-    split.slotCenters[2] != null &&
-    ones?.slotCenters?.[0] != null &&
-    !String(split.slots?.[2] ?? "").match(/^[?□]$/)
-  ) {
+  // L7: split-3's "onesA" (slot 2) → combine-ones "□" (slot 0)
+  if (s3?.slotCenters?.[2] != null && ones?.slotCenters?.[0] != null) {
     pts.push({
-      from: { x: split.slotCenters[2], y: split.slotY + split.slotSizes[2] / 2 },
+      from: { x: s3.slotCenters[2], y: s3.slotY + s3.slotSizes[2] / 2 },
       to:   { x: ones.slotCenters[0], y: ones.slotY - ones.slotSizes[0] / 2 },
       color: COL_BIG,
     });
   }
-  // L8: split row's "onesB" (slot 6 of stage 2/3) → ones sum "□_right"
-  //     (slot 2). Only after step 2 reveal (stage 3).
-  if (
-    split.slotCenters[6] != null &&
-    ones?.slotCenters?.[2] != null &&
-    !String(split.slots?.[6] ?? "").match(/^[?□]$/)
-  ) {
+  // L8: split-3's "onesB" (slot 6) → combine-ones "□" (slot 2)
+  if (s3?.slotCenters?.[6] != null && ones?.slotCenters?.[2] != null) {
     pts.push({
-      from: { x: split.slotCenters[6], y: split.slotY + split.slotSizes[6] / 2 },
+      from: { x: s3.slotCenters[6], y: s3.slotY + s3.slotSizes[6] / 2 },
       to:   { x: ones.slotCenters[2], y: ones.slotY - ones.slotSizes[2] / 2 },
       color: COL_SMALL,
     });
   }
-  // L9: tens sum "20" (slot 4) → final "□_left" (slot 0).
-  //     Only after step 3 reveals 20.
-  if (
-    tens?.slotCenters?.[4] != null &&
-    final?.slotCenters?.[0] != null &&
-    tens.slots?.[4] === 20
-  ) {
+  // L9: combine-tens "20" (slot 4) → final "□" (slot 0)
+  if (tens?.slotCenters?.[4] != null && final?.slotCenters?.[0] != null
+      && tens.slots?.[4] === 20) {
     pts.push({
       from: { x: tens.slotCenters[4], y: tens.slotY + tens.slotSizes[4] / 2 },
       to:   { x: final.slotCenters[0], y: final.slotY - final.slotSizes[0] / 2 },
       color: COL_TEN,
     });
   }
-  // L10: ones sum "sum" (slot 4) → final "□_right" (slot 2).
-  //      Only after step 4 reveals sum.
-  if (
-    ones?.slotCenters?.[4] != null &&
-    final?.slotCenters?.[2] != null &&
-    ones.slots?.[4] !== "?"
-  ) {
+  // L10: combine-ones "sum" (slot 4) → final "□" (slot 2)
+  //     Triggered when ones row's slot 4 is a number (= sum).
+  if (ones?.slotCenters?.[4] != null && final?.slotCenters?.[2] != null
+      && typeof ones.slots?.[4] === "number") {
     pts.push({
       from: { x: ones.slotCenters[4], y: ones.slotY + ones.slotSizes[4] / 2 },
       to:   { x: final.slotCenters[2], y: final.slotY - final.slotSizes[2] / 2 },
@@ -290,10 +248,12 @@ function linkPoints(anchor, split, tens, ones, final) {
 function redrawLinks(ctx) {
   ctx.arrowNodes?.forEach((n) => n.destroy());
   ctx.arrowNodes = [];
-  if (!ctx.anchorEqNode || !ctx.l5SplitNode) return;
+  if (!ctx.anchorEqNode) return;
   const pts = linkPoints(
     ctx.anchorEqNode,
-    ctx.l5SplitNode,
+    ctx.l5Split1Node,
+    ctx.l5Split2Node,
+    ctx.l5Split3Node,
     ctx.l5TensNode,
     ctx.l5OnesNode,
     ctx.l5FinalNode,
@@ -303,11 +263,11 @@ function redrawLinks(ctx) {
   }
 }
 
-// Cue builders — composite pre-baked MP3s parameterized by round.
+// Cue builders.
 function buildL5Step1Ids(a, b) { return [`l5-s1-${a}-${b}`]; }
 function buildL5Step2Ids(a, b) { return [`l5-s2-${a}-${b}`]; }
-function buildL5Step3Ids() { return [`l5-s4`]; }                          // "十加十等于二十"
-function buildL5Step4Ids(onesA, onesB) { return [`l5-s3-${onesA}-${onesB}`]; } // "个位相加…"
+function buildL5Step3Ids() { return [`l5-s4`]; }
+function buildL5Step4Ids(onesA, onesB) { return [`l5-s3-${onesA}-${onesB}`]; }
 function buildL5Step5Ids(sum) { return [`l5-s5-${sum}`]; }
 function buildL5RewardIds(a, b, answer) { return [`l5-rwd-${a}-${b}-${answer}`]; }
 
@@ -321,14 +281,14 @@ function fireL5StepAudio(ctx, ids, _stepNumber, onComplete) {
   window.PandaAudio.playSequence(ids, 40, 100, onComplete);
 }
 
-// Render a single expression node, destroying any previous version on ctx.
+// Render a single expression node, destroying any previous version on
+// ctx, and stash its slots for linkPoints.
 function renderSlot(ctx, key, slots, opts) {
   if (ctx[key]) ctx[key].destroy();
   ctx[key] = expression(ctx.k, {
     ...slots,
     x: LAYOUT.barX, y: opts.y, size: opts.size,
   });
-  // Stash slots so linkPoints can decide which lines to draw.
   ctx[key].slots = slots.slots;
 }
 
@@ -340,13 +300,20 @@ export default createRoundScene({
   stepLabels: ["拆 a", "拆 b", "加十位", "加个位", "加起来"],
 
   steps: [
-    // Step 1 — 拆 a: child picks onesA. Split row shows stage 0
-    // (a as ?+?, b intact). After reveal, switch to stage 1.
+    // Step 1 — 拆 a: child picks onesA. Split-1 reveals □_a → onesA.
     (ctx, round) => {
-      ctx.setAnchorEquation(anchorSlots(round, "?"), { y: Y_ANCHOR, size: 88 });
-      renderSlot(ctx, "l5SplitNode", splitStage0(round), { y: Y_SPLIT, size: SPLIT_SIZE });
-      renderSlot(ctx, "l5TensNode", tensSumRow(round), { y: Y_TENS, size: SUB_SIZE });
-      renderSlot(ctx, "l5OnesNode", onesSumRow(round), { y: Y_ONES, size: SUB_SIZE });
+      ctx.setAnchorEquation(anchorSlots(round, "?"), { y: Y_ANCHOR, size: ANCHOR_SIZE });
+      renderSlot(ctx, "l5Split1Node", split1Row(round, "?"), { y: Y_SPLIT_1, size: SPLIT_SIZE });
+      // split-2 starts hidden — only show after step 1 reveal. But the
+      // user wants persistent graphics, so show it now (with b as
+      // ?+? boxes). Actually no — let me keep split-2 hidden until
+      // step 1 reveal happens, since the cascade flows from row to
+      // row.
+      // For persistence, show split-2 too:
+      renderSlot(ctx, "l5Split2Node", split2Row(round, "?"), { y: Y_SPLIT_2, size: SPLIT_SIZE });
+      renderSlot(ctx, "l5Split3Node", split3Row(round), { y: Y_SPLIT_3, size: SPLIT_SIZE });
+      renderSlot(ctx, "l5TensNode", tensSumRow(round), { y: Y_TENS, size: COMBINE_SIZE });
+      renderSlot(ctx, "l5OnesNode", onesSumRow(round), { y: Y_ONES, size: COMBINE_SIZE });
       renderSlot(ctx, "l5FinalNode", finalRow(round), { y: Y_FINAL, size: FINAL_SIZE });
       redrawLinks(ctx);
       fireL5StepAudio(ctx, buildL5Step1Ids(round.a, round.b), 1);
@@ -356,22 +323,21 @@ export default createRoundScene({
           values: options(round.onesA, { min: 0, max: 9 }),
         },
         onAdvance: () => {
-          // Reveal split "?" → onesA. Stage 0 → stage 1.
-          renderSlot(ctx, "l5SplitNode", splitStage1(round), { y: Y_SPLIT, size: SPLIT_SIZE });
+          // split-1 reveals □_a → onesA.
+          renderSlot(ctx, "l5Split1Node", split1Row(round, round.onesA), { y: Y_SPLIT_1, size: SPLIT_SIZE });
           redrawLinks(ctx);
         },
       };
     },
 
-    // Step 2 — 拆 b: child picks onesB. Split row shows stage 1
-    // (a = 10+onesA, b still intact as 13). Wait — at the start
-    // of step 2 we want stage 2 (a = 10+onesA, b → ?+?). Build
-    // stage 2 here, kid picks, reveal to stage 3.
+    // Step 2 — 拆 b: child picks onesB. Split-2 reveals □_b → onesB.
     (ctx, round) => {
-      ctx.setAnchorEquation(anchorSlots(round, "?"), { y: Y_ANCHOR, size: 88 });
-      renderSlot(ctx, "l5SplitNode", splitStage2(round), { y: Y_SPLIT, size: SPLIT_SIZE });
-      renderSlot(ctx, "l5TensNode", tensSumRow(round), { y: Y_TENS, size: SUB_SIZE });
-      renderSlot(ctx, "l5OnesNode", onesSumRow(round), { y: Y_ONES, size: SUB_SIZE });
+      ctx.setAnchorEquation(anchorSlots(round, "?"), { y: Y_ANCHOR, size: ANCHOR_SIZE });
+      renderSlot(ctx, "l5Split1Node", split1Row(round, 10, round.onesA), { y: Y_SPLIT_1, size: SPLIT_SIZE });
+      renderSlot(ctx, "l5Split2Node", split2Row(round, "?", "?"), { y: Y_SPLIT_2, size: SPLIT_SIZE });
+      renderSlot(ctx, "l5Split3Node", split3Row(round), { y: Y_SPLIT_3, size: SPLIT_SIZE });
+      renderSlot(ctx, "l5TensNode", tensSumRow(round), { y: Y_TENS, size: COMBINE_SIZE });
+      renderSlot(ctx, "l5OnesNode", onesSumRow(round), { y: Y_ONES, size: COMBINE_SIZE });
       renderSlot(ctx, "l5FinalNode", finalRow(round), { y: Y_FINAL, size: FINAL_SIZE });
       redrawLinks(ctx);
       fireL5StepAudio(ctx, buildL5Step2Ids(round.a, round.b), 2);
@@ -381,18 +347,21 @@ export default createRoundScene({
           values: options(round.onesB, { min: 0, max: 9 }),
         },
         onAdvance: () => {
-          renderSlot(ctx, "l5SplitNode", splitStage3(round), { y: Y_SPLIT, size: SPLIT_SIZE });
+          // split-2 reveals both boxes for b: tens → 10, ones → onesB.
+          renderSlot(ctx, "l5Split2Node", split2Row(round, 10, round.onesB), { y: Y_SPLIT_2, size: SPLIT_SIZE });
           redrawLinks(ctx);
         },
       };
     },
 
-    // Step 3 — 加十位: child picks 20.
+    // Step 3 — 加十位: child picks 20. Combine-tens reveals "?" → 20.
     (ctx, round) => {
-      ctx.setAnchorEquation(anchorSlots(round, "?"), { y: Y_ANCHOR, size: 88 });
-      renderSlot(ctx, "l5SplitNode", splitStage3(round), { y: Y_SPLIT, size: SPLIT_SIZE });
-      renderSlot(ctx, "l5TensNode", tensSumRow(round), { y: Y_TENS, size: SUB_SIZE });
-      renderSlot(ctx, "l5OnesNode", onesSumRow(round, round.onesA, round.onesB), { y: Y_ONES, size: SUB_SIZE });
+      ctx.setAnchorEquation(anchorSlots(round, "?"), { y: Y_ANCHOR, size: ANCHOR_SIZE });
+      renderSlot(ctx, "l5Split1Node", split1Row(round, 10, round.onesA), { y: Y_SPLIT_1, size: SPLIT_SIZE });
+      renderSlot(ctx, "l5Split2Node", split2Row(round, 10, round.onesB), { y: Y_SPLIT_2, size: SPLIT_SIZE });
+      renderSlot(ctx, "l5Split3Node", split3Row(round), { y: Y_SPLIT_3, size: SPLIT_SIZE });
+      renderSlot(ctx, "l5TensNode", tensSumRow(round), { y: Y_TENS, size: COMBINE_SIZE });
+      renderSlot(ctx, "l5OnesNode", onesSumRow(round), { y: Y_ONES, size: COMBINE_SIZE });
       renderSlot(ctx, "l5FinalNode", finalRow(round), { y: Y_FINAL, size: FINAL_SIZE });
       redrawLinks(ctx);
       fireL5StepAudio(ctx, buildL5Step3Ids(), 3);
@@ -402,18 +371,22 @@ export default createRoundScene({
           values: options(20, { min: 18, max: 20 }),
         },
         onAdvance: () => {
-          renderSlot(ctx, "l5TensNode", tensSumRow(round, 20), { y: Y_TENS, size: SUB_SIZE });
+          renderSlot(ctx, "l5TensNode", tensSumRow(round, 20), { y: Y_TENS, size: COMBINE_SIZE });
           redrawLinks(ctx);
         },
       };
     },
 
-    // Step 4 — 加个位: child picks sum.
+    // Step 4 — 加个位: child picks sum. Combine-ones reveals "?" → sum.
     (ctx, round) => {
-      ctx.setAnchorEquation(anchorSlots(round, "?"), { y: Y_ANCHOR, size: 88 });
-      renderSlot(ctx, "l5SplitNode", splitStage3(round), { y: Y_SPLIT, size: SPLIT_SIZE });
-      renderSlot(ctx, "l5TensNode", tensSumRow(round, 20), { y: Y_TENS, size: SUB_SIZE });
-      renderSlot(ctx, "l5OnesNode", onesSumRow(round, round.onesA, round.onesB), { y: Y_ONES, size: SUB_SIZE });
+      ctx.setAnchorEquation(anchorSlots(round, "?"), { y: Y_ANCHOR, size: ANCHOR_SIZE });
+      renderSlot(ctx, "l5Split1Node", split1Row(round, 10, round.onesA), { y: Y_SPLIT_1, size: SPLIT_SIZE });
+      renderSlot(ctx, "l5Split2Node", split2Row(round, 10, round.onesB), { y: Y_SPLIT_2, size: SPLIT_SIZE });
+      renderSlot(ctx, "l5Split3Node", split3Row(round), { y: Y_SPLIT_3, size: SPLIT_SIZE });
+      renderSlot(ctx, "l5TensNode", tensSumRow(round, 20), { y: Y_TENS, size: COMBINE_SIZE });
+      // Combine-ones pre-fills addends (revealed from steps 1-2).
+      renderSlot(ctx, "l5OnesNode", onesSumRow(round, round.onesA, round.onesB), { y: Y_ONES, size: COMBINE_SIZE });
+      // Final pre-fills 20 (revealed from step 3).
       renderSlot(ctx, "l5FinalNode", finalRow(round, 20), { y: Y_FINAL, size: FINAL_SIZE });
       redrawLinks(ctx);
       fireL5StepAudio(ctx, buildL5Step4Ids(round.onesA, round.onesB), 4);
@@ -423,19 +396,22 @@ export default createRoundScene({
           values: options(round.sum, { min: 1, max: 9 }),
         },
         onAdvance: () => {
-          renderSlot(ctx, "l5OnesNode", onesSumRow(round, round.onesA, round.onesB, round.sum), { y: Y_ONES, size: SUB_SIZE });
+          renderSlot(ctx, "l5OnesNode", onesSumRow(round, round.onesA, round.onesB, round.sum), { y: Y_ONES, size: COMBINE_SIZE });
+          // Final gets sum pre-filled too.
           renderSlot(ctx, "l5FinalNode", finalRow(round, 20, round.sum), { y: Y_FINAL, size: FINAL_SIZE });
           redrawLinks(ctx);
         },
       };
     },
 
-    // Step 5 — 加起来: child picks answer.
+    // Step 5 — 加起来: child picks answer. Final reveals "?" → answer.
     (ctx, round) => {
-      ctx.setAnchorEquation(anchorSlots(round, "?"), { y: Y_ANCHOR, size: 88 });
-      renderSlot(ctx, "l5SplitNode", splitStage3(round), { y: Y_SPLIT, size: SPLIT_SIZE });
-      renderSlot(ctx, "l5TensNode", tensSumRow(round, 20), { y: Y_TENS, size: SUB_SIZE });
-      renderSlot(ctx, "l5OnesNode", onesSumRow(round, round.onesA, round.onesB, round.sum), { y: Y_ONES, size: SUB_SIZE });
+      ctx.setAnchorEquation(anchorSlots(round, "?"), { y: Y_ANCHOR, size: ANCHOR_SIZE });
+      renderSlot(ctx, "l5Split1Node", split1Row(round, 10, round.onesA), { y: Y_SPLIT_1, size: SPLIT_SIZE });
+      renderSlot(ctx, "l5Split2Node", split2Row(round, 10, round.onesB), { y: Y_SPLIT_2, size: SPLIT_SIZE });
+      renderSlot(ctx, "l5Split3Node", split3Row(round), { y: Y_SPLIT_3, size: SPLIT_SIZE });
+      renderSlot(ctx, "l5TensNode", tensSumRow(round, 20), { y: Y_TENS, size: COMBINE_SIZE });
+      renderSlot(ctx, "l5OnesNode", onesSumRow(round, round.onesA, round.onesB, round.sum), { y: Y_ONES, size: COMBINE_SIZE });
       renderSlot(ctx, "l5FinalNode", finalRow(round, 20, round.sum), { y: Y_FINAL, size: FINAL_SIZE });
       redrawLinks(ctx);
       fireL5StepAudio(ctx, buildL5Step5Ids(round.sum), 5);
@@ -445,7 +421,7 @@ export default createRoundScene({
           values: options(round.answer, { min: 20, max: 29 }),
         },
         onAdvance: () => {
-          ctx.setAnchorEquation(anchorSlots(round, round.answer), { y: Y_ANCHOR, size: 88 });
+          ctx.setAnchorEquation(anchorSlots(round, round.answer), { y: Y_ANCHOR, size: ANCHOR_SIZE });
           renderSlot(ctx, "l5FinalNode", finalRow(round, 20, round.sum, round.answer), { y: Y_FINAL, size: FINAL_SIZE });
           redrawLinks(ctx);
           return new Promise((resolve) => {
