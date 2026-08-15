@@ -178,6 +178,15 @@ export const ART = [
     tolerance: 90,
     allowText: true,
   },
+  {
+    // L5 十几加十几 — added 2026-08-15, matches the badge-1..4 style
+    // but in green (SUCCESS theme color).
+    name: "badge-5",
+    prompt: "a cute round green medal badge with the single big white number 5 in the center, chunky rounded ring border, glossy",
+    ratio: "1:1",
+    tolerance: 90,
+    allowText: true,
+  },
 
   // ---- Ten-frame ---------------------------------------------------------
   // The ten-frame has to stay dynamic (cells fill as the child counts), so it
