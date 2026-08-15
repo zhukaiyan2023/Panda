@@ -120,16 +120,10 @@ function install(value) {
       guardTimers.delete(timer);
       if (completed) return;
       value.stopAllAudio();
-      // stopAllAudio resolves/cancels the active sequence. Release this
-      // sequence's caller as a fallback even if the underlying manager never
-      // emitted its final ended event.
       finish(true);
     }, timeoutMs);
     guardTimers.add(timer);
 
-    // A hard stop or a newer sequence may invalidate this sequence before
-    // PandaAudio calls the callback. Do not run the caller's continuation in
-    // that case unless this is the sequence that is still active.
     const guardedComplete = () => {
       if (completed || expectedGeneration !== generation || state.cancelled) return;
       finish(false);
@@ -143,8 +137,8 @@ function install(value) {
       finish(true);
     }
 
-    // Keep the promise reachable for callers/debugging without changing the
-    // public API shape used by existing scenes.
+    // Keep the promise reachable for playAfter() without changing the public
+    // API shape used by existing scenes.
     state.completion = completion;
   };
 
@@ -158,15 +152,17 @@ function install(value) {
     const gapMs = Math.max(0, Number(opts?.gapMs) || 0);
     const seqGapMs = Math.max(0, Number(opts?.seqGapMs) || 90);
     const previous = continuationTail;
-
-    // Wait for every continuation already queued before this request.
-    // When the current speaker is an active PandaAudio sequence, wait for
-    // THAT sequence's completion callback instead of looking at ref.ended.
+    const hasOwner = !!activeSequence;
     const ownerCompletion = activeSequence?.completion || Promise.resolve({ cancelled: false });
 
+    // Wait for every continuation already queued before this request, and
+    // also wait for the active speaker owner when this call immediately
+    // follows playSequence().
     let releaseCurrent;
     const current = new Promise((resolve) => { releaseCurrent = resolve; });
-    continuationTail = previous.then(() => ownerCompletion).then(() => current);
+    continuationTail = previous
+      .then(() => hasOwner ? ownerCompletion : undefined)
+      .then(() => current);
 
     const start = async () => {
       if (requestedGeneration !== generation) {
@@ -175,24 +171,23 @@ function install(value) {
         return;
       }
 
-      // If an active PandaAudio sequence owns the speaker, it has now ended.
-      // Start the follow-up directly with playSequence. This avoids the stale
-      // HTMLAudioElement.ended problem entirely and guarantees:
-      //   encouragement → follow-up prompt/reward → completion.
-      if (ownerCompletion !== Promise.resolve()) {
+      if (hasOwner) {
         const result = await ownerCompletion;
         if (requestedGeneration !== generation || result?.cancelled) {
           releaseCurrent();
           onComplete?.();
           return;
         }
-        if (gapMs > 0) await new Promise((resolve) => setTimeout(resolve, gapMs));
         if (requestedGeneration !== generation) {
           releaseCurrent();
           onComplete?.();
           return;
         }
-        originalPlaySequence(ids, seqGapMs, 0, () => {
+        // The encouragement/reward chain is now definitely finished. Start
+        // the follow-up through the guarded public sequence API so the
+        // follow-up itself also has a timeout safety net and its onComplete
+        // cannot be mistaken for the start of the next round.
+        value.playSequence(ids, seqGapMs, gapMs, () => {
           releaseCurrent();
           onComplete?.();
         });
