@@ -1,65 +1,45 @@
 // scenes/gameWhack.js
-//
-// Stable whack-a-mole implementation:
-// - Real mole + number + hole assets are loaded by this scene.
-// - The number is a child of the mole, never a separate floating object.
-// - Every hole has a fixed position on a 3x2 board.
-// - Each mole follows a deterministic pop -> hold -> retreat cycle.
-// - Correct tap locks the board, plays one serialized audio chain, shows a
-//   hammer bonk + dizzy stars, then advances only after the chain completes.
+// PNG-first whack-a-mole game. The scene uses the existing polished PNG
+// assets and keeps every number inside the mole visual unit.
 
 import {
-  INK, PAPER, CARD, ORANGE, ORANGE_DEEP, SUCCESS, DANGER,
-  YELLOW, BLUE, GREEN, PINK, PURPLE, MUTED, DISABLED_BG, FONT,
+  INK, PAPER, ORANGE, ORANGE_DEEP, SUCCESS, DANGER,
+  YELLOW, BLUE, GREEN, PINK, PURPLE, MUTED, FONT,
 } from "../components/theme.js?v=20260816";
 import { pickCheerCue, pickWrongCue } from "../audio/praise.js?v=20260816";
 
 const GAME_ID = 5;
 const ROUND_SECONDS = 90;
-const MOLE_COUNT = 6;
 
-// Fixed board. No layout recalculation after the round starts.
 const SLOTS = [
-  [320, 515], [683, 515], [1046, 515],
-  [320, 760], [683, 760], [1046, 760],
+  [300, 585], [683, 585], [1066, 585],
+  [300, 815], [683, 815], [1066, 815],
 ];
 
-const MOLE_SPRITES = [
-  "whack-mole-blue",
-  "whack-mole-orange",
-  "whack-mole-green",
-];
-
-const MOLE_SCALE = 0.31;
-const HOLE_SCALE = 0.43;
-const HIDDEN_Y = 155;
-const REST_Y = -55;
-const POP_SECONDS = 0.42;
-const HOLD_SECONDS = 1.18;
-const RETREAT_SECONDS = 0.42;
-const CYCLE_SECONDS = 2.90;
-const STAGGER_SECONDS = 0.30;
-const NUMBER_Y = 72;
-const NUMBER_SIZE = 58;
-
-const DIGIT_COLORS = [
-  BLUE, GREEN, ORANGE, PURPLE, PINK,
-  ORANGE_DEEP, SUCCESS, DANGER, PURPLE,
-];
-
-let sessionId = 0;
+const MOLE_SCALE = 0.24;
+const HOLE_SCALE = 0.30;
+const HIDDEN_OFFSET = 145;
+const REST_OFFSET = -48;
+const POP_SECONDS = 0.48;
+const HOLD_SECONDS = 1.30;
+const RETREAT_SECONDS = 0.45;
+const CYCLE_SECONDS = 3.15;
+const STAGGER_SECONDS = 0.38;
+const NUMBER_Y = 58;
+const NUMBER_SIZE = 62;
+const DIGIT_COLORS = [BLUE, GREEN, ORANGE, PURPLE, PINK, ORANGE_DEEP, SUCCESS, DANGER, YELLOW];
 
 function rnd(min, max) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
 function shuffle(values) {
-  const a = values.slice();
-  for (let i = a.length - 1; i > 0; i -= 1) {
+  const result = values.slice();
+  for (let i = result.length - 1; i > 0; i -= 1) {
     const j = Math.floor(Math.random() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
+    [result[i], result[j]] = [result[j], result[i]];
   }
-  return a;
+  return result;
 }
 
 function buildQuestion() {
@@ -70,16 +50,16 @@ function buildQuestion() {
     a = rnd(2, 9);
     b = rnd(2, 9);
     answer = a + b;
-  } while (answer < 11 || answer > 18);
+  } while (answer < 10 || answer > 18);
   return { a, b, answer };
 }
 
 function buildValues(answer) {
-  const values = [];
-  for (let n = 10; n <= 18; n += 1) {
-    if (n !== answer) values.push(n);
+  const candidates = [];
+  for (let value = 10; value <= 18; value += 1) {
+    if (value !== answer) candidates.push(value);
   }
-  return shuffle([answer, ...values.slice(0, MOLE_COUNT - 1)]);
+  return shuffle([answer, ...shuffle(candidates).slice(0, 5)]);
 }
 
 function easeOutBack(t) {
@@ -92,36 +72,26 @@ function easeInCubic(t) {
   return t * t * t;
 }
 
-function loadAssets(k) {
-  const specs = [
-    ["whack-mole-blue", "assets/art/whack-mole-blue.svg?v=20260816"],
-    ["whack-mole-orange", "assets/art/whack-mole-orange.svg?v=20260816"],
-    ["whack-mole-green", "assets/art/whack-mole-green.svg?v=20260816"],
-    ["whack-hole", "assets/art/whack-hole.svg?v=20260816"],
-    ["whack-hole-front", "assets/art/whack-hole-front.svg?v=20260816"],
-  ];
-
-  return Promise.all(
-    specs.map(([name, url]) =>
-      Promise.resolve(k.loadSprite(name, url)).catch((error) => {
-        console.error(`[whack] failed to load ${name}`, error);
-        return null;
-      }),
-    ),
-  );
+function safeCancel(handle) {
+  if (!handle) return;
+  try { handle.cancel(); } catch (_) {}
 }
 
-function addPanel(k, x, y, w, h, fill, outline = INK) {
+function fitSprite(k, name, x, y, targetWidth, z = 1) {
+  const sprite = k.getSprite(name);
+  if (!sprite) return null;
+  const sourceWidth = Number(sprite.data?.width || targetWidth);
+  const scale = targetWidth / sourceWidth;
   return k.add([
-    k.rect(w, h, { radius: 26 }),
+    k.sprite(name),
     k.pos(x, y),
     k.anchor("center"),
-    k.color(...fill),
-    k.outline(5, k.rgb(...outline)),
+    k.scale(scale),
+    k.z(z),
   ]);
 }
 
-function saveScore(save, score) {
+function saveStars(save, score) {
   if (!save) return;
   const state = save.load();
   state.starsByGame = state.starsByGame || {};
@@ -130,501 +100,452 @@ function saveScore(save, score) {
   save.save(state);
 }
 
-function createHammer(k, x, y, onDone) {
-  const hammer = k.add([
-    k.pos(x + 95, y - 150),
-    k.z(50),
-  ]);
-
-  hammer.add([
-    k.rect(20, 122, { radius: 8 }),
-    k.pos(-24, 52),
-    k.anchor("center"),
-    k.color(244, 176, 71),
-    k.outline(4, k.rgb(...ORANGE_DEEP)),
-  ]);
-  hammer.add([
-    k.rect(100, 44, { radius: 12 }),
-    k.pos(18, 0),
-    k.anchor("center"),
-    k.color(231, 65, 58),
-    k.outline(5, k.rgb(...INK)),
-  ]);
-
-  hammer.angle = -55;
-  const start = k.time();
-  const handle = hammer.onUpdate(() => {
-    const t = Math.min(1, (k.time() - start) / 0.42);
-    if (t < 0.55) {
-      const p = easeInCubic(t / 0.55);
-      hammer.angle = -55 + 120 * p;
-      hammer.pos.x = x + 98 - 52 * p;
-      hammer.pos.y = y - 152 + 90 * p;
-    } else {
-      const p = (t - 0.55) / 0.45;
-      hammer.angle = 65 - 55 * p;
-      hammer.pos.x = x + 46 + 25 * p;
-      hammer.pos.y = y - 62 - 48 * p;
-    }
-
-    if (t >= 1) {
-      handle.cancel();
-      hammer.destroy();
-      onDone?.();
-    }
-  });
-}
-
 export default function gameWhack(k) {
   const audio = window.PandaAudio;
   const save = window.PandaSave;
-  const localSession = ++sessionId;
-
-  k.add([
-    k.rect(1366, 1024),
-    k.pos(683, 512),
-    k.anchor("center"),
-    k.color(255, 241, 220),
-    k.z(-100),
-  ]);
-
-  const bg = k.add([
-    k.sprite("bg-meadow"),
-    k.pos(683, 512),
-    k.anchor("center"),
-    k.z(-90),
-  ]);
-  bg.width = 1366;
-  bg.height = 1024;
 
   let running = false;
-  let inputLocked = true;
+  let locked = true;
   let timeLeft = ROUND_SECONDS;
   let score = 0;
   let streak = 0;
   let hadWrongs = false;
-  let current = null;
-  let timer = null;
-  let roundToken = 0;
+  let question = null;
+  let timerHandle = null;
+  let moleLoopHandle = null;
   let audioToken = 0;
-  let loopHandle = null;
+
   const moles = [];
 
-  addPanel(k, 88, 78, 112, 66, PAPER);
+  // ---------- background ----------
+  if (!fitSprite(k, "whack-bg-meadow", 683, 512, 1366, -20)) {
+    k.add([
+      k.rect(1366, 1024),
+      k.pos(683, 512),
+      k.anchor("center"),
+      k.color(255, 241, 220),
+      k.z(-20),
+    ]);
+  }
+
+  // ---------- HUD: use the existing PNG art, not hand-drawn substitutes ----------
   const back = k.add([
-    k.text("←", { size: 42, font: FONT }),
-    k.pos(88, 78),
+    k.rect(104, 68, { radius: 18 }),
+    k.pos(80, 76),
     k.anchor("center"),
-    k.color(...INK),
+    k.color(...PAPER),
+    k.outline(5, k.rgb(...INK)),
     k.area(),
     k.z(30),
   ]);
-  back.onClick(() => k.go("gamesPicker"));
-
-  addPanel(k, 683, 110, 610, 150, [250, 231, 191]);
-  const eqA = k.add([k.text("?", { size: 78, font: FONT }), k.pos(505, 110), k.anchor("center"), k.color(...BLUE), k.z(30)]);
-  k.add([k.text("+", { size: 72, font: FONT }), k.pos(590, 110), k.anchor("center"), k.color(...INK), k.z(30)]);
-  const eqB = k.add([k.text("?", { size: 78, font: FONT }), k.pos(684, 110), k.anchor("center"), k.color(...GREEN), k.z(30)]);
-  k.add([k.text("=", { size: 72, font: FONT }), k.pos(770, 110), k.anchor("center"), k.color(...INK), k.z(30)]);
-  const eqAnswer = k.add([k.text("?", { size: 78, font: FONT }), k.pos(860, 110), k.anchor("center"), k.color(...DANGER), k.z(30)]);
-
-  addPanel(k, 1180, 70, 210, 64, [249, 220, 143], ORANGE_DEEP);
-  k.add([k.text("SCORE", { size: 20, font: FONT }), k.pos(1120, 54), k.anchor("center"), k.color(...INK), k.z(30)]);
-  const scoreText = k.add([k.text("0", { size: 34, font: FONT }), k.pos(1250, 72), k.anchor("center"), k.color(...INK), k.z(30)]);
-
-  addPanel(k, 1180, 152, 210, 64, PAPER);
-  k.add([k.text("TIME", { size: 20, font: FONT }), k.pos(1125, 137), k.anchor("center"), k.color(...MUTED), k.z(30)]);
-  const timeText = k.add([k.text(String(ROUND_SECONDS), { size: 34, font: FONT }), k.pos(1252, 154), k.anchor("center"), k.color(...INK), k.z(30)]);
-
-  const hint = k.add([
-    k.rect(340, 76, { radius: 24 }),
-    k.pos(1120, 290),
-    k.anchor("center"),
-    k.color(255, 245, 211),
-    k.outline(4, k.rgb(...ORANGE_DEEP)),
-    k.z(30),
-  ]);
-  hint.add([
-    k.text("WHACK THE RIGHT NUMBER!", { size: 25, font: FONT }),
+  back.add([
+    k.text("←", { size: 42, font: FONT }),
     k.pos(0, 0),
     k.anchor("center"),
     k.color(...INK),
   ]);
+  back.onClick(() => k.go("gamesPicker"));
+
+  fitSprite(k, "whack-plaque", 683, 118, 590, 20);
+  const eqA = k.add([k.text("?", { size: 76, font: FONT }), k.pos(520, 118), k.anchor("center"), k.color(...BLUE), k.z(25)]);
+  k.add([k.text("+", { size: 70, font: FONT }), k.pos(600, 118), k.anchor("center"), k.color(...INK), k.z(25)]);
+  const eqB = k.add([k.text("?", { size: 76, font: FONT }), k.pos(685, 118), k.anchor("center"), k.color(...GREEN), k.z(25)]);
+  k.add([k.text("=", { size: 70, font: FONT }), k.pos(765, 118), k.anchor("center"), k.color(...INK), k.z(25)]);
+  const eqAnswer = k.add([k.text("?", { size: 76, font: FONT }), k.pos(850, 118), k.anchor("center"), k.color(...DANGER), k.z(25)]);
+
+  fitSprite(k, "whack-stopwatch", 1208, 76, 176, 20);
+  const timeText = k.add([k.text(String(ROUND_SECONDS), { size: 38, font: FONT }), k.pos(1210, 86), k.anchor("center"), k.color(...ORANGE_DEEP), k.z(26)]);
+
+  fitSprite(k, "whack-starbar", 1208, 160, 232, 20);
+  const scoreText = k.add([k.text("0", { size: 34, font: FONT }), k.pos(1124, 159), k.anchor("center"), k.color(...INK), k.z(26)]);
+
+  fitSprite(k, "whack-hint-sign", 1185, 282, 300, 20);
+  k.add([k.text("WHACK THE RIGHT NUMBER!", { size: 23, font: FONT }), k.pos(1185, 282), k.anchor("center"), k.color(...INK), k.z(26)]);
+
+  // ---------- mole units ----------
+  for (let i = 0; i < SLOTS.length; i += 1) {
+    const [x, y] = SLOTS[i];
+    const hole = k.add([
+      k.sprite("whack-hole-clean"),
+      k.pos(x, y),
+      k.anchor("center"),
+      k.scale(HOLE_SCALE),
+      k.z(4),
+    ]);
+
+    const group = k.add([
+      k.pos(x, y + HIDDEN_OFFSET),
+      k.opacity(0),
+      k.z(8),
+    ]);
+
+    const mole = group.add([
+      k.sprite("whack-mole-popup"),
+      k.pos(0, 0),
+      k.anchor("center"),
+      k.scale(MOLE_SCALE),
+      k.area({ scale: 0.82 }),
+    ]);
+
+    const number = group.add([
+      k.text("", { size: NUMBER_SIZE, font: FONT }),
+      k.pos(0, NUMBER_Y),
+      k.anchor("center"),
+      k.color(...INK),
+      k.outline(5, k.rgb(...PAPER)),
+      k.z(2),
+    ]);
+
+    const entry = {
+      index: i,
+      x,
+      y,
+      hole,
+      group,
+      mole,
+      number,
+      value: null,
+      visible: false,
+      startAt: 0,
+      dizzy: false,
+    };
+
+    mole.onClick(() => handleMoleTap(entry));
+    moles.push(entry);
+  }
 
   function hideMole(entry) {
     entry.visible = false;
     entry.group.opacity = 0;
-    entry.group.pos.y = entry.y + HIDDEN_Y;
+    entry.group.pos.x = entry.x;
+    entry.group.pos.y = entry.y + HIDDEN_OFFSET;
+    entry.group.scale = k.vec2(1, 1);
+    entry.number.opacity = 0;
+    entry.mole.angle = 0;
   }
 
-  function setMolePose(entry, localT, now) {
-    if (localT < POP_SECONDS) {
-      const p = easeOutBack(localT / POP_SECONDS);
+  function updateMole(entry, elapsed, now) {
+    const cycle = elapsed % CYCLE_SECONDS;
+
+    if (cycle < POP_SECONDS) {
       entry.visible = true;
       entry.group.opacity = 1;
-      entry.group.pos.y = entry.y + HIDDEN_Y + (REST_Y - HIDDEN_Y) * p;
+      entry.number.opacity = 1;
+      const p = easeOutBack(cycle / POP_SECONDS);
+      entry.group.pos.y = entry.y + HIDDEN_OFFSET + (REST_OFFSET - HIDDEN_OFFSET) * p;
+      entry.group.scale = k.vec2(0.94 + 0.06 * p, 0.94 + 0.06 * p);
       return;
     }
 
-    if (localT < POP_SECONDS + HOLD_SECONDS) {
+    if (cycle < POP_SECONDS + HOLD_SECONDS) {
       entry.visible = true;
       entry.group.opacity = 1;
-      entry.group.pos.y = entry.y + REST_Y + Math.sin(now * 5 + entry.index) * 4;
+      entry.number.opacity = 1;
+      entry.group.pos.y = entry.y + REST_OFFSET + Math.sin(now * 5 + entry.index) * 4;
+      entry.group.scale = k.vec2(1, 1);
       return;
     }
 
-    if (localT < POP_SECONDS + HOLD_SECONDS + RETREAT_SECONDS) {
+    if (cycle < POP_SECONDS + HOLD_SECONDS + RETREAT_SECONDS) {
       entry.visible = true;
-      const p = easeInCubic(
-        (localT - POP_SECONDS - HOLD_SECONDS) / RETREAT_SECONDS,
-      );
       entry.group.opacity = 1;
-      entry.group.pos.y = entry.y + REST_Y + (HIDDEN_Y - REST_Y) * p;
+      const p = easeInCubic((cycle - POP_SECONDS - HOLD_SECONDS) / RETREAT_SECONDS);
+      entry.group.pos.y = entry.y + REST_OFFSET + (HIDDEN_OFFSET - REST_OFFSET) * p;
+      entry.group.scale = k.vec2(1 - 0.06 * p, 1 - 0.06 * p);
+      entry.number.opacity = p > 0.72 ? 1 - ((p - 0.72) / 0.28) : 1;
       return;
     }
 
     hideMole(entry);
   }
 
-  function buildMoles() {
-    for (let i = 0; i < MOLE_COUNT; i += 1) {
-      const [x, y] = SLOTS[i];
-
-      const holeBack = k.add([
-        k.sprite("whack-hole"),
-        k.pos(x, y),
-        k.anchor("center"),
-        k.scale(HOLE_SCALE),
-        k.z(2),
-      ]);
-
-      const group = k.add([
-        k.pos(x, y + HIDDEN_Y),
-        k.z(4),
-      ]);
-
-      const moleNode = group.add([
-        k.sprite(MOLE_SPRITES[i % MOLE_SPRITES.length]),
-        k.pos(0, 0),
-        k.anchor("center"),
-        k.scale(MOLE_SCALE),
-        k.area(),
-      ]);
-
-      const number = group.add([
-        k.text("", { size: NUMBER_SIZE, font: FONT }),
-        k.pos(0, NUMBER_Y),
-        k.anchor("center"),
-        k.color(...INK),
-        k.outline(5, k.rgb(...PAPER)),
-        k.z(2),
-      ]);
-
-      const holeFront = k.add([
-        k.sprite("whack-hole-front"),
-        k.pos(x, y),
-        k.anchor("center"),
-        k.scale(HOLE_SCALE),
-        k.z(6),
-      ]);
-
-      const entry = {
-        index: i,
-        x,
-        y,
-        group,
-        moleNode,
-        number,
-        holeBack,
-        holeFront,
-        value: null,
-        visible: false,
-        startAt: 0,
-      };
-
-      moleNode.onClick(() => {
-        if (!running || inputLocked || !entry.visible || entry.value == null) return;
-        onMoleTap(entry);
-      });
-
-      moles.push(entry);
-    }
+  function stopMoleLoop() {
+    safeCancel(moleLoopHandle);
+    moleLoopHandle = null;
   }
 
   function startMoleLoop() {
-    if (loopHandle) loopHandle.cancel();
-    const startTime = k.time();
-    moles.forEach((entry) => {
-      entry.startAt = startTime + entry.index * STAGGER_SECONDS;
+    stopMoleLoop();
+    const start = k.time();
+    moles.forEach((entry, index) => {
+      entry.startAt = start + index * STAGGER_SECONDS;
+      hideMole(entry);
     });
 
-    loopHandle = k.onUpdate(() => {
-      if (!running || inputLocked) return;
+    moleLoopHandle = k.onUpdate(() => {
+      if (!running || locked) return;
       const now = k.time();
       for (const entry of moles) {
         const elapsed = now - entry.startAt;
-        if (elapsed < 0) {
-          hideMole(entry);
-          continue;
-        }
-        setMolePose(entry, elapsed % CYCLE_SECONDS, now);
+        if (elapsed < 0) continue;
+        updateMole(entry, elapsed, now);
       }
     });
   }
 
-  function stopMoleLoop() {
-    if (!loopHandle) return;
-    loopHandle.cancel();
-    loopHandle = null;
-  }
-
-  function assignRound(question) {
-    const values = buildValues(question.answer);
-    roundToken += 1;
-    values.forEach((value, i) => {
-      const entry = moles[i];
-      entry.value = value;
-      entry.number.text = String(value);
-      entry.number.color = k.rgb(...DIGIT_COLORS[i % DIGIT_COLORS.length]);
-      hideMole(entry);
-    });
-  }
-
-  function nextRound() {
-    if (!running) return;
-    inputLocked = true;
-    stopMoleLoop();
-
-    const q = buildQuestion();
-    current = q;
-    eqA.text = String(q.a);
-    eqB.text = String(q.b);
-    eqAnswer.text = "?";
-    assignRound(q);
-
-    inputLocked = false;
-    startMoleLoop();
-
-    const cueStart = score === 0 ? "whack-q-pre" : "whack-next";
-    audio.stopAllAudio();
-    audio.playSequence([
-      cueStart,
-      `n-${q.a}`,
-      "q-plus",
-      `n-${q.b}`,
-      "q-equals",
-    ], 120, 0);
-  }
-
-  function playSingleAudio(ids, onComplete) {
-    const generation = ++audioToken;
-    audio.stopAllAudio();
-    audio.playSequence(ids, 130, 0, () => {
-      if (generation !== audioToken || !running) return;
-      onComplete?.();
-    });
-  }
-
-  function showDizzy(entry) {
-    const stars = [];
-    const start = k.time();
-    for (let i = 0; i < 3; i += 1) {
-      stars.push(k.add([
-        k.text("★", { size: 38, font: FONT }),
-        k.pos(entry.x, entry.y - 98),
-        k.anchor("center"),
-        k.color(...YELLOW),
-        k.z(45),
-      ]));
-    }
-    const handle = k.onUpdate(() => {
-      const t = Math.min(1, (k.time() - start) / 0.95);
-      stars.forEach((star, i) => {
-        const angle = i * (Math.PI * 2 / 3) + t * Math.PI * 4;
-        star.pos.x = entry.x + Math.cos(angle) * 58;
-        star.pos.y = entry.y - 102 + Math.sin(angle) * 24;
-        star.opacity = 1 - t;
-      });
-      if (t >= 1) {
-        handle.cancel();
-        stars.forEach((star) => star.destroy());
-      }
-    });
-  }
-
-  function hammerHit(entry, onDone) {
-    createHammer(k, entry.x, entry.y, onDone);
-    showDizzy(entry);
-
-    const start = k.time();
-    const baseScale = MOLE_SCALE;
-    const handle = entry.moleNode.onUpdate(() => {
-      const t = Math.min(1, (k.time() - start) / 0.34);
-      if (t < 1) {
-        const wobble = Math.sin(t * Math.PI * 8) * 0.08 * (1 - t);
-        entry.moleNode.scale = k.vec2(baseScale * (1 + wobble), baseScale * (1 - wobble));
-      } else {
-        entry.moleNode.scale = k.vec2(baseScale, baseScale);
-        handle.cancel();
-      }
-    });
-  }
-
-  function retreatAll() {
+  function hideAll() {
     stopMoleLoop();
     moles.forEach(hideMole);
   }
 
-  function onMoleTap(entry) {
-    if (!current || inputLocked || !entry.visible) return;
-    inputLocked = true;
-    stopMoleLoop();
+  // ---------- hammer / dizzy ----------
+  function hammerBonk(entry) {
+    const hammer = k.add([
+      k.sprite("whack-hammer"),
+      k.pos(entry.x + 105, entry.y - 135),
+      k.anchor("center"),
+      k.scale(0.17),
+      k.z(60),
+    ]);
 
-    const correct = entry.value === current.answer;
-    if (!correct) {
-      hadWrongs = true;
-      streak = 0;
-      hammerHit(entry, () => {
-        entry.group.pos.y = entry.y + REST_Y;
-        inputLocked = false;
-        startMoleLoop();
-      });
+    const startX = hammer.pos.x;
+    const startY = hammer.pos.y;
+    const hitX = entry.x + 28;
+    const hitY = entry.y - 5;
+    const start = k.time();
+    const handle = hammer.onUpdate(() => {
+      const t = Math.min(1, (k.time() - start) / 0.46);
+      if (t < 0.58) {
+        const p = easeInCubic(t / 0.58);
+        hammer.pos.x = startX + (hitX - startX) * p;
+        hammer.pos.y = startY + (hitY - startY) * p;
+        hammer.angle = -38 + 78 * p;
+      } else {
+        const p = (t - 0.58) / 0.42;
+        hammer.pos.x = hitX + (startX - hitX) * p;
+        hammer.pos.y = hitY + (startY - hitY) * p;
+        hammer.angle = 40 - 78 * p;
+      }
+      if (t >= 1) {
+        safeCancel(handle);
+        hammer.destroy();
+      }
+    });
 
-      playSingleAudio([
-        "whack-tap",
-        pickWrongCue({ isNearMiss: Math.abs(entry.value - current.answer) <= 1 }),
-      ]);
-      return;
+    const burst = k.add([
+      k.text("★", { size: 46, font: FONT }),
+      k.pos(hitX, hitY - 20),
+      k.anchor("center"),
+      k.color(...YELLOW),
+      k.z(61),
+    ]);
+    const burstStart = k.time();
+    const burstHandle = burst.onUpdate(() => {
+      const t = Math.min(1, (k.time() - burstStart) / 0.35);
+      burst.scale = k.vec2(0.6 + t, 0.6 + t);
+      burst.opacity = 1 - t;
+      if (t >= 1) {
+        safeCancel(burstHandle);
+        burst.destroy();
+      }
+    });
+  }
+
+  function dizzy(entry) {
+    entry.dizzy = true;
+    const stars = [];
+    for (let i = 0; i < 3; i += 1) {
+      stars.push(k.add([
+        k.text("★", { size: 34, font: FONT }),
+        k.pos(entry.x, entry.y - 88),
+        k.anchor("center"),
+        k.color(...YELLOW),
+        k.z(62),
+      ]));
     }
 
-    score += 1;
-    streak += 1;
-    scoreText.text = String(score);
-    eqAnswer.text = String(current.answer);
+    const start = k.time();
+    const handle = k.onUpdate(() => {
+      const t = Math.min(1, (k.time() - start) / 0.9);
+      entry.mole.angle = Math.sin(t * Math.PI * 6) * 9 * (1 - t);
+      entry.group.scale = k.vec2(1 - 0.06 * Math.sin(t * Math.PI), 1 + 0.06 * Math.sin(t * Math.PI));
+      stars.forEach((star, i) => {
+        const a = i * ((Math.PI * 2) / 3) + t * Math.PI * 2;
+        star.pos.x = entry.x + Math.cos(a) * (48 + 15 * t);
+        star.pos.y = entry.y - 88 + Math.sin(a) * (25 + 8 * t);
+        star.opacity = 1 - t;
+      });
+      if (t >= 1) {
+        safeCancel(handle);
+        stars.forEach((star) => star.destroy());
+        entry.mole.angle = 0;
+        entry.group.scale = k.vec2(1, 1);
+        entry.dizzy = false;
+      }
+    });
+  }
 
-    const { chain } = pickCheerCue({
+  // ---------- audio ----------
+  function playQuestionAudio(q) {
+    audio.stopAllAudio();
+    audio.playSequence([
+      score === 0 ? "whack-q-pre" : "whack-next",
+      `n-${q.a}`,
+      "q-plus",
+      `n-${q.b}`,
+      "q-equals",
+      "whack-pop",
+    ], 110);
+  }
+
+  function playCorrectAudio(q, token) {
+    const cheer = pickCheerCue({
       streak,
       isRoundComplete: false,
       levelId: GAME_ID,
       hasDiscovery: false,
       hadWrongs,
     });
-
-    hammerHit(entry, retreatAll);
-
-    // Exactly one audio sequence for the complete correct-answer event.
-    // No fixed timeout is used to start the next round.
-    playSingleAudio([
+    const chain = [
       "whack-tap",
-      ...chain,
-      `n-${current.a}`,
+      ...cheer.chain,
+      `n-${q.a}`,
       "q-plus",
-      `n-${current.b}`,
+      `n-${q.b}`,
       "q-equals",
-      `n-${current.answer}`,
-    ], nextRound);
+      `n-${q.answer}`,
+    ];
+    audio.stopAllAudio();
+    audio.playSequence(chain, 140, 0, () => {
+      if (!running || token !== audioToken) return;
+      nextRound();
+    });
+  }
+
+  // ---------- round ----------
+  function renderQuestion(q) {
+    eqA.text = String(q.a);
+    eqB.text = String(q.b);
+    eqAnswer.text = "?";
+
+    const values = buildValues(q.answer);
+    values.forEach((value, index) => {
+      const entry = moles[index];
+      entry.value = value;
+      entry.number.text = String(value);
+      entry.number.color = k.rgb(...DIGIT_COLORS[index % DIGIT_COLORS.length]);
+      hideMole(entry);
+    });
+  }
+
+  function nextRound() {
+    if (!running) return;
+    locked = true;
+    hideAll();
+    question = buildQuestion();
+    renderQuestion(question);
+    locked = false;
+    startMoleLoop();
+    playQuestionAudio(question);
+  }
+
+  function handleMoleTap(entry) {
+    if (!running || locked || !entry.visible || !question) return;
+
+    if (entry.value !== question.answer) {
+      hadWrongs = true;
+      streak = 0;
+      audio.stopAllAudio();
+      audio.playSequence(["whack-tap", pickWrongCue({ isNearMiss: false })], 120);
+
+      const baseX = entry.group.pos.x;
+      const start = k.time();
+      const handle = entry.group.onUpdate(() => {
+        const t = Math.min(1, (k.time() - start) / 0.30);
+        entry.group.pos.x = baseX + Math.sin(t * Math.PI * 10) * 10 * (1 - t);
+        if (t >= 1) {
+          safeCancel(handle);
+          entry.group.pos.x = baseX;
+        }
+      });
+      return;
+    }
+
+    locked = true;
+    stopMoleLoop();
+    score += 1;
+    streak += 1;
+    scoreText.text = String(score);
+
+    hammerBonk(entry);
+    dizzy(entry);
+
+    audioToken += 1;
+    playCorrectAudio(question, audioToken);
+  }
+
+  function tick() {
+    if (!running) return;
+    timeLeft -= 1;
+    timeText.text = String(Math.max(0, timeLeft));
+    if (timeLeft <= 0) endGame();
   }
 
   function endGame() {
     if (!running) return;
     running = false;
-    inputLocked = true;
-    stopMoleLoop();
+    locked = true;
     audioToken += 1;
     audio.stopAllAudio();
-    if (timer) {
-      timer.cancel();
-      timer = null;
-    }
-    retreatAll();
-    saveScore(save, score);
+    safeCancel(timerHandle);
+    timerHandle = null;
+    hideAll();
+    saveStars(save, score);
+
+    audio.playSequence(["whack-timeup", "whack-done"], 140);
 
     const card = k.add([
-      k.rect(560, 350, { radius: 28 }),
-      k.pos(683, 540),
+      k.rect(560, 350, { radius: 30 }),
+      k.pos(683, 512),
       k.anchor("center"),
-      k.color(...CARD),
+      k.color(255, 247, 224),
       k.outline(6, k.rgb(...ORANGE_DEEP)),
-      k.z(60),
+      k.z(100),
     ]);
-    card.add([
-      k.text("TIME'S UP!", { size: 46, font: FONT }),
-      k.pos(0, -105),
-      k.anchor("center"),
-      k.color(...INK),
-    ]);
-    card.add([
-      k.text(`Score: ${score}`, { size: 34, font: FONT }),
-      k.pos(0, -30),
-      k.anchor("center"),
-      k.color(...INK),
-    ]);
-    card.add([
-      k.text(score >= 18 ? "★★★" : score >= 10 ? "★★☆" : score >= 4 ? "★☆☆" : "☆☆☆", { size: 60, font: FONT }),
-      k.pos(0, 48),
-      k.anchor("center"),
-      k.color(...ORANGE),
-    ]);
+    card.add([k.text("Great job!", { size: 50, font: FONT }), k.pos(0, -90), k.anchor("center"), k.color(...INK)]);
+    card.add([k.text(String(score), { size: 74, font: FONT }), k.pos(0, 0), k.anchor("center"), k.color(...ORANGE_DEEP)]);
 
     const again = card.add([
-      k.rect(220, 70, { radius: 18 }),
-      k.pos(-125, 125),
+      k.rect(200, 68, { radius: 18 }),
+      k.pos(-112, 110),
       k.anchor("center"),
       k.color(...SUCCESS),
       k.area(),
     ]);
-    again.add([k.text("PLAY AGAIN", { size: 26, font: FONT }), k.anchor("center"), k.color(...PAPER)]);
-    again.onClick(() => {
-      card.destroy();
-      running = true;
-      inputLocked = false;
-      timeLeft = ROUND_SECONDS;
-      score = 0;
-      streak = 0;
-      hadWrongs = false;
-      scoreText.text = "0";
-      timeText.text = String(ROUND_SECONDS);
-      nextRound();
-    });
+    again.add([k.text("PLAY AGAIN", { size: 22, font: FONT }), k.anchor("center"), k.color(...PAPER)]);
+    again.onClick(() => { card.destroy(); startGame(); });
 
-    const backButton = card.add([
-      k.rect(180, 70, { radius: 18 }),
-      k.pos(105, 125),
+    const back = card.add([
+      k.rect(200, 68, { radius: 18 }),
+      k.pos(112, 110),
       k.anchor("center"),
-      k.color(...DISABLED_BG),
+      k.color(242, 229, 200),
       k.area(),
     ]);
-    backButton.add([k.text("BACK", { size: 26, font: FONT }), k.anchor("center"), k.color(...INK)]);
-    backButton.onClick(() => k.go("gamesPicker"));
+    back.add([k.text("BACK", { size: 22, font: FONT }), k.anchor("center"), k.color(...INK)]);
+    back.onClick(() => k.go("gamesPicker"));
   }
 
-  function tick() {
-    if (!running) return;
-    timeLeft = Math.max(0, timeLeft - 1);
-    timeText.text = String(timeLeft);
-    if (timeLeft <= 10) timeText.color = k.rgb(...DANGER);
-    if (timeLeft === 0) endGame();
-  }
-
-  loadAssets(k).then(() => {
-    if (localSession !== sessionId) return;
-    buildMoles();
+  function startGame() {
     running = true;
-    inputLocked = false;
-    timer = k.loop(1, tick);
+    locked = false;
+    timeLeft = ROUND_SECONDS;
+    score = 0;
+    streak = 0;
+    hadWrongs = false;
+    scoreText.text = "0";
+    timeText.text = String(ROUND_SECONDS);
+    nextRound();
+    safeCancel(timerHandle);
+    timerHandle = k.loop(1, tick);
+  }
 
-    audio.stopAllAudio();
-    audio.playSequence(["whack-intro", "whack-start"], 140, 0, () => {
-      if (running) nextRound();
-    });
-  });
+  startGame();
 
   k.onSceneLeave?.(() => {
-    running = false;
-    inputLocked = true;
     audioToken += 1;
-    stopMoleLoop();
-    if (timer) timer.cancel();
     audio.stopAllAudio();
+    safeCancel(timerHandle);
+    stopMoleLoop();
   });
 }
