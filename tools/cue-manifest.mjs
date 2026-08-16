@@ -170,20 +170,68 @@ export function buildManifest() {
   // ---- L7 十几减几（不退位） (cue ids are l7-*) ---------------------------
   // Pool rule (data/pools.js generateL7Pool):
   //   a ∈ [11, 19]; ones = a % 10; b ∈ [1, ones]; answer = a - b.
-  // 3-step teaching (no-borrow case — b fits inside ones):
-  //   拆 a / 减个位 / 加起来.
-  // Strategy mirrors L5 minus the b decomposition — only `a` is split
-  // into 10 + ones, and the result of `ones - b` lands directly on the
-  // teen's tens (which is still 10) so step 3 is just "十加 diff 等于几".
+  // 2-step teaching (after the 2026-08-16 redesign — kid picks ones,
+  // then picks the answer after hearing sub + combine as one chain).
+  // The diff (ones - b) is auto-revealed in the result row, the audio
+  // chain states it. Strategy: split a into 10 + ones, then read the
+  // answer off the bottom "10 + diff = ?" row.
   for (const r of poolGens[7]()) {
     const { a, b, ones, answer } = r;
     const diff = ones - b;
     push(`l7-s1-${a}-${b}`,
       `${numZh(a)}减${numZh(b)}等于几，我们先把${numZh(a)}拆成十加几`);
+    // l7-s2 STATES the diff (not asks) — kid mentally computes the
+    // ones subtraction as they listen, and the diff box reveals to the
+    // value when the result row appears after this audio.
+    // l7-s2 STATES the diff — retained for audio chains that want to
+    // reveal the ones-sub result instead of asking the kid to compute
+    // it. Step 2 in the current L7 flow uses l7-s2q (below) instead.
     push(`l7-s2-${ones}-${b}`,
+      `个位相减${numZh(ones)}减${numZh(b)}等于${numZh(diff)}`);
+    // l7-s2q ASKS for the diff — the L7 step 2 question ("9 减 8 等于
+    // 几"). Per user feedback 2026-08-16: "第二步，应该是 九减八等于
+    // 几" — the kid computes the ones subtraction themselves, then
+    // step 3 asks for the final answer ("10+1=几").
+    push(`l7-s2q-${ones}-${b}`,
       `个位相减${numZh(ones)}减${numZh(b)}等于几`);
     push(`l7-s3-${diff}`, `十加${numZh(diff)}等于几`);
     push(`l7-rwd-${a}-${b}-${answer}`,
+      `${numZh(a)}减${numZh(b)}等于${numZh(answer)}`);
+  }
+
+  // ---- L8 十几减几（退位） (cue ids are l8-*) ---------------------------
+  // Pool rule (data/pools.js generateL8Pool):
+  //   a ∈ [11, 19]; ones = a % 10; b ∈ [ones + 1, 9];
+  //   sub = 10 - b; answer = ones + sub.
+  // Same 3-row persistent diagram as L7 (anchor / split / result), but
+  // the 凑十法 strategy is 破十法 instead of 平十法: subtract b from 10
+  // (not from ones, since b > ones is the borrow case), then add the
+  // leftover ones. Mirrors L7's 破十法 for the non-borrow case (which
+  // subtracts b from ones, since ones ≥ b there).
+  //
+  // 2026-08-16 redesign — user feedback "level8: 也要像这样改造" made L8
+  // match L7's 3-row structure, then "破十法 / 名字也改一下" switched
+  // the step-2 audio from "b 拆成 ones 和 几" (平十法) to "十减 b 等于几"
+  // (破十法), with the result row reading "ones + sub = ?" instead of
+  // "10 - rest = ?". All l8-s2/l8-s2q/l8-s3 cue IDs from the 平十法
+  // version were retired; this is the only set the L8 scene references.
+  for (const r of poolGens[8]()) {
+    const { a, b, ones, answer } = r;
+    const sub = 10 - b;
+    push(`l8-s1-${a}-${b}`,
+      `${numZh(a)}减${numZh(b)}等于几，我们先把${numZh(a)}拆成十加几`);
+    // l8-s2 ASKS for sub (十减 b 等于几) — kid mentally reduces 10 - b as
+    // they listen. Result row "ones + sub = ?" appears after this with
+    // sub to be picked in step 2.
+    push(`l8-s2-${b}`,
+      `十减${numZh(b)}等于几`);
+    // l8-s3 ASKS for the final answer using sub ("ones + sub = ?"). The
+    // cue id encodes (ones, b) — sub = 10 - b is determined by b — but
+    // the audio text needs both ones and sub so it matches the result
+    // row the kid is filling.
+    push(`l8-s3-${ones}-${b}`,
+      `${numZh(ones)}加${numZh(sub)}等于几`);
+    push(`l8-rwd-${a}-${b}-${answer}`,
       `${numZh(a)}减${numZh(b)}等于${numZh(answer)}`);
   }
 

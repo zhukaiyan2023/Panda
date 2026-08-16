@@ -229,14 +229,18 @@ function generateL7Pool() {
 }
 
 // L8 — 十几减几（退位）。
-// The subtrahend is larger than the teen's ones digit. First subtract the
-// ones digit to make ten, then subtract the remainder. Example: 14 - 8.
+// The subtrahend is larger than the teen's ones digit, so the kid must
+// borrow from the ten. Uses 破十法 (matching L7's 破十法 for the non-borrow
+// case): split a into 10 + ones, then compute sub = 10 - b and add it to
+// the leftover ones. answer = ones + sub. The decomposition is computed in
+// the scene (sub = 10 - round.b) — not stored in the pool — since L7
+// follows the same convention for diff.
 function generateL8Pool() {
   const pool = [];
   for (let a = 11; a <= 19; a++) {
     const ones = a % 10;
     for (let b = ones + 1; b <= 9; b++) {
-      pool.push({ a, b, ones, rest: b - ones, answer: a - b });
+      pool.push({ a, b, ones, answer: a - b });
     }
   }
   return pool;

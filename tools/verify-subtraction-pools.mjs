@@ -35,8 +35,15 @@ expect(level8.length === 36, `L8 pool size is 36, got ${level8.length}`);
 for (const round of level8) {
   expect(round.a >= 11 && round.a <= 19, `L8 minuend out of range: ${round.a}`);
   expect(round.b > round.ones && round.b <= 9, `L8 requires borrowing: ${round.a}-${round.b}`);
-  expect(round.rest === round.b - round.ones, `L8 remainder mismatch: ${round.a}-${round.b}`);
+  // 破十法 invariant: answer = ones + (10 - b). Equivalent to a - b but
+  // checks the decomposition the L8 scene teaches.
+  expect(round.answer === round.ones + (10 - round.b),
+    `L8 破十法 invariant: ${round.a}-${round.b}, got ${round.answer}`);
   expect(round.answer === round.a - round.b, `L8 answer mismatch: ${round.a}-${round.b}`);
+  // `rest` field is intentionally NOT in the pool — the L8 平十法
+  // decomposition (b - ones) was dropped on the 2026-08-16 switch to
+  // 破十法 (sub = 10 - b, computed in scene).
+  expect(round.rest === undefined, `L8 pool should not carry .rest`);
 }
 
 if (failed) process.exit(1);
