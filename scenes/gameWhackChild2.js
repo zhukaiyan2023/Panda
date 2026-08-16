@@ -438,7 +438,7 @@ export default function gameWhackChild2(k) {
     audio.stopAllAudio();
     audio.playSequence([
       "whack-tap", "whack-correct", ...cheer.chain,
-      `n-${round.a}`, "q-plus", `n-${round.b}`, "q-equals", `n-${round.answer}`,
+      `n-${round.a}`, "q-plus", `n-${round.b}`, "equals", `n-${round.answer}`,
     ], 140, 0, () => {
       if (running && token === audioToken) nextRound();
     });
