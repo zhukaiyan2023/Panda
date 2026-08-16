@@ -226,6 +226,12 @@ export default function createPairScene(config) {
         if (isRoundComplete) {
           state.done = true;
           bar.setStep(totalSteps + 1);
+          // Mark this round finished + count it toward the daily cap.
+          // Called BEFORE navigation so the picker's daily-locked check
+          // reads the just-finished round on next render. GAME_DAILY_CAPS
+          // sets the cap per gameId (boat=5, others=6); pairScene
+          // services boat/cloud/feed all of which use config.levelId.
+          window.PandaSave?.markGameRoundFinished(config.levelId);
           // Wait for the celebration audio to actually end before
           // playing the round-end cue and navigating. playAfter hooks
           // ctx.lastEncourageId's `ended` event — no k.wait guess.

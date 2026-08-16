@@ -266,6 +266,11 @@ export default function scene(k) {
           postChainCues,
           { gapMs: 0, seqGapMs: 0 },
           () => {
+            // Mark this round finished BEFORE navigation so the picker
+            // reads the updated count when the kid lands back. The cap is
+            // 6 rounds/day (GAME_DAILY_CAPS[6]); whack counts per-session,
+            // but every other game counts per-round (see save.js).
+            window.PandaSave?.markGameRoundFinished(6);
             if (!isLastRound) {
               roundIdx += 1;
               k.go("gameCount");

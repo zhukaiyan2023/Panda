@@ -489,6 +489,12 @@ export default function gameWhackChild2(k) {
     hideAll();
     saveStars(save, score);
     audio.stopAllAudio();
+    // Mark this SESSION finished (whack's daily cap is per-session, not
+    // per-tap — see save.js GAME_DAILY_CAPS[5] = 6). Calling inside
+    // endGame() so the count only increments when the player actually
+    // hit timeup, not on early bail-outs (which route through the exit
+    // button without going through endGame).
+    window.PandaSave?.markGameRoundFinished(5);
     audio.playSequence(["whack-timeup", "whack-done"], 140, 0, showEndCard);
   }
 

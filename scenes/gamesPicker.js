@@ -84,7 +84,7 @@ function drawTab(k, parent, label, x, y, w, h, active) {
   });
 }
 
-function drawCard(k, parent, game, unlocked) {
+function drawCard(k, parent, game, unlocked, dailyLocked) {
   const w = 240;
   const h = 280;
   const x = game.cardX;
@@ -118,11 +118,14 @@ function drawCard(k, parent, game, unlocked) {
     ]);
   }
 
-  // Prop sprite centered on the card.
-  if (unlocked) {
-    sprite(card, k, game.sprite, { x: 0, y: -10, size: 110 });
-  } else {
+  // Prop sprite centered on the card. Locked (not yet unlocked) cards
+  // show the lock icon; daily-locked cards stay on the card's regular
+  // sprite so the kid still recognises the game — the daily cap is a
+  // today-only gate, not a permanent block.
+  if (!unlocked) {
     sprite(card, k, "lock", { x: 0, y: 0, size: 90 });
+  } else {
+    sprite(card, k, game.sprite, { x: 0, y: -10, size: 110 });
   }
 
   const titleColor = unlocked ? INK : LOCKED_INK;
@@ -140,10 +143,29 @@ function drawCard(k, parent, game, unlocked) {
     k.anchor("center"),
   ]);
 
+  // Daily-locked cards show "今天练够啦" above the play arrow. Mirrors
+  // levelPicker.js's daily-locked path so a kid sees the same cue
+  // for both math and game tracks.
+  if (unlocked && dailyLocked) {
+    card.add([
+      k.text("今天练够啦", { size: 24, font: FONT }),
+      k.color(...LOCKED_INK),
+      k.pos(0, h / 2 - 12),
+      k.anchor("center"),
+    ]);
+  }
+
   const onPick = () => {
-    if (unlocked) {
-      k.go(game.scene);
+    if (!unlocked) return;
+    if (dailyLocked) {
+      // Stop any in-flight cue first so the prior scene's "round done"
+      // audio doesn't bleed into the daily-done voice. Matches the
+      // levelPicker.js pattern.
+      window.PandaAudio.stopAllAudio();
+      window.PandaAudio.playCue("daily-done");
+      return;
     }
+    k.go(game.scene);
   };
   card.onClick(onPick);
 }
@@ -208,6 +230,12 @@ export default function gamesPickerScene(k) {
   GAMES.forEach((g, i) => {
     const col = i % COLS;
     const row = Math.floor(i / COLS);
+    // All panda-park games are unlocked by default (mirrors the existing
+    // gamesPicker contract — the unlock chain is driven by saveProgress
+    // hits, not by gating). The DAILY cap is the only gate that can
+    // disable a card mid-session.
+    const unlocked = true;
+    const dailyLocked = window.PandaSave?.isGameDailyLocked(g.id) ?? false;
     drawCard(
       k,
       k,
@@ -216,7 +244,8 @@ export default function gamesPickerScene(k) {
         cardX: k.width() / 2 - totalSpan / 2 + col * stride,
         cardY: firstRowCenter + row * (rowH + rowGap),
       },
-      true,
+      unlocked,
+      dailyLocked,
     );
   });
 

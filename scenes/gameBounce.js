@@ -272,21 +272,26 @@ function drawRound(k, ctx) {
           pandaBody: buddy?.body,
           pandaBaseSize: 230,
         });
-        // After the cheer chain finishes, play the game-specific done
-        // cue and navigate. The chain + bounce-done combo is the new
-        // "yes!" moment — replaces the old single-cue "砰" loop.
+        // After the cheer chain finishes, advance. "bounce-done" used to
+        // fire on every round but matches the same mid-session problem
+        // as "全做完啦" — "all done" while rounds are still queued is
+        // jarring. 2026-08-16 fix: only play it on the last round.
+        const isLastRound = roundIdx + 1 >= ROUND_COUNT;
+        const postChainCues = isLastRound ? ["bounce-done"] : [];
         window.PandaAudio.playAfter(
           lastEncourageId,
-          ["bounce-done"],
+          postChainCues,
           { gapMs: 0, seqGapMs: 0 },
           () => {
-            if (roundIdx + 1 < ROUND_COUNT) {
+            // Mark this round finished + count it toward the daily cap
+            // (GAME_DAILY_CAPS[2] = 6). Called before saveProgress so the
+            // picker's daily-locked check sees the just-finished round.
+            window.PandaSave?.markGameRoundFinished(2);
+            if (!isLastRound) {
               roundIdx += 1;
               k.go("gameBounce");
             } else {
-              // Last round — same chain as in-between, but mark progress
-              // before navigating home. Reset roundIdx + streak so the
-              // next session starts fresh.
+              // Last round — mark progress + reset session state.
               saveProgress(2);  // unlocks cloud (id 3)
               roundIdx = 0;
               streak = 0;
