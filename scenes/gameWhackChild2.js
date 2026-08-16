@@ -23,7 +23,7 @@ const MOLE_SCALE = 0.26;
 const HOLE_SCALE = 0.16;
 const HIDDEN_OFFSET = 132;
 const REST_OFFSET = -86;
-const NUMBER_Y = 48;
+const NUMBER_Y = 24;
 const NUMBER_SIZE = 72;
 const DIGIT_COLORS = [BLUE, GREEN, ORANGE, PURPLE, PINK, ORANGE_DEEP];
 
@@ -156,12 +156,12 @@ export default function gameWhackChild2(k) {
   const eqAnswer = k.add([k.text("?", { size: 84, font: FONT }), k.pos(868, 104), k.anchor("center"), k.color(...ORANGE), k.outline(3, k.rgb(...DANGER)), k.z(34)]);
 
   addWoodPanel(k, 212, 105, 192, 88, 24, 30);
-  const clock = k.add([k.circle(33), k.pos(150, 104), k.anchor("center"), k.color(...PAPER), k.outline(6, k.rgb(...ORANGE_DEEP)), k.z(34)]);
+  const clock = k.add([k.circle(33), k.pos(180, 104), k.anchor("center"), k.color(...PAPER), k.outline(6, k.rgb(...ORANGE_DEEP)), k.z(34)]);
   clock.add([k.rect(4, 18, { radius: 2 }), k.pos(0, -8), k.anchor("center"), k.color(...ORANGE_DEEP)]);
   clock.add([k.rect(13, 4, { radius: 2 }), k.pos(6, 5), k.anchor("center"), k.color(...ORANGE_DEEP)]);
   clock.add([k.circle(4), k.color(...ORANGE_DEEP)]);
   const timeText = k.add([
-    k.text(String(roundSeconds), { size: 42, font: FONT }), k.pos(220, 106),
+    k.text(String(roundSeconds), { size: 42, font: FONT }), k.pos(250, 106),
     k.anchor("center"), k.color(...INK), k.outline(3, k.rgb(...PAPER)),
     k.z(35), "whack-time",
   ]);
