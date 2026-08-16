@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360">
+<defs>
+  <radialGradient id="rim" cx="50%" cy="20%" r="75%">
+    <stop offset="0" stop-color="#8d5a34"/>
+    <stop offset="1" stop-color="#3a2418"/>
+  </radialGradient>
+</defs>
+<path d="M16 174 Q320 302 624 174 L624 360 L16 360 Z" fill="url(#rim)" stroke="#1e120c" stroke-width="12"/>
+<path d="M46 196 Q320 308 594 196" fill="none" stroke="#b67a48" stroke-width="18" stroke-linecap="round" opacity=".8"/>
+<path d="M85 220 Q320 318 555 220" fill="none" stroke="#5a341f" stroke-width="14" stroke-linecap="round" opacity=".75"/>
+</svg>
