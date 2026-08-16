@@ -179,8 +179,8 @@ export default function gameWhackChild2(k) {
 
   addWoodPanel(k, 185, 105, 236, 102, 28, 30);
   const clock = k.add([k.circle(40), k.pos(125, 104), k.anchor("center"), k.color(...PAPER), k.outline(7, k.rgb(...ORANGE_DEEP)), k.z(34)]);
-  clock.add([k.line(k.vec2(0, 0), k.vec2(0, -21), { width: 5, color: k.rgb(...ORANGE_DEEP) })]);
-  clock.add([k.line(k.vec2(0, 0), k.vec2(14, 8), { width: 5, color: k.rgb(...ORANGE_DEEP) })]);
+  clock.add([k.rect(5, 22, { radius: 3 }), k.pos(0, -10), k.anchor("center"), k.color(...ORANGE_DEEP)]);
+  clock.add([k.rect(16, 5, { radius: 3 }), k.pos(7, 6), k.anchor("center"), k.color(...ORANGE_DEEP)]);
   clock.add([k.circle(5), k.color(...ORANGE_DEEP)]);
   const timeText = k.add([
     k.text(String(roundSeconds), { size: 49, font: FONT }), k.pos(211, 106),
