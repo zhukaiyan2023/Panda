@@ -640,29 +640,38 @@ export default function createRoundScene(config) {
       // closure after we've moved on.
       if (autoAdvanceTimer) autoAdvanceTimer.cancel();
       autoAdvanceTimer = null;
+      // Bump the per-level daily counter on EVERY finished round, not just
+      // the last one of the session — the cap counts ROUNDS, not sessions.
+      // The previous design fired markRoundFinished only at session end, so
+      // sampleSize=3 + cap=3 actually let the kid play 9 rounds/day
+      // (3 sessions × 3 rounds each).
+      //
+      // saveProgress is also per-round so a cap hit mid-session still credits
+      // the kid's stars for the rounds they did complete. Its unlock-next-
+      // level line uses Math.max so calling it N times in one session stays
+      // idempotent — L2 only unlocks the first time save.unlockedLevel
+      // crosses L1+1.
+      const daily = window.PandaSave?.markRoundFinished(config.levelId)
+        || { count: 0, cap: 0, locked: false };
+      saveProgress(config.levelId);
+      // Cap hit on this round — bail to dailyDone even if more rounds
+      // remain in the sample. Without this check, the remaining rounds
+      // would still play (their finishes would increment count past the
+      // cap, but the picker would already show locked on re-entry —
+      // today's quota would silently grow beyond the configured cap).
+      if (daily.locked) {
+        roundIdx = 0;
+        k.go("dailyDone");
+        return;
+      }
       if (ri + 1 < totalRounds) {
         roundIdx = ri + 1;
         k.go(config.sceneName);
         return;
       }
-      // Last round over. Bump the per-level daily counter FIRST so
-      // we know whether this round hit the cap. The saveProgress()
-      // call below is unchanged (still bumps stars + unlocks next
-      // level); daily-cap state is independent of progression.
-      const daily = window.PandaSave?.markRoundFinished(config.levelId)
-        || { count: 0, cap: 0, locked: false };
-      saveProgress(config.levelId);
+      // Last round of the session, cap not hit — back to picker.
       roundIdx = 0;
-      // If this finished round hit the daily cap, the kid gets a
-      // clear "今天练够啦" message instead of silently bouncing to
-      // a now-locked card. The celebration audio from onAdvance has
-      // already resolved (the audio-gated advance waited for it),
-      // so transitioning immediately is a clean exit.
-      if (daily.locked) {
-        k.go("dailyDone");
-      } else {
-        k.go("levelPicker");
-      }
+      k.go("levelPicker");
     }
 
     let autoAdvanceTimer = null;

@@ -64,8 +64,8 @@ await page.waitForTimeout(2000);
 await page.evaluate(() => { window.__skipTimers = true; });
 
 // Same idea for the per-level daily cap. The verifier walks every
-// round of every level, which would hit the cap on L1 after 6 rounds
-// and on L2-L4 after 10. Without this flag, the verifier would
+// round of every level, which would hit the cap on L1-4 after 6 rounds
+// and on L5-8 after 8. Without this flag, the verifier would
 // transition into dailyDone mid-level and fail to assert the math
 // for the remaining rounds.
 await page.evaluate(() => { window.__skipDailyCap = true; });

@@ -296,15 +296,17 @@ function fireL3StepAudio(ctx, ids, _stepNumber, onComplete) {
 export default createRoundScene({
   levelId: 5,
   sceneName: "level5",
-  // Full enumeration (~36 valid no-carry combos). roundScene samples 10
+  // Full enumeration (~36 valid no-carry combos). roundScene samples 8
   // each session so the kid sees a different subset on every replay.
+  // sampleSize MUST equal DAILY_CAPS[5] (8) so a single play-through
+  // finishes today's quota in one go.
   // 2026-08-16: per user "把十以内的减法放到level1，其它的依次移动一个
   // level", this 二十以内 level moved from L4 to L5. levelId/poolGens/
   // sceneName updated to match. The cue ID prefix (`l3-*`) is historical
   // — when this was L3 before the four-way split — and stays unchanged
   // because the per-round MP3 files are baked under those names.
   poolGen: () => poolGens[5](),
-  sampleSize: 10,
+  sampleSize: 8,
   // No topic-intro cue on entry — per user feedback 2026-08-10. The old
   // "现在我们一起学习二十以内的计算" intro (the "big numbers" voice) was
   // just a topic statement; it ate ~3s before any prompt appeared and

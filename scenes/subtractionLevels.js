@@ -339,7 +339,9 @@ export const level1 = createRoundScene({
   levelId: 1,
   sceneName: "level1",
   poolGen: () => poolGens[1](),
-  sampleSize: 10,
+  // sampleSize MUST equal DAILY_CAPS[1] (6) so a single play-through
+  // finishes today's quota in one go.
+  sampleSize: 6,
   stepLabels: ["算一算"],
   // Per user feedback 2026-08-16 ("没有介绍的声音，用腾讯生成"),
   // the per-round step-1 audio IS the entry prompt. After correct pick the
@@ -521,7 +523,9 @@ export const level7 = createRoundScene({
   levelId: 7,
   sceneName: "level7",
   poolGen: () => poolGens[7](),
-  sampleSize: 10,
+  // sampleSize MUST equal DAILY_CAPS[7] (8) so a single play-through
+  // finishes today's quota in one go.
+  sampleSize: 8,
   stepLabels: ["拆一拆", "个位相减", "合起来"],
   steps: l7Steps,
 });
@@ -685,7 +689,9 @@ export const level8 = createRoundScene({
   levelId: 8,
   sceneName: "level8",
   poolGen: () => poolGens[8](),
-  sampleSize: 10,
+  // sampleSize MUST equal DAILY_CAPS[8] (8) so a single play-through
+  // finishes today's quota in one go.
+  sampleSize: 8,
   // Step 2 label parallels L7's "个位相减" with the borrow-place flipped:
   // L7 subtracts in the ones place (ones ≥ b), L8 subtracts in the tens
   // place (b > ones). Step 1 ("拆一拆") and step 3 ("合起来") are

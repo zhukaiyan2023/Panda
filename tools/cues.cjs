@@ -320,4 +320,11 @@ module.exports = [
   // "等于十" line. Numbers stay as separate n-N cues chained in
   // gameFeed.js, so these only carry the leading phrase.
   { id: "feed-q-pre", text: "选两个加起来是" },
+
+  // Count — 一眼识数 (subitize). Greet + name the action the same way
+  // cloud / bounce cue lines do. The on-screen ten-frame + the cue
+  // together teach the "look once, don't count" mechanic.
+  { id: "count-intro", text: "小朋友好，看格子里的圆圈，数一数有几个。" },
+  { id: "count-pair",  text: "对啦" },
+  { id: "count-done",  text: "全做完啦" },
 ];

@@ -488,13 +488,13 @@ export default createRoundScene({
   sceneName: "level2",
   // Pull the 120-round pool from data/pools.js. roundScene samples
   // 6 of them on first entry and walks through in random order.
-  // sampleSize MUST equal DAILY_CAPS[1] (6) so a single play-through
+  // sampleSize MUST equal DAILY_CAPS[2] (6) so a single play-through
   // finishes today's quota in one go — see
   // docs/superpowers/specs/2026-08-12-daily-practice-lock-design.md
   // for the saveProgress ↔ cap-hit coupling.
   // 2026-08-16: per user "把十以内的减法放到level1，其它的依次移动一个
   // level", this 三数相加 level moved from L1 to L2. levelId/poolGens/
-  // sceneName updated to match; the levelId 1 (DAILY_CAPS key) still
+  // sceneName updated to match; the levelId 2 (DAILY_CAPS key) still
   // works as before because the cap is keyed by level ID, not pool name.
   poolGen: () => poolGens[2](),
   sampleSize: 6,

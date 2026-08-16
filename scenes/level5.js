@@ -388,8 +388,10 @@ export default createRoundScene({
   // level", this 十几加十几 level moved from L5 to L6. levelId/poolGens/
   // sceneName updated to match. The cue ID prefix (`l5-*`) is unchanged
   // because the per-round MP3 files are baked under those names.
+  // sampleSize MUST equal DAILY_CAPS[6] (8) so a single play-through
+  // finishes today's quota in one go.
   poolGen: () => poolGens[6](),
-  sampleSize: 10,
+  sampleSize: 8,
   stepLabels: ["拆 a", "拆 b", "加个位", "加十位", "加起来"],
 
   steps: [

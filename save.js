@@ -20,10 +20,12 @@ import "./audio/serialGuard.js?v=20260815";
 
 const KEY = "panda-save-v1";
 
-// Per-level daily round caps. L1 caps at 6 (sum-≤-10 triples are
-// fast and easy — 6/day avoids burnout). L2-L8 cap at 10 (the
-// default sampleSize for those levels).
-const DAILY_CAPS = { 1: 6, 2: 10, 3: 10, 4: 10, 5: 10, 6: 10, 7: 10, 8: 10 };
+// Per-level daily round caps (questions/day). L1-2 cap at 6 (the
+// easiest drills), L3-4 cap at 6 (the make-a-ten teaching levels),
+// L5-8 cap at 8 (the harder carry / teen work). Each level's
+// sampleSize in its scene file MUST equal this value so one
+// play-through = today's quota.
+const DAILY_CAPS = { 1: 6, 2: 6, 3: 6, 4: 6, 5: 8, 6: 8, 7: 8, 8: 8 };
 // 24h rolling window — starts at the first finished round of the level's window, ends 24h later (lazy rollover on next read).
 const DAILY_WINDOW_MS = 24 * 60 * 60 * 1000;
 

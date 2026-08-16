@@ -1136,6 +1136,10 @@ const SPRITES = [
   "mole-1", "mole-2", "mole-3", "mole-4", "mole-5", "mole-6",
   "mole-hole-1", "mole-hole-2", "mole-hole-3",
   "grass-ground",
+  // count-icon (added 2026-08-16): 一眼识数 card icon, a 5x3 ten-frame
+  // with 8 coral dots filled on a sky-blue ground. Generated via
+  // the minimax-image skill on demand.
+  "count-icon",
   // whack-a-mole minimax-image generated sprites (2026-08-15) — these
   // replace the older mole-1..6 / mole-hole-1..3 visuals with the new
   // cute round otter + leafy hole + wooden HUD that matches the
@@ -1155,7 +1159,8 @@ const SPRITES = [
 // the JS imports were cache-busted but the sprite URLs weren't).
 // 2026-08-16: bump for badge-6/7/8 PNGs (added by make-badge-678.py so
 // levels 6/7/8 get the same scalloped-medal icon as levels 1-5).
-const ART_VERSION = "20260816a";
+// 2026-08-16b: bump for count-icon.png (new 一眼识数 card icon).
+const ART_VERSION = "20260816b";
 
 function loadArt() {
   return Promise.all(

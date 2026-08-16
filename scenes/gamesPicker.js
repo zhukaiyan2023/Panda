@@ -19,7 +19,7 @@ const LOCKED_BG = [220, 213, 230];
 const LOCKED_INK = [150, 140, 170];
 
 const GAMES = [
-  { id: 6, title: "一眼识数", sub: "瞬间识数",  scene: "gameCount", sprite: "cell-frame", accent: BLUE },
+  { id: 6, title: "一眼识数", sub: "瞬间识数",  scene: "gameCount", sprite: "count-icon", accent: BLUE },
   { id: 1, title: "小船",  sub: "凑十过河",  scene: "gameBoat",   sprite: "boat",   accent: BLUE },
   { id: 2, title: "气球",  sub: "扎破凑十",  scene: "gameBounce", sprite: "balloon", accent: PINK },
   { id: 3, title: "云朵",  sub: "看算式找答案", scene: "gameCloud",  sprite: "cloud",  accent: PURPLE },
@@ -190,18 +190,31 @@ export default function gamesPickerScene(k) {
     k.anchor("center"),
   ]);
 
-  // 5 cards in a single row.
-  const stride = 240;
-  const totalSpan = (GAMES.length - 1) * stride;
-  const baseY = 600;
+  // 6 cards in two rows of 3. With one row of 6, the row overflowed 1366
+  // wide (stride 240 → 5 stride gaps = 1200 px, leaving only ~80 px margin
+  // on each end with 240 px cards). 2026-08-16 user feedback: "一排太挤了".
+  // 3 per row × 2 rows keeps each card readable and lands the row pair
+  // symmetrically between the subtitle (y=290) and the star counter (y=944).
+  const COLS = 3;
+  const ROWS = Math.ceil(GAMES.length / COLS);
+  const stride = 320;
+  const rowH = 280;
+  const rowGap = 30;
+  const totalSpan = (COLS - 1) * stride;
+  // Subtitle sits at y=290, star at y=944 — usable band is 290..944.
+  // 2 rows of 280 + 30 gap = 590 total. Centre the pair in the band:
+  // firstRowCenter = 290 + (654 - 590) / 2 + 140 = 462.
+  const firstRowCenter = 462;
   GAMES.forEach((g, i) => {
+    const col = i % COLS;
+    const row = Math.floor(i / COLS);
     drawCard(
       k,
       k,
       {
         ...g,
-        cardX: k.width() / 2 - totalSpan / 2 + i * stride,
-        cardY: baseY,
+        cardX: k.width() / 2 - totalSpan / 2 + col * stride,
+        cardY: firstRowCenter + row * (rowH + rowGap),
       },
       true,
     );

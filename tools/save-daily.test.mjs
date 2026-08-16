@@ -60,7 +60,7 @@ if (l1State && l1State.count === 0 && l1State.cap === 6 && l1State.locked === fa
 }
 
 const l3State = await callSave("getDailyState", 3);
-if (l3State && l3State.cap === 10) ok("L3 getDailyState cap=10");
+if (l3State && l3State.cap === 6) ok("L3 getDailyState cap=6");
 else fail(`L3 getDailyState cap wrong: ${JSON.stringify(l3State)}`);
 
 // --- Test 3: markRoundFinished increments and persists ---

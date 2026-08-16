@@ -353,15 +353,17 @@ function compareSlots(leftIsBig) {
 export default createRoundScene({
   levelId: 4,
   sceneName: "level4",
-  // 36 ordered (a, b) pairs from data/pools.js. roundScene samples 10
-  // on first entry; each play sees a different mix.
+  // 36 ordered (a, b) pairs from data/pools.js. roundScene samples 6
+  // on first entry; each play sees a different mix. sampleSize MUST
+  // equal DAILY_CAPS[4] (6) so a single play-through finishes today's
+  // quota in one go.
   // 2026-08-16: per user "把十以内的减法放到level1，其它的依次移动一个
   // level", this 凑十法 level moved from L3 to L4. levelId/poolGens/
   // sceneName updated to match. The cue ID prefix (`l2-*`) is historical
   // — when this was L2 before the four-way split — and stays unchanged
   // because the per-round MP3 files are baked under those names.
   poolGen: () => poolGens[4](),
-  sampleSize: 10,
+  sampleSize: 6,
   // No intro cue — the persistent anchor ("a + b = □") IS the introduction.
   // A "make ten" voice on entry would just say the same thing twice.
   stepLabels: ["比一比", "凑成十", "拆一拆", "算一算"],

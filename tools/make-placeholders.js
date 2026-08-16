@@ -36,6 +36,7 @@ const CUE_IDS = [
   "cloud-intro", "cloud-pair", "cloud-done",
   "bounce-intro", "bounce-pop", "bounce-done",
   "feed-intro", "feed-nom", "feed-next", "feed-done", "feed-q-pre",
+  "count-intro", "count-pair", "count-done",
 ];
 
 const outDir = path.resolve(__dirname, "..", "assets", "audio");
