@@ -16,13 +16,16 @@ import { poolGens } from "./data/pools.js?v=20260812";
 // 10 rounds per session from the full enumeration. This inline levelsData
 // only carries metadata (title, intro) for the menu UI.
 //
-// Five math levels (added 2026-08-15 when L5「十几加十几」was added):
+// Eight math levels:
 //   L1 三数相加<10  sum of three 1-digit addends ≤ 10
 //   L2 两个数凑十   three addends where two sum to 10
 //   L3 凑十法       single-digit pair whose sum > 10, teach the
 //                   make-a-ten decomposition
 //   L4 二十以内     teen + digit, no-carry, use 10+ones strategy
 //   L5 十几加十几   two teens + two teens, no carry, 5-step decomposition
+//   L6 十以内减法   single-digit subtraction within ten
+//   L7 十几减几     teen minus digit without borrowing
+//   L8 十几减几     teen minus digit with borrowing
 const levelsData = {
   "levels": [
     { "id": 1, "title": "三数相加" },
@@ -30,6 +33,9 @@ const levelsData = {
     { "id": 3, "title": "凑十法" },
     { "id": 4, "title": "二十以内" },
     { "id": 5, "title": "十几加十几" },
+    { "id": 6, "title": "十以内减法" },
+    { "id": 7, "title": "十几减几（不退位）" },
+    { "id": 8, "title": "十几减几（退位）" },
   ],
 };
 
@@ -41,7 +47,6 @@ const CUE_IDS = [
 // `l2-s1-` / `l2-s2-` / `l2-s3-` / `l2-s4-` / `l2-cmp-` / `l2-s4s-`
 // cue, and every `l3-s4-` / `l3-cmp-` / `l3-s4s-` cue reachable from
 // the live pool — see commit log for the diagnosis).
-  "boat-done", "boat-intro", "boat-pair", "bounce-done", "bounce-intro", "bounce-pop",
   "cloud-done", "cloud-intro", "cloud-pair", "daily-done", "enc-first-1", "enc-first-2",
   "enc-first-3", "enc-first-4", "enc-level-1", "enc-level-2", "enc-level-3", "enc-level-4",
   "enc-near-1", "enc-near-2", "enc-near-3", "enc-specific-decomp", "enc-specific-double", "enc-specific-friend",
@@ -358,44 +363,82 @@ const CUE_IDS = [
   "l3-s2-5-4", "l3-s2-5-5", "l3-s2-6-1", "l3-s2-6-2", "l3-s2-6-3", "l3-s2-6-4",
   "l3-s2-7-1", "l3-s2-7-2", "l3-s2-7-3", "l3-s2-8-1", "l3-s2-8-2", "l3-s2-9-1",
   "l3-s3-1", "l3-s3-2", "l3-s3-3", "l3-s3-4", "l3-s3-5", "l3-s3-6",
-  "l3-s3-7", "l3-s3-8", "l3-s3-9", "l3-s3-10",
-  "l5-rwd-11-11-22", "l5-rwd-11-12-23", "l5-rwd-11-13-24", "l5-rwd-11-14-25", "l5-rwd-11-15-26", "l5-rwd-11-16-27",
-  "l5-rwd-11-17-28", "l5-rwd-11-18-29", "l5-rwd-12-11-23", "l5-rwd-12-12-24", "l5-rwd-12-13-25", "l5-rwd-12-14-26",
-  "l5-rwd-12-15-27", "l5-rwd-12-16-28", "l5-rwd-12-17-29", "l5-rwd-13-11-24", "l5-rwd-13-12-25", "l5-rwd-13-13-26",
-  "l5-rwd-13-14-27", "l5-rwd-13-15-28", "l5-rwd-13-16-29", "l5-rwd-14-11-25", "l5-rwd-14-12-26", "l5-rwd-14-13-27",
-  "l5-rwd-14-14-28", "l5-rwd-14-15-29", "l5-rwd-15-11-26", "l5-rwd-15-12-27", "l5-rwd-15-13-28", "l5-rwd-15-14-29",
-  "l5-rwd-16-11-27", "l5-rwd-16-12-28", "l5-rwd-16-13-29", "l5-rwd-17-11-28", "l5-rwd-17-12-29", "l5-rwd-18-11-29",
-  "l5-s1-11-11", "l5-s1-11-12", "l5-s1-11-13", "l5-s1-11-14", "l5-s1-11-15", "l5-s1-11-16",
-  "l5-s1-11-17", "l5-s1-11-18", "l5-s1-12-11", "l5-s1-12-12", "l5-s1-12-13", "l5-s1-12-14",
-  "l5-s1-12-15", "l5-s1-12-16", "l5-s1-12-17", "l5-s1-13-11", "l5-s1-13-12", "l5-s1-13-13",
-  "l5-s1-13-14", "l5-s1-13-15", "l5-s1-13-16", "l5-s1-14-11", "l5-s1-14-12", "l5-s1-14-13",
-  "l5-s1-14-14", "l5-s1-14-15", "l5-s1-15-11", "l5-s1-15-12", "l5-s1-15-13", "l5-s1-15-14",
-  "l5-s1-16-11", "l5-s1-16-12", "l5-s1-16-13", "l5-s1-17-11", "l5-s1-17-12", "l5-s1-18-11",
-  "l5-s2-11-11", "l5-s2-11-12", "l5-s2-11-13", "l5-s2-11-14", "l5-s2-11-15", "l5-s2-11-16",
-  "l5-s2-11-17", "l5-s2-11-18", "l5-s2-12-11", "l5-s2-12-12", "l5-s2-12-13", "l5-s2-12-14",
-  "l5-s2-12-15", "l5-s2-12-16", "l5-s2-12-17", "l5-s2-13-11", "l5-s2-13-12", "l5-s2-13-13",
-  "l5-s2-13-14", "l5-s2-13-15", "l5-s2-13-16", "l5-s2-14-11", "l5-s2-14-12", "l5-s2-14-13",
-  "l5-s2-14-14", "l5-s2-14-15", "l5-s2-15-11", "l5-s2-15-12", "l5-s2-15-13", "l5-s2-15-14",
-  "l5-s2-16-11", "l5-s2-16-12", "l5-s2-16-13", "l5-s2-17-11", "l5-s2-17-12", "l5-s2-18-11",
-  "l5-s3-1-1", "l5-s3-1-2", "l5-s3-1-3", "l5-s3-1-4", "l5-s3-1-5", "l5-s3-1-6",
-  "l5-s3-1-7", "l5-s3-1-8", "l5-s3-2-1", "l5-s3-2-2", "l5-s3-2-3", "l5-s3-2-4",
-  "l5-s3-2-5", "l5-s3-2-6", "l5-s3-2-7", "l5-s3-3-1", "l5-s3-3-2", "l5-s3-3-3",
-  "l5-s3-3-4", "l5-s3-3-5", "l5-s3-3-6", "l5-s3-4-1", "l5-s3-4-2", "l5-s3-4-3",
-  "l5-s3-4-4", "l5-s3-4-5", "l5-s3-5-1", "l5-s3-5-2", "l5-s3-5-3", "l5-s3-5-4",
-  "l5-s3-6-1", "l5-s3-6-2", "l5-s3-6-3", "l5-s3-7-1", "l5-s3-7-2", "l5-s3-8-1",
-  "l5-s4", "l5-s5-2", "l5-s5-3", "l5-s5-4", "l5-s5-5", "l5-s5-6",
-  "l5-s5-7", "l5-s5-8", "l5-s5-9",
-"lvl-1-decomp-eq", "lvl-1-decomp-pre",
-  "lvl-1-greeting", "lvl-1-intro", "lvl-2-step-1-eq", "lvl-2-step-1-or", "lvl-2-step-1-pre", "lvl-2-step-1-q",
-  "lvl-2-step-2-big-pre", "lvl-2-step-2-find", "lvl-2-step-2-friend-pre", "lvl-2-step-2-q", "lvl-2-step-3-can-split", "lvl-2-step-3-q",
-  "lvl-2-step-3-split-pre", "lvl-2-step-4-calc", "lvl-2-step-4-split", "lvl-3-intro", "lvl-3-step-1-pre", "lvl-3-step-1-q",
-  "lvl-3-step-1-split", "lvl-3-step-2-pre", "lvl-done", "n-0", "n-1", "n-2",
-  "n-3", "n-4", "n-5", "n-6", "n-7", "n-8",
-  "n-9", "n-10", "n-11", "n-12", "n-13", "n-14",
-  "n-15", "n-16", "n-17", "n-18", "n-19", "panda-cheer-1",
-  "panda-cheer-2", "panda-praise-1", "panda-praise-2", "panda-praise-3", "q-equals", "q-plus",
-  "q-what-is", "whack-correct", "whack-done", "whack-down", "whack-intro", "whack-near",
-  "whack-next", "whack-pop", "whack-q-pre", "whack-start", "whack-tap", "whack-timeup"
+  "l3-s3-7", "l3-s3-8", "l3-s3-9", "l3-s3-10", "l5-rwd-11-11-22", "l5-rwd-11-12-23",
+  "l5-rwd-11-13-24", "l5-rwd-11-14-25", "l5-rwd-11-15-26", "l5-rwd-11-16-27", "l5-rwd-11-17-28", "l5-rwd-11-18-29",
+  "l5-rwd-12-11-23", "l5-rwd-12-12-24", "l5-rwd-12-13-25", "l5-rwd-12-14-26", "l5-rwd-12-15-27", "l5-rwd-12-16-28",
+  "l5-rwd-12-17-29", "l5-rwd-13-11-24", "l5-rwd-13-12-25", "l5-rwd-13-13-26", "l5-rwd-13-14-27", "l5-rwd-13-15-28",
+  "l5-rwd-13-16-29", "l5-rwd-14-11-25", "l5-rwd-14-12-26", "l5-rwd-14-13-27", "l5-rwd-14-14-28", "l5-rwd-14-15-29",
+  "l5-rwd-15-11-26", "l5-rwd-15-12-27", "l5-rwd-15-13-28", "l5-rwd-15-14-29", "l5-rwd-16-11-27", "l5-rwd-16-12-28",
+  "l5-rwd-16-13-29", "l5-rwd-17-11-28", "l5-rwd-17-12-29", "l5-rwd-18-11-29", "l5-s1-11-11", "l5-s1-11-12",
+  "l5-s1-11-13", "l5-s1-11-14", "l5-s1-11-15", "l5-s1-11-16", "l5-s1-11-17", "l5-s1-11-18",
+  "l5-s1-12-11", "l5-s1-12-12", "l5-s1-12-13", "l5-s1-12-14", "l5-s1-12-15", "l5-s1-12-16",
+  "l5-s1-12-17", "l5-s1-13-11", "l5-s1-13-12", "l5-s1-13-13", "l5-s1-13-14", "l5-s1-13-15",
+  "l5-s1-13-16", "l5-s1-14-11", "l5-s1-14-12", "l5-s1-14-13", "l5-s1-14-14", "l5-s1-14-15",
+  "l5-s1-15-11", "l5-s1-15-12", "l5-s1-15-13", "l5-s1-15-14", "l5-s1-16-11", "l5-s1-16-12",
+  "l5-s1-16-13", "l5-s1-17-11", "l5-s1-17-12", "l5-s1-18-11", "l5-s2-11-11", "l5-s2-11-12",
+  "l5-s2-11-13", "l5-s2-11-14", "l5-s2-11-15", "l5-s2-11-16", "l5-s2-11-17", "l5-s2-11-18",
+  "l5-s2-12-11", "l5-s2-12-12", "l5-s2-12-13", "l5-s2-12-14", "l5-s2-12-15", "l5-s2-12-16",
+  "l5-s2-12-17", "l5-s2-13-11", "l5-s2-13-12", "l5-s2-13-13", "l5-s2-13-14", "l5-s2-13-15",
+  "l5-s2-13-16", "l5-s2-14-11", "l5-s2-14-12", "l5-s2-14-13", "l5-s2-14-14", "l5-s2-14-15",
+  "l5-s2-15-11", "l5-s2-15-12", "l5-s2-15-13", "l5-s2-15-14", "l5-s2-16-11", "l5-s2-16-12",
+  "l5-s2-16-13", "l5-s2-17-11", "l5-s2-17-12", "l5-s2-18-11", "l5-s3-1-1", "l5-s3-1-2",
+  "l5-s3-1-3", "l5-s3-1-4", "l5-s3-1-5", "l5-s3-1-6", "l5-s3-1-7", "l5-s3-1-8",
+  "l5-s3-2-1", "l5-s3-2-2", "l5-s3-2-3", "l5-s3-2-4", "l5-s3-2-5", "l5-s3-2-6",
+  "l5-s3-2-7", "l5-s3-3-1", "l5-s3-3-2", "l5-s3-3-3", "l5-s3-3-4", "l5-s3-3-5",
+  "l5-s3-3-6", "l5-s3-4-1", "l5-s3-4-2", "l5-s3-4-3", "l5-s3-4-4", "l5-s3-4-5",
+  "l5-s3-5-1", "l5-s3-5-2", "l5-s3-5-3", "l5-s3-5-4", "l5-s3-6-1", "l5-s3-6-2",
+  "l5-s3-6-3", "l5-s3-7-1", "l5-s3-7-2", "l5-s3-8-1", "l5-s4", "l5-s5-2",
+  "l5-s5-3", "l5-s5-4", "l5-s5-5", "l5-s5-6", "l5-s5-7", "l5-s5-8",
+  "l5-s5-9", "l6-rwd-2-1-1", "l6-rwd-3-1-2", "l6-rwd-3-2-1", "l6-rwd-4-1-3", "l6-rwd-4-2-2",
+  "l6-rwd-4-3-1", "l6-rwd-5-1-4", "l6-rwd-5-2-3", "l6-rwd-5-3-2", "l6-rwd-5-4-1", "l6-rwd-6-1-5",
+  "l6-rwd-6-2-4", "l6-rwd-6-3-3", "l6-rwd-6-4-2", "l6-rwd-6-5-1", "l6-rwd-7-1-6", "l6-rwd-7-2-5",
+  "l6-rwd-7-3-4", "l6-rwd-7-4-3", "l6-rwd-7-5-2", "l6-rwd-7-6-1", "l6-rwd-8-1-7", "l6-rwd-8-2-6",
+  "l6-rwd-8-3-5", "l6-rwd-8-4-4", "l6-rwd-8-5-3", "l6-rwd-8-6-2", "l6-rwd-8-7-1", "l6-rwd-9-1-8",
+  "l6-rwd-9-2-7", "l6-rwd-9-3-6", "l6-rwd-9-4-5", "l6-rwd-9-5-4", "l6-rwd-9-6-3", "l6-rwd-9-7-2",
+  "l6-rwd-9-8-1", "l6-rwd-10-1-9", "l6-rwd-10-2-8", "l6-rwd-10-3-7", "l6-rwd-10-4-6", "l6-rwd-10-5-5",
+  "l6-rwd-10-6-4", "l6-rwd-10-7-3", "l6-rwd-10-8-2", "l6-rwd-10-9-1", "l6-s1-2-1", "l6-s1-3-1",
+  "l6-s1-3-2", "l6-s1-4-1", "l6-s1-4-2", "l6-s1-4-3", "l6-s1-5-1", "l6-s1-5-2",
+  "l6-s1-5-3", "l6-s1-5-4", "l6-s1-6-1", "l6-s1-6-2", "l6-s1-6-3", "l6-s1-6-4",
+  "l6-s1-6-5", "l6-s1-7-1", "l6-s1-7-2", "l6-s1-7-3", "l6-s1-7-4", "l6-s1-7-5",
+  "l6-s1-7-6", "l6-s1-8-1", "l6-s1-8-2", "l6-s1-8-3", "l6-s1-8-4", "l6-s1-8-5",
+  "l6-s1-8-6", "l6-s1-8-7", "l6-s1-9-1", "l6-s1-9-2", "l6-s1-9-3", "l6-s1-9-4",
+  "l6-s1-9-5", "l6-s1-9-6", "l6-s1-9-7", "l6-s1-9-8", "l6-s1-10-1", "l6-s1-10-2",
+  "l6-s1-10-3", "l6-s1-10-4", "l6-s1-10-5", "l6-s1-10-6", "l6-s1-10-7", "l6-s1-10-8",
+  "l6-s1-10-9", "l7-rwd-11-1-10", "l7-rwd-12-1-11", "l7-rwd-12-2-10", "l7-rwd-13-1-12", "l7-rwd-13-2-11",
+  "l7-rwd-13-3-10", "l7-rwd-14-1-13", "l7-rwd-14-2-12", "l7-rwd-14-3-11", "l7-rwd-14-4-10", "l7-rwd-15-1-14",
+  "l7-rwd-15-2-13", "l7-rwd-15-3-12", "l7-rwd-15-4-11", "l7-rwd-15-5-10", "l7-rwd-16-1-15", "l7-rwd-16-2-14",
+  "l7-rwd-16-3-13", "l7-rwd-16-4-12", "l7-rwd-16-5-11", "l7-rwd-16-6-10", "l7-rwd-17-1-16", "l7-rwd-17-2-15",
+  "l7-rwd-17-3-14", "l7-rwd-17-4-13", "l7-rwd-17-5-12", "l7-rwd-17-6-11", "l7-rwd-17-7-10", "l7-rwd-18-1-17",
+  "l7-rwd-18-2-16", "l7-rwd-18-3-15", "l7-rwd-18-4-14", "l7-rwd-18-5-13", "l7-rwd-18-6-12", "l7-rwd-18-7-11",
+  "l7-rwd-18-8-10", "l7-rwd-19-1-18", "l7-rwd-19-2-17", "l7-rwd-19-3-16", "l7-rwd-19-4-15", "l7-rwd-19-5-14",
+  "l7-rwd-19-6-13", "l7-rwd-19-7-12", "l7-rwd-19-8-11", "l7-rwd-19-9-10", "l7-s1-11-1", "l7-s1-12-1",
+  "l7-s1-12-2", "l7-s1-13-1", "l7-s1-13-2", "l7-s1-13-3", "l7-s1-14-1", "l7-s1-14-2",
+  "l7-s1-14-3", "l7-s1-14-4", "l7-s1-15-1", "l7-s1-15-2", "l7-s1-15-3", "l7-s1-15-4",
+  "l7-s1-15-5", "l7-s1-16-1", "l7-s1-16-2", "l7-s1-16-3", "l7-s1-16-4", "l7-s1-16-5",
+  "l7-s1-16-6", "l7-s1-17-1", "l7-s1-17-2", "l7-s1-17-3", "l7-s1-17-4", "l7-s1-17-5",
+  "l7-s1-17-6", "l7-s1-17-7", "l7-s1-18-1", "l7-s1-18-2", "l7-s1-18-3", "l7-s1-18-4",
+  "l7-s1-18-5", "l7-s1-18-6", "l7-s1-18-7", "l7-s1-18-8", "l7-s1-19-1", "l7-s1-19-2",
+  "l7-s1-19-3", "l7-s1-19-4", "l7-s1-19-5", "l7-s1-19-6", "l7-s1-19-7", "l7-s1-19-8",
+  "l7-s1-19-9", "l7-s2-1-1", "l7-s2-2-1", "l7-s2-2-2", "l7-s2-3-1", "l7-s2-3-2",
+  "l7-s2-3-3", "l7-s2-4-1", "l7-s2-4-2", "l7-s2-4-3", "l7-s2-4-4", "l7-s2-5-1",
+  "l7-s2-5-2", "l7-s2-5-3", "l7-s2-5-4", "l7-s2-5-5", "l7-s2-6-1", "l7-s2-6-2",
+  "l7-s2-6-3", "l7-s2-6-4", "l7-s2-6-5", "l7-s2-6-6", "l7-s2-7-1", "l7-s2-7-2",
+  "l7-s2-7-3", "l7-s2-7-4", "l7-s2-7-5", "l7-s2-7-6", "l7-s2-7-7", "l7-s2-8-1",
+  "l7-s2-8-2", "l7-s2-8-3", "l7-s2-8-4", "l7-s2-8-5", "l7-s2-8-6", "l7-s2-8-7",
+  "l7-s2-8-8", "l7-s2-9-1", "l7-s2-9-2", "l7-s2-9-3", "l7-s2-9-4", "l7-s2-9-5",
+  "l7-s2-9-6", "l7-s2-9-7", "l7-s2-9-8", "l7-s2-9-9", "l7-s3-0", "l7-s3-1",
+  "l7-s3-2", "l7-s3-3", "l7-s3-4", "l7-s3-5", "l7-s3-6", "l7-s3-7",
+  "l7-s3-8", "lvl-1-decomp-eq", "lvl-1-decomp-pre", "lvl-1-greeting", "lvl-1-intro", "lvl-2-step-1-eq",
+  "lvl-2-step-1-or", "lvl-2-step-1-pre", "lvl-2-step-1-q", "lvl-2-step-2-big-pre", "lvl-2-step-2-find", "lvl-2-step-2-friend-pre",
+  "lvl-2-step-2-q", "lvl-2-step-3-can-split", "lvl-2-step-3-q", "lvl-2-step-3-split-pre", "lvl-2-step-4-calc", "lvl-2-step-4-split",
+  "lvl-3-intro", "lvl-3-step-1-pre", "lvl-3-step-1-q", "lvl-3-step-1-split", "lvl-3-step-2-pre", "lvl-done",
+  "n-0", "n-1", "n-2", "n-3", "n-4", "n-5",
+  "n-6", "n-7", "n-8", "n-9", "n-10", "n-11",
+  "n-12", "n-13", "n-14", "n-15", "n-16", "n-17",
+  "n-18", "n-19", "panda-cheer-1", "panda-cheer-2", "panda-praise-1", "panda-praise-2",
+  "panda-praise-3", "q-equals", "q-plus", "q-what-is", "whack-correct", "whack-done",
+  "whack-down", "whack-intro", "whack-near", "whack-next", "whack-pop", "whack-q-pre",
+  "whack-start", "whack-tap", "whack-timeup"
 ];
 
 // Lazy audio pool. With ~2000 pool-driven composite cues, eager
@@ -613,6 +656,27 @@ function computePoolCueIds(levelId) {
       ids.add(`l5-s4`);
       ids.add(`l5-s5-${r.sum}`);
       ids.add(`l5-rwd-${r.a}-${r.b}-${r.answer}`);
+    }
+  } else if (levelId === 6) {
+    // L6 十以内减法 — single step, plus reward read-back.
+    //   l6-s1-{a}-{b}    "{a}减{b}等于几"
+    //   l6-rwd-{a}-{b}-{answer}   full equation as a celebration
+    for (const r of poolGens[6]()) {
+      ids.add(`l6-s1-${r.a}-${r.b}`);
+      ids.add(`l6-rwd-${r.a}-${r.b}-${r.answer}`);
+    }
+  } else if (levelId === 7) {
+    // L7 十几减几（不退位）— 3 步预生成 MP3 + 奖励。
+    //   l7-s1-{a}-{b}    拆 a
+    //   l7-s2-{ones}-{b} 减个位
+    //   l7-s3-{diff}     加起来（十加 diff）
+    //   l7-rwd-{a}-{b}-{answer}   完整算式读出
+    for (const r of poolGens[7]()) {
+      const diff = r.ones - r.b;
+      ids.add(`l7-s1-${r.a}-${r.b}`);
+      ids.add(`l7-s2-${r.ones}-${r.b}`);
+      ids.add(`l7-s3-${diff}`);
+      ids.add(`l7-rwd-${r.a}-${r.b}-${r.answer}`);
     }
   }
   return ids;
@@ -1120,6 +1184,7 @@ watchOrientation();
     { default: level3 },
     { default: level4 },
     { default: level5 },
+    subtractionLevels,
     { default: dailyDone },
     { default: gameBoat },
     { default: gameBounce },
@@ -1134,6 +1199,7 @@ watchOrientation();
     import("./scenes/level3.js?v=20260815"),
     import("./scenes/level4.js?v=20260815"),
     import("./scenes/level5.js?v=20260815"),
+    import("./scenes/subtractionLevels.js?v=20260816"),
     import("./scenes/dailyDone.js?v=20260815"),
     import("./scenes/gameBoat.js?v=20260815"),
     import("./scenes/gameBounce.js?v=20260815"),
@@ -1154,6 +1220,9 @@ watchOrientation();
   k.scene("level3", () => level3(k));
   k.scene("level4", () => level4(k));
   k.scene("level5", () => level5(k));
+  k.scene("level6", () => subtractionLevels.level6(k));
+  k.scene("level7", () => subtractionLevels.level7(k));
+  k.scene("level8", () => subtractionLevels.level8(k));
   k.scene("dailyDone", () => dailyDone(k));
   k.scene("gameBoat",   () => gameBoat(k));
   k.scene("gameBounce", () => gameBounce(k));

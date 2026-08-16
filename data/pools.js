@@ -24,6 +24,9 @@
 //   L5 十几加十几     — a, b ∈ [11, 19]，ones(a) + ones(b) ≤ 9（严格 < 10）。
 //                       36 个有序 (a, b) 对。5 步教学（拆 a / 拆 b / 加个位 /
 //                       加十位 / 加起来）。Sample 10 per session.
+//   L6 十以内减法     — a ∈ [1, 10]，b ∈ [1, a]，answer = a - b。
+//   L7 十几减几（不退位）— a ∈ [11, 19]，b ∈ [1, ones(a)]。
+//   L8 十几减几（退位）  — a ∈ [11, 19]，b ∈ [ones(a) + 1, 9]。
 //
 // All generators are pure functions of the level schema — no I/O, no
 // randomness. The shuffle lives in roundScene.js so poolGen can be
@@ -192,6 +195,53 @@ function generateL5Pool() {
   return pool;
 }
 
+// L6 — 十以内减法。
+// Every minuend is at most 10; answers may be 0 so facts such as 10 - 10
+// are included alongside the non-zero subtraction facts.
+//
+// 2026-08-16: per user feedback ("不要出现相同的数相减"), the pool drops
+// all a-a facts (1-1, 2-2, …, 10-10). The kid is supposed to be learning
+// "what changes when you take something away" — same-number subtraction
+// is a different concept ("find the rest of zero things") and reads as a
+// typo on screen. Effective count: 45 (was 55).
+function generateL6Pool() {
+  const pool = [];
+  for (let a = 1; a <= 10; a++) {
+    for (let b = 1; b < a; b++) {
+      pool.push({ a, b, answer: a - b });
+    }
+  }
+  return pool;
+}
+
+// L7 — 十几减几（不退位）。
+// The teen's ones digit is enough to subtract b directly, so the result
+// remains "10 + (ones - b)". Example: 18 - 4.
+function generateL7Pool() {
+  const pool = [];
+  for (let a = 11; a <= 19; a++) {
+    const ones = a % 10;
+    for (let b = 1; b <= ones; b++) {
+      pool.push({ a, b, ones, answer: a - b });
+    }
+  }
+  return pool;
+}
+
+// L8 — 十几减几（退位）。
+// The subtrahend is larger than the teen's ones digit. First subtract the
+// ones digit to make ten, then subtract the remainder. Example: 14 - 8.
+function generateL8Pool() {
+  const pool = [];
+  for (let a = 11; a <= 19; a++) {
+    const ones = a % 10;
+    for (let b = ones + 1; b <= 9; b++) {
+      pool.push({ a, b, ones, rest: b - ones, answer: a - b });
+    }
+  }
+  return pool;
+}
+
 // Per-level pool arrays. roundScene imports these (or poolGens below)
 // to sample a fresh batch of rounds on each entry.
 export const levelPools = {
@@ -200,6 +250,9 @@ export const levelPools = {
   3: generateL3Pool(),
   4: generateL4Pool(),
   5: generateL5Pool(),
+  6: generateL6Pool(),
+  7: generateL7Pool(),
+  8: generateL8Pool(),
 };
 
 // Re-export the generators so tools/build-composite-audio.mjs (or a
@@ -211,4 +264,7 @@ export const poolGens = {
   3: generateL3Pool,
   4: generateL4Pool,
   5: generateL5Pool,
+  6: generateL6Pool,
+  7: generateL7Pool,
+  8: generateL8Pool,
 };

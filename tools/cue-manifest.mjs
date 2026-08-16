@@ -156,6 +156,37 @@ export function buildManifest() {
   // feedback 2026-08-15: "十加十等于二十应该改成十加十等于几".
   push("l5-s4", "十加十等于几");
 
+  // ---- L6 十以内减法 (cue ids are l6-*) -----------------------------------
+  // Single teaching beat — kid just reads the equation and picks the
+  // answer. Per user feedback 2026-08-16 ("没有介绍的声音，用腾讯生成"),
+  // every L6 round plays its own step-1 prompt so the equation is named
+  // before the answer options appear.
+  for (const r of poolGens[6]()) {
+    const { a, b, answer } = r;
+    push(`l6-s1-${a}-${b}`, `${numZh(a)}减${numZh(b)}等于几`);
+    push(`l6-rwd-${a}-${b}-${answer}`, `${numZh(a)}减${numZh(b)}等于${numZh(answer)}`);
+  }
+
+  // ---- L7 十几减几（不退位） (cue ids are l7-*) ---------------------------
+  // Pool rule (data/pools.js generateL7Pool):
+  //   a ∈ [11, 19]; ones = a % 10; b ∈ [1, ones]; answer = a - b.
+  // 3-step teaching (no-borrow case — b fits inside ones):
+  //   拆 a / 减个位 / 加起来.
+  // Strategy mirrors L5 minus the b decomposition — only `a` is split
+  // into 10 + ones, and the result of `ones - b` lands directly on the
+  // teen's tens (which is still 10) so step 3 is just "十加 diff 等于几".
+  for (const r of poolGens[7]()) {
+    const { a, b, ones, answer } = r;
+    const diff = ones - b;
+    push(`l7-s1-${a}-${b}`,
+      `${numZh(a)}减${numZh(b)}等于几，我们先把${numZh(a)}拆成十加几`);
+    push(`l7-s2-${ones}-${b}`,
+      `个位相减${numZh(ones)}减${numZh(b)}等于几`);
+    push(`l7-s3-${diff}`, `十加${numZh(diff)}等于几`);
+    push(`l7-rwd-${a}-${b}-${answer}`,
+      `${numZh(a)}减${numZh(b)}等于${numZh(answer)}`);
+  }
+
   // ---- Dedupe, and refuse to guess on conflicts -------------------------
   const seen = new Map();
   const deduped = [];

@@ -4,9 +4,9 @@ import "./audio/serialGuard.js?v=20260815";
 //
 // Shape:
 //   {
-//     currentLevel: 1..4,
-//     unlockedLevel: 1..4,
-//     starsByLevel: { 1: n, 2: n, 3: n, 4: n },
+//     currentLevel: 1..8,
+//     unlockedLevel: 1..8,
+//     starsByLevel: { 1: n, ..., 8: n },
 //     unlockedGame: 1..5,           // panda-park games, parallel track
 //     starsByGame:  { 1: n, 2: n, 3: n, 4: n, 5: n },
 //   }
@@ -21,9 +21,9 @@ import "./audio/serialGuard.js?v=20260815";
 const KEY = "panda-save-v1";
 
 // Per-level daily round caps. L1 caps at 6 (sum-≤-10 triples are
-// fast and easy — 6/day avoids burnout). L2-L5 cap at 10 (the
+// fast and easy — 6/day avoids burnout). L2-L8 cap at 10 (the
 // default sampleSize for those levels).
-const DAILY_CAPS = { 1: 6, 2: 10, 3: 10, 4: 10, 5: 10 };
+const DAILY_CAPS = { 1: 6, 2: 10, 3: 10, 4: 10, 5: 10, 6: 10, 7: 10, 8: 10 };
 // 24h rolling window — starts at the first finished round of the level's window, ends 24h later (lazy rollover on next read).
 const DAILY_WINDOW_MS = 24 * 60 * 60 * 1000;
 
@@ -85,15 +85,13 @@ function sanitize(value) {
   if (!value || typeof value !== "object") {
     return cloneSave(DEFAULT);
   }
-  // Level ceiling bumped from 4 to 5 when L5 十几加十几 was added (2026-08-15).
-  // The hardcoded hi=4 used to silently clamp unlockedLevel back to 4, so L5
-  // could never be unlocked even after L4 completed. Sanitize also walks
-  // starsByLevel / daily up to 5 now so L5 progress isn't dropped on next load.
-  const unlocked = clampInt(value.unlockedLevel, 1, 5, 1);
+  // Keep the progression ceiling aligned with the highest configured level.
+  // Older saves migrate naturally: missing L6-L8 progress starts at zero.
+  const unlocked = clampInt(value.unlockedLevel, 1, 8, 1);
   const current = clampInt(value.currentLevel, 1, unlocked, 1);
   const stars = {};
   if (value.starsByLevel && typeof value.starsByLevel === "object") {
-    for (let i = 1; i <= 5; i++) {
+    for (let i = 1; i <= 8; i++) {
       stars[i] = clampInt(value.starsByLevel[i], 0, 999, 0);
     }
   }
@@ -109,7 +107,7 @@ function sanitize(value) {
   // to a non-negative integer or null. Unknown level ids are dropped.
   const daily = {};
   if (value.daily && typeof value.daily === "object") {
-    for (let i = 1; i <= 5; i++) {
+    for (let i = 1; i <= 8; i++) {
       const entry = value.daily[i];
       if (!entry || typeof entry !== "object") continue;
       daily[i] = {

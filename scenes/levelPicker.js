@@ -1,6 +1,6 @@
-// scenes/levelPicker.js — L1 / L2 / L3 / L4 / L5 selection screen.
+// scenes/levelPicker.js — math level selection screen.
 //
-// Five large cards, one per math level. Locked levels show a lock badge
+// Large cards, one per math level. Locked levels show a lock badge
 // and play level-locked.mp3 when tapped. Unlocked levels are reachable
 // from save data (window.PandaSave). The card row auto-sizes — adding
 // more levels shrinks the stride so the row stays inside the canvas.
@@ -12,7 +12,7 @@ import panda from "../components/panda.js?v=20260815";
 import { card } from "../components/card.js?v=20260815";
 import sceneBg from "../components/sceneBg.js?v=20260815";
 import {
-  INK, CARD, ORANGE, YELLOW, BLUE, PURPLE, FONT, SUCCESS,
+  INK, CARD, ORANGE, YELLOW, BLUE, PURPLE, PINK, FONT, SUCCESS,
 } from "../components/theme.js?v=20260815";
 
 const LOCKED_BG = [220, 213, 230];
@@ -24,9 +24,15 @@ const SHORT_TITLES = {
   3: "凑十法",
   4: "二十以内",
   5: "十几加十几",
+  6: "十以内减法",
+  7: "十几减几（不退位）",
+  8: "十几减几（退位）",
 };
 
-const CARD_ACCENT = { 1: BLUE, 2: ORANGE, 3: PURPLE, 4: YELLOW, 5: SUCCESS };
+const CARD_ACCENT = {
+  1: BLUE, 2: ORANGE, 3: PURPLE, 4: YELLOW, 5: SUCCESS,
+  6: PINK, 7: BLUE, 8: ORANGE,
+};
 
 // Sprites are decoration: a missing art file must not blank the screen a child
 // needs in order to start playing.
@@ -46,9 +52,10 @@ function sprite(parent, k, name, { x, y, size }) {
   return node;
 }
 
-function drawCard(k, parent, level, unlocked, dailyLocked, cardW = 320) {
+function drawCard(k, parent, level, unlocked, dailyLocked, cardW = 320, cardH = 380) {
   const w = cardW;
-  const h = 380;
+  const h = cardH;
+  const compact = h < 300;
   const { cardX: x, cardY: y } = level;
 
   const accent = CARD_ACCENT[level.id] || ORANGE;
@@ -63,26 +70,26 @@ function drawCard(k, parent, level, unlocked, dailyLocked, cardW = 320) {
   // glance, which matters more than the words to a pre-reader.
   if (unlocked) {
     face.add([
-      k.rect(w - 10, 96, { radius: 24 }),
+      k.rect(w - 10, compact ? 70 : 96, { radius: 24 }),
       k.color(...accent),
       k.opacity(0.28),
-      k.pos(0, -h / 2 + 53),
+      k.pos(0, -h / 2 + (compact ? 40 : 53)),
       k.anchor("center"),
     ]);
   }
 
-  const badge = sprite(face, k, `badge-${level.id}`, { x: 0, y: -h / 2 + 62, size: 78 });
+  const badge = sprite(face, k, `badge-${level.id}`, { x: 0, y: -h / 2 + (compact ? 42 : 62), size: compact ? 58 : 78 });
   if (!badge) {
     face.add([
-      k.text(`第 ${level.id} 关`, { size: 36, font: FONT }),
+      k.text(`第 ${level.id} 关`, { size: compact ? 28 : 36, font: FONT }),
       k.color(...titleColor),
-      k.pos(0, -h / 2 + 62),
+      k.pos(0, -h / 2 + (compact ? 42 : 62)),
       k.anchor("center"),
     ]);
   }
 
   face.add([
-    k.text(SHORT_TITLES[level.id] || level.title, { size: 40, font: FONT }),
+    k.text(SHORT_TITLES[level.id] || level.title, { size: compact ? 29 : 40, font: FONT }),
     k.color(...titleColor),
     k.pos(0, 10),
     k.anchor("center"),
@@ -90,9 +97,9 @@ function drawCard(k, parent, level, unlocked, dailyLocked, cardW = 320) {
 
   if (unlocked && !dailyLocked) {
     face.add([
-      k.text("▶", { size: 56, font: FONT }),
+      k.text("▶", { size: compact ? 44 : 56, font: FONT }),
       k.color(...accent),
-      k.pos(0, h / 2 - 62),
+      k.pos(0, h / 2 - (compact ? 42 : 62)),
       k.anchor("center"),
     ]);
   } else if (!sprite(face, k, "lock", { x: 0, y: h / 2 - 62, size: 72 })) {
@@ -201,23 +208,28 @@ export default function levelPickerScene(k) {
   //     fits with a comfortable gap.
   //   * Below 240 px wide the badge + title stop being readable —
   //     stop shrinking there.
+  const useGrid = levels.length > 5;
+  const columns = useGrid ? 4 : levels.length;
+  const cardH = useGrid ? 250 : 380;
   const margin = 80;
   const idealCardW = 320;
   const minGap = 6;
-  let cardW = idealCardW;
+  let cardW = useGrid ? 280 : idealCardW;
   while (cardW > 240) {
-    const needed = cardW * levels.length + minGap * (levels.length - 1);
+    const needed = cardW * columns + minGap * (columns - 1);
     if (needed <= k.width() - 2 * margin) break;
     cardW -= 20;
   }
   // Final gap that uses all available horizontal space (no upper
   // cap — the canvas is wide enough that the gap stays comfortable).
-  const availForGaps = k.width() - 2 * margin - cardW * levels.length;
-  const gap = Math.max(minGap, availForGaps / Math.max(1, levels.length - 1));
+  const availForGaps = k.width() - 2 * margin - cardW * columns;
+  const gap = Math.max(minGap, availForGaps / Math.max(1, columns - 1));
   const stride = cardW + gap;
-  const totalSpan = (levels.length - 1) * stride;
-  const baseY = 560;
+  const totalSpan = (columns - 1) * stride;
+  const baseY = useGrid ? 480 : 560;
   levels.forEach((lvl, i) => {
+    const column = i % columns;
+    const row = Math.floor(i / columns);
     const unlocked = lvl.id <= save.unlockedLevel;
     // dailyLocked is only meaningful for unlocked levels — a truly
     // locked level is already gated by the unlocked check above.
@@ -227,12 +239,13 @@ export default function levelPickerScene(k) {
       k,
       {
         ...lvl,
-        cardX: k.width() / 2 - totalSpan / 2 + i * stride,
-        cardY: baseY,
+        cardX: k.width() / 2 - totalSpan / 2 + column * stride,
+        cardY: baseY + row * (cardH + 50),
       },
       unlocked,
       dailyLocked,
       cardW,
+      cardH,
     );
   });
 
