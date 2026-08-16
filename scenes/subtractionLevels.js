@@ -335,12 +335,22 @@ function buildL8RewardIds(a, b, answer) { return [`l8-rwd-${a}-${b}-${answer}`];
 // reward audio reads the full equation as a celebration sentence; the
 // advance is gated on that audio finishing (same Promise pattern as L5
 // step 5).
-export const level6 = createRoundScene({
-  levelId: 6,
-  sceneName: "level6",
-  poolGen: () => poolGens[6](),
+export const level1 = createRoundScene({
+  levelId: 1,
+  sceneName: "level1",
+  poolGen: () => poolGens[1](),
   sampleSize: 10,
   stepLabels: ["算一算"],
+  // Per user feedback 2026-08-16 ("没有介绍的声音，用腾讯生成"),
+  // the per-round step-1 audio IS the entry prompt. After correct pick the
+  // reward audio reads the full equation as a celebration sentence; the
+  // advance is gated on that audio finishing (same Promise pattern as L5
+  // step 5).
+  //
+  // 2026-08-16: per user "把十以内的减法放到level1，其它的依次移动一个
+  // level", this 十以内减法 level moved from L6 to L1. levelId/poolGens
+  // updated to match. The cue ID prefix (`l6-*`) is unchanged because
+  // the per-round MP3 files are baked under those names.
   steps: [
     (ctx, round) => {
       ctx.setAnchorEquation(subtractionSlots(round), { y: 280, size: 96 });

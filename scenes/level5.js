@@ -382,9 +382,13 @@ function fireL5StepAudio(ctx, ids, _stepNumber, onComplete) {
 // ---------- the 5 steps ------------------------------------------------
 
 export default createRoundScene({
-  levelId: 5,
-  sceneName: "level5",
-  poolGen: () => poolGens[5](),
+  levelId: 6,
+  sceneName: "level6",
+  // 2026-08-16: per user "把十以内的减法放到level1，其它的依次移动一个
+  // level", this 十几加十几 level moved from L5 to L6. levelId/poolGens/
+  // sceneName updated to match. The cue ID prefix (`l5-*`) is unchanged
+  // because the per-round MP3 files are baked under those names.
+  poolGen: () => poolGens[6](),
   sampleSize: 10,
   stepLabels: ["拆 a", "拆 b", "加个位", "加十位", "加起来"],
 

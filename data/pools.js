@@ -248,13 +248,27 @@ function generateL8Pool() {
 
 // Per-level pool arrays. roundScene imports these (or poolGens below)
 // to sample a fresh batch of rounds on each entry.
+//
+// 2026-08-16: per user "把十以内的减法放到level1，其它的依次移动一个level".
+// The curriculum order is now
+//   L1 十以内减法     (was L6)
+//   L2 三数相加       (was L1)
+//   L3 两数凑十       (was L2)
+//   L4 凑十法         (was L3)
+//   L5 二十以内       (was L4)
+//   L6 十几加十几     (was L5)
+//   L7 十几减几（不退位） (unchanged)
+//   L8 破十法         (unchanged).
+// The pool generator below is keyed by the OLD pool name (L1..L8
+// refactors are documented above each function). The levelPools /
+// poolGens export keys re-map each generator onto its new level ID.
 export const levelPools = {
-  1: generateL1Pool(),
-  2: generateL2Pool(),
-  3: generateL3Pool(),
-  4: generateL4Pool(),
-  5: generateL5Pool(),
-  6: generateL6Pool(),
+  1: generateL6Pool(),
+  2: generateL1Pool(),
+  3: generateL2Pool(),
+  4: generateL3Pool(),
+  5: generateL4Pool(),
+  6: generateL5Pool(),
   7: generateL7Pool(),
   8: generateL8Pool(),
 };
@@ -263,12 +277,12 @@ export const levelPools = {
 // test harness) can rebuild any pool without going through the
 // already-mutated `levelPools` array (which roundScene shuffles).
 export const poolGens = {
-  1: generateL1Pool,
-  2: generateL2Pool,
-  3: generateL3Pool,
-  4: generateL4Pool,
-  5: generateL5Pool,
-  6: generateL6Pool,
+  1: generateL6Pool,
+  2: generateL1Pool,
+  3: generateL2Pool,
+  4: generateL3Pool,
+  5: generateL4Pool,
+  6: generateL5Pool,
   7: generateL7Pool,
   8: generateL8Pool,
 };

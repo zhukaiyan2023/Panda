@@ -19,19 +19,19 @@ const LOCKED_BG = [220, 213, 230];
 const LOCKED_INK = [150, 140, 170];
 
 const SHORT_TITLES = {
-  1: "三数相加",
-  2: "两数凑十",
-  3: "凑十法",
-  4: "二十以内",
-  5: "十几加十几",
-  6: "十以内减法",
+  1: "十以内减法",
+  2: "三数相加",
+  3: "两数凑十",
+  4: "凑十法",
+  5: "二十以内",
+  6: "十几加十几",
   7: "十几减几（不退位）",
   8: "破十法",
 };
 
 const CARD_ACCENT = {
-  1: BLUE, 2: ORANGE, 3: PURPLE, 4: YELLOW, 5: SUCCESS,
-  6: PINK, 7: BLUE, 8: ORANGE,
+  1: PINK, 2: BLUE, 3: ORANGE, 4: PURPLE, 5: YELLOW,
+  6: SUCCESS, 7: BLUE, 8: ORANGE,
 };
 
 // Sprites are decoration: a missing art file must not blank the screen a child

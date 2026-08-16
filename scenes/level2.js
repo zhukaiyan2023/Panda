@@ -359,12 +359,15 @@ function buildL2AnswerIds(a, b, c, answer) {
 }
 
 export default createRoundScene({
-  levelId: 2,
-  sceneName: "level2",
+  levelId: 3,
+  sceneName: "level3",
   // Pull the 153-round pool from data/pools.js — triples (a,b,c) ∈ {1..9}³
   // where a+b=10 OR b+c=10 (the a+c=10 case is dropped). roundScene
   // samples 10 of them on first entry and walks through in random order.
-  poolGen: () => poolGens[2](),
+  // 2026-08-16: per user "把十以内的减法放到level1，其它的依次移动一个
+  // level", this 两数凑十 level moved from L2 to L3. levelId/poolGens/
+  // sceneName updated to match.
+  poolGen: () => poolGens[3](),
   sampleSize: 10,
   // No topic-intro greeting on entry — per user feedback 2026-08-10.
   // The old "小朋友好，我们来学习三数相加" greeting was a vague topic

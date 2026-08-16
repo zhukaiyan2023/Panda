@@ -59,8 +59,12 @@ export function buildManifest() {
   // ---- Hand-authored short cues (numbers, praise, game chatter) ----------
   for (const c of HAND_CUES) push(c.id, c.text);
 
-  // ---- L1 三数相加<10 ----------------------------------------------------
-  for (const r of poolGens[1]()) {
+  // ---- L2 三数相加 (was L1) — uses l1-* cue IDs --------------------------
+  // 2026-08-16: per user "把十以内的减法放到level1，其它的依次移动一个
+  // level", this level moved from poolGens[1] to poolGens[2]. The cue
+  // ID prefix (`l1-*`) is unchanged because the per-round MP3 files
+  // are baked under those names.
+  for (const r of poolGens[2]()) {
     const [a, b, c] = r.nums;
     push(`l1-intro-${a}-${b}-${c}`,
       `${numZh(a)}加${numZh(b)}加${numZh(c)}等于几，这个问题可以分解成我们先看看前两个数相加。`);
@@ -70,8 +74,11 @@ export function buildManifest() {
     push(`l1-step2-${a + b}-${c}`, `${numZh(a + b)}加${numZh(c)}等于几`);
   }
 
-  // ---- L2 两个数凑十 -----------------------------------------------------
-  for (const r of poolGens[2]()) {
+  // ---- L3 两个数凑十 (was L2) — uses l1-* cue IDs ------------------------
+  // Shares the l1-* prefix with L3 because L3 was split from old L1 on
+  // 2026-08-11; the MP3 files were kept under the l1-* prefix so the
+  // two scenes share cues without renaming assets.
+  for (const r of poolGens[3]()) {
     const [a, b, c] = r.nums;
     push(`l1-intro-mt-${a}-${b}-${c}`,
       `${numZh(a)}加${numZh(b)}加${numZh(c)}等于几，这个问题可以分解成我们先找出相加为10的数。`);
@@ -86,8 +93,8 @@ export function buildManifest() {
   }
   push("l1-sub-find-ten", "哪两个数相加等于10");
 
-  // ---- L3 凑十法 (cue ids are l2-* for historical reasons) ---------------
-  for (const r of poolGens[3]()) {
+  // ---- L4 凑十法 (was L3, cue ids are l2-* for historical reasons) -------
+  for (const r of poolGens[4]()) {
     const { a, b, need, rest, answer } = r;
     const big = Math.max(a, b);
     const small = Math.min(a, b);
@@ -119,8 +126,8 @@ export function buildManifest() {
     push(`l2-rwd-${a}-${b}-${answer}`, `${numZh(a)}加${numZh(b)}等于${numZh(answer)}`);
   }
 
-  // ---- L4 二十以内 (cue ids are l3-* for historical reasons) -------------
-  for (const r of poolGens[4]()) {
+  // ---- L5 二十以内 (was L4, cue ids are l3-* for historical reasons) -----
+  for (const r of poolGens[5]()) {
     const { a, b, answer } = r;
     const ones = a % 10;
     push(`l3-s1-${a}-${b}`,
@@ -130,12 +137,12 @@ export function buildManifest() {
     push(`l3-rwd-${a}-${b}-${answer}`, `${numZh(a)}加${numZh(b)}等于${numZh(answer)}`);
   }
 
-  // ---- L5 十几加十几 (cue ids are l5-*) ------------------------------------
+  // ---- L6 十几加十几 (was L5, cue ids are l5-*) ---------------------------
   // Pool rule (data/pools.js generateL5Pool):
   //   a, b ∈ [11, 19]; onesA + onesB ≤ 9 (no carry); sum = onesA+onesB;
   //   answer = a + b ∈ [22, 29].
   // 5-step teaching: 拆 a / 拆 b / 加个位 / 加十位 / 加起来.
-  for (const r of poolGens[5]()) {
+  for (const r of poolGens[6]()) {
     const { a, b, onesA, onesB, sum, answer } = r;
     push(`l5-s1-${a}-${b}`,
       `${numZh(a)}加${numZh(b)}等于几，我们先把${numZh(a)}拆成十加几`);
@@ -149,19 +156,19 @@ export function buildManifest() {
     push(`l5-rwd-${a}-${b}-${answer}`,
       `${numZh(a)}加${numZh(b)}等于${numZh(answer)}`);
   }
-  // Static cue — every L5 round plays this on step 4. The phrasing is
+  // Static cue — every L6 round plays this on step 4. The phrasing is
   // "十加十等于几" (ten plus ten equals what?), NOT "等于二十" — the answer
   // options at step 4 are {18, 19, 20} so the kid needs to compute the
   // answer themselves, the audio shouldn't give it away. Per user
   // feedback 2026-08-15: "十加十等于二十应该改成十加十等于几".
   push("l5-s4", "十加十等于几");
 
-  // ---- L6 十以内减法 (cue ids are l6-*) -----------------------------------
+  // ---- L1 十以内减法 (was L6, cue ids are l6-*) ---------------------------
   // Single teaching beat — kid just reads the equation and picks the
   // answer. Per user feedback 2026-08-16 ("没有介绍的声音，用腾讯生成"),
-  // every L6 round plays its own step-1 prompt so the equation is named
+  // every round plays its own step-1 prompt so the equation is named
   // before the answer options appear.
-  for (const r of poolGens[6]()) {
+  for (const r of poolGens[1]()) {
     const { a, b, answer } = r;
     push(`l6-s1-${a}-${b}`, `${numZh(a)}减${numZh(b)}等于几`);
     push(`l6-rwd-${a}-${b}-${answer}`, `${numZh(a)}减${numZh(b)}等于${numZh(answer)}`);

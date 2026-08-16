@@ -16,24 +16,25 @@ import { poolGens } from "./data/pools.js?v=20260812";
 // 10 rounds per session from the full enumeration. This inline levelsData
 // only carries metadata (title, intro) for the menu UI.
 //
-// Eight math levels:
-//   L1 三数相加<10  sum of three 1-digit addends ≤ 10
-//   L2 两个数凑十   three addends where two sum to 10
-//   L3 凑十法       single-digit pair whose sum > 10, teach the
+// Eight math levels (2026-08-16 — per user "把十以内的减法放到level1，
+// 其它的依次移动一个level" 十以内减法 moved to L1, the rest shifted down):
+//   L1 十以内减法   single-digit subtraction within ten
+//   L2 三数相加<10  sum of three 1-digit addends ≤ 10
+//   L3 两个数凑十   three addends where two sum to 10
+//   L4 凑十法       single-digit pair whose sum > 10, teach the
 //                   make-a-ten decomposition
-//   L4 二十以内     teen + digit, no-carry, use 10+ones strategy
-//   L5 十几加十几   two teens + two teens, no carry, 5-step decomposition
-//   L6 十以内减法   single-digit subtraction within ten
+//   L5 二十以内     teen + digit, no-carry, use 10+ones strategy
+//   L6 十几加十几   two teens + two teens, no carry, 5-step decomposition
 //   L7 十几减几     teen minus digit without borrowing
 //   L8 十几减几     teen minus digit with borrowing
 const levelsData = {
   "levels": [
-    { "id": 1, "title": "三数相加" },
-    { "id": 2, "title": "两数凑十" },
-    { "id": 3, "title": "凑十法" },
-    { "id": 4, "title": "二十以内" },
-    { "id": 5, "title": "十几加十几" },
-    { "id": 6, "title": "十以内减法" },
+    { "id": 1, "title": "十以内减法" },
+    { "id": 2, "title": "三数相加" },
+    { "id": 3, "title": "两数凑十" },
+    { "id": 4, "title": "凑十法" },
+    { "id": 5, "title": "二十以内" },
+    { "id": 6, "title": "十几加十几" },
     { "id": 7, "title": "十几减几（不退位）" },
     { "id": 8, "title": "十几减几（退位）" },
   ],
@@ -41,7 +42,7 @@ const levelsData = {
 
 const CUE_IDS = [
   "boat-done", "boat-intro", "boat-pair", "bounce-done", "bounce-intro", "bounce-pop",
-  "cloud-done", "cloud-intro", "cloud-pair", "daily-done", "enc-first-1", "enc-first-2",
+  "cloud-done", "cloud-intro", "cloud-pair", "count-done", "count-intro", "count-pair", "daily-done", "enc-first-1", "enc-first-2",
   "enc-first-3", "enc-first-4", "enc-level-1", "enc-level-2", "enc-level-3", "enc-level-4",
   "enc-near-1", "enc-near-2", "enc-near-3", "enc-specific-decomp", "enc-specific-double", "enc-specific-friend",
   "enc-specific-pair", "enc-streak3-1", "enc-streak3-2", "enc-streak3-3", "enc-streak5-1", "enc-streak5-2",
@@ -631,8 +632,24 @@ function choosePairForCueIds(nums) {
 
 function computePoolCueIds(levelId) {
   const ids = new Set();
+  // 2026-08-16: per user "把十以内的减法放到level1，其它的依次移动一个
+  // level". The cue ID prefix is decoupled from the curriculum levelId
+  // — each scene uses the prefix it was originally baked with (L1 +
+  // L3 both use l1-* because L3 was split from old L1; L4 uses l2-*
+  // because L4 was old L2; L5 uses l3-* because L5 was old L3; etc.).
+  // See scenes/level*.js file headers for the per-scene prefixes.
   if (levelId === 1) {
+    // L1 十以内减法 (was L6) — uses l6-* cue IDs (historical).
     for (const r of poolGens[1]()) {
+      ids.add(`l6-s1-${r.a}-${r.b}`);
+      ids.add(`l6-rwd-${r.a}-${r.b}-${r.answer}`);
+    }
+  } else if (levelId === 2 || levelId === 3) {
+    // L2 三数相加 AND L3 两数凑十 — both use l1-* cue IDs.
+    // L3 was extracted from old L1's pool on 2026-08-11; the per-round
+    // MP3 files were kept under the l1-* prefix so the two scenes share
+    // cues without renaming assets.
+    for (const r of poolGens[levelId]()) {
       const [a, b, c] = r.nums;
       const { pair, third } = choosePairForCueIds(r.nums);
       if (isMakeTenRound(r.nums)) {
@@ -645,17 +662,26 @@ function computePoolCueIds(levelId) {
       ids.add(`l1-step2-${pair[0] + pair[1]}-${third}`);
       ids.add(`l1-rwd-${a}-${b}-${c}-${r.answer}`);
     }
-  } else if (levelId === 2) {
-    for (const r of poolGens[2]()) {
-      const [a, b] = r.nums;
+  } else if (levelId === 4) {
+    // L4 凑十法 (was L3) — uses l2-* cue IDs (historical).
+    // level3.js emits l2-s1, l2-cmp, l2-simple, l2-s2, l2-s3, l2-s4,
+    // l2-s4s (swap variant), and l2-rwd per round.
+    for (const r of poolGens[4]()) {
+      const a = r.a, b = r.b;
+      const big = Math.max(a, b);
+      const small = Math.min(a, b);
+      ids.add(`l2-s1-${a}-${b}`);
+      ids.add(`l2-cmp-${a}-${b}`);
       ids.add(`l2-simple-${a}-${b}`);
+      ids.add(`l2-s2-${big}`);
+      ids.add(`l2-s3-${small}-${r.need}`);
+      ids.add(`l2-s4-${small}-${r.need}-${r.rest}-${big}`);
+      ids.add(`l2-s4s-${a}-${b}-${r.need}-${r.rest}-${big}`);
       ids.add(`l2-rwd-${a}-${b}-${r.answer}`);
     }
-  } else if (levelId === 3 || levelId === 4) {
-    // L4 reuses the L3 cue naming (see scenes/level4.js header comment),
-    // and the L4 pool is a strict subset of the L3 pool structure, so
-    // iterating the L3 pool pre-unlocks everything L4 will ever play.
-    for (const r of poolGens[3]()) {
+  } else if (levelId === 5) {
+    // L5 二十以内 (was L4) — uses l3-* cue IDs (historical).
+    for (const r of poolGens[5]()) {
       const ones = r.a % 10;
       const sum = ones + r.b;
       ids.add(`l3-s1-${r.a}-${r.b}`);
@@ -663,54 +689,48 @@ function computePoolCueIds(levelId) {
       ids.add(`l3-s3-${sum}`);
       ids.add(`l3-rwd-${r.a}-${r.b}-${r.answer}`);
     }
-  } else if (levelId === 5) {
-    // L5 十几加十几 — 5 步预生成 MP3 + 奖励。
-    // cue 模板：
+  } else if (levelId === 6) {
+    // L6 十几加十几 (was L5) — uses l5-* cue IDs.
+    // Cue templates:
     //   l5-s1-{a}-{b}    拆 a
     //   l5-s2-{a}-{b}    拆 b
     //   l5-s3-{oA}-{oB}  加个位
-    //   l5-s4            静态"十加十等于 20"
+    //   l5-s4            静态"十加十等于几"
     //   l5-s5-{sum}      加起来
     //   l5-rwd-{a}-{b}-{answer}   完整算式读出
-    for (const r of poolGens[5]()) {
+    for (const r of poolGens[6]()) {
       ids.add(`l5-s1-${r.a}-${r.b}`);
       ids.add(`l5-s2-${r.a}-${r.b}`);
       ids.add(`l5-s3-${r.onesA}-${r.onesB}`);
-      ids.add(`l5-s4`);
       ids.add(`l5-s5-${r.sum}`);
       ids.add(`l5-rwd-${r.a}-${r.b}-${r.answer}`);
     }
-  } else if (levelId === 6) {
-    // L6 十以内减法 — single step, plus reward read-back.
-    //   l6-s1-{a}-{b}    "{a}减{b}等于几"
-    //   l6-rwd-{a}-{b}-{answer}   full equation as a celebration
-    for (const r of poolGens[6]()) {
-      ids.add(`l6-s1-${r.a}-${r.b}`);
-      ids.add(`l6-rwd-${r.a}-${r.b}-${r.answer}`);
-    }
+    ids.add(`l5-s4`);
   } else if (levelId === 7) {
     // L7 十几减几（不退位）— 2 步交互（拆 a + 选 answer），diff 由音频陈述并自动揭示。
     //   l7-s1-{a}-{b}    拆 a
     //   l7-s2-{ones}-{b} 减个位（陈述 diff = ones - b）
+    //   l7-s2q-{ones}-{b} 减个位（提问 diff = ones - b，2026-08-16 改动）
     //   l7-s3-{diff}     加起来（十加 diff 等于几）
     //   l7-rwd-{a}-{b}-{answer}   完整算式读出
     for (const r of poolGens[7]()) {
       const diff = r.ones - r.b;
       ids.add(`l7-s1-${r.a}-${r.b}`);
       ids.add(`l7-s2-${r.ones}-${r.b}`);
+      ids.add(`l7-s2q-${r.ones}-${r.b}`);
       ids.add(`l7-s3-${diff}`);
       ids.add(`l7-rwd-${r.a}-${r.b}-${r.answer}`);
     }
   } else if (levelId === 8) {
-    // L8 十几减几（退位）— 2 步交互（拆 a + 选 answer），rest 由音频陈述并自动揭示。
+    // L8 破十法 — 3 步交互（拆 a + 选 sub + 选 answer）。
     //   l8-s1-{a}-{b}    拆 a
-    //   l8-s2-{ones}-{b} 拆 b（陈述 b = ones + rest）
-    //   l8-s3-{rest}     十减 rest 等于几
+    //   l8-s2-{b}        十减 b 等于几（提问 sub）
+    //   l8-s3-{ones}-{b} ones + sub 等于几（提问 answer）
     //   l8-rwd-{a}-{b}-{answer}   完整算式读出
     for (const r of poolGens[8]()) {
       ids.add(`l8-s1-${r.a}-${r.b}`);
-      ids.add(`l8-s2-${r.ones}-${r.b}`);
-      ids.add(`l8-s3-${r.rest}`);
+      ids.add(`l8-s2-${r.b}`);
+      ids.add(`l8-s3-${r.ones}-${r.b}`);
       ids.add(`l8-rwd-${r.a}-${r.b}-${r.answer}`);
     }
   }
@@ -1229,9 +1249,10 @@ watchOrientation();
     { default: gameCloud },
     { default: gameFeed },
     { default: gameWhack },
+    { default: gameCount },
   ] = await Promise.all([
     import("./scenes/levelPicker.js?v=20260815"),
-    import("./scenes/gamesPicker.js?v=20260815"),
+    import("./scenes/gamesPicker.js?v=20260816c"),
     import("./scenes/level1.js?v=20260815"),
     import("./scenes/level2.js?v=20260815"),
     import("./scenes/level3.js?v=20260815"),
@@ -1244,6 +1265,7 @@ watchOrientation();
     import("./scenes/gameCloud.js?v=20260815"),
     import("./scenes/gameFeed.js?v=20260815"),
     import("./scenes/gameWhack.js?v=20260815"),
+    import("./scenes/gameCount.js?v=20260816"),
   ]);
 
   // Sprites must be resolved before the first scene runs: scenes decide at build
@@ -1253,12 +1275,18 @@ watchOrientation();
 
   k.scene("levelPicker", () => levelPicker(k));
   k.scene("gamesPicker", () => gamesPicker(k));
-  k.scene("level1", () => level1(k));
-  k.scene("level2", () => level2(k));
-  k.scene("level3", () => level3(k));
-  k.scene("level4", () => level4(k));
-  k.scene("level5", () => level5(k));
-  k.scene("level6", () => subtractionLevels.level6(k));
+  // Kaplay scene names use the same numbers as the levelIds (level1 .. level8).
+  // The mapping below pairs each Kaplay scene with the createRoundScene
+  // that handles it. 2026-08-16: per user "把十以内的减法放到level1，
+  // 其它的依次移动一个level" — the file under each scene-name shifted
+  // down one slot, with subtractionLevels.js providing the new level1
+  // (was level6) and L7/L8 staying where they were.
+  k.scene("level1", () => subtractionLevels.level1(k));
+  k.scene("level2", () => level1(k));
+  k.scene("level3", () => level2(k));
+  k.scene("level4", () => level3(k));
+  k.scene("level5", () => level4(k));
+  k.scene("level6", () => level5(k));
   k.scene("level7", () => subtractionLevels.level7(k));
   k.scene("level8", () => subtractionLevels.level8(k));
   k.scene("dailyDone", () => dailyDone(k));
@@ -1267,6 +1295,7 @@ watchOrientation();
   k.scene("gameCloud",  () => gameCloud(k));
   k.scene("gameFeed",   () => gameFeed(k));
   k.scene("gameWhack",  () => gameWhack(k));
+  k.scene("gameCount",  () => gameCount(k));
 
   k.go("levelPicker");
 })();

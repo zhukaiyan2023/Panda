@@ -19,6 +19,7 @@ const LOCKED_BG = [220, 213, 230];
 const LOCKED_INK = [150, 140, 170];
 
 const GAMES = [
+  { id: 6, title: "一眼识数", sub: "瞬间识数",  scene: "gameCount", sprite: "cell-frame", accent: BLUE },
   { id: 1, title: "小船",  sub: "凑十过河",  scene: "gameBoat",   sprite: "boat",   accent: BLUE },
   { id: 2, title: "气球",  sub: "扎破凑十",  scene: "gameBounce", sprite: "balloon", accent: PINK },
   { id: 3, title: "云朵",  sub: "看算式找答案", scene: "gameCloud",  sprite: "cloud",  accent: PURPLE },
