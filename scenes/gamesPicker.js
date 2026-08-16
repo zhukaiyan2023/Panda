@@ -118,12 +118,19 @@ function drawCard(k, parent, game, unlocked, dailyLocked) {
     ]);
   }
 
-  // Prop sprite centered on the card. Locked (not yet unlocked) cards
-  // show the lock icon; daily-locked cards stay on the card's regular
-  // sprite so the kid still recognises the game — the daily cap is a
-  // today-only gate, not a permanent block.
-  if (!unlocked) {
-    sprite(card, k, "lock", { x: 0, y: 0, size: 90 });
+  // Prop sprite centered on the card. Three states:
+  //   - truly-locked (not unlocked yet): lock icon at the top
+  //   - daily-locked (unlocked but hit today's cap): lock icon at the
+  //       top, replaces the regular sprite so the kid sees the same
+  //       "locked" visual cue as math-level daily-locked cards
+  //   - freely playable: regular game sprite at the top
+  //
+  // 2026-08-16 user feedback: "锁放最上面". The earlier pass put the
+  // lock at the bottom (matching the math-level play-arrow position),
+  // but the kid's expectation is "the lock replaces the sprite" — same
+  // visual idea as a real iOS-locked row.
+  if (!unlocked || dailyLocked) {
+    sprite(card, k, "lock", { x: 0, y: -10, size: 110 });
   } else {
     sprite(card, k, game.sprite, { x: 0, y: -10, size: 110 });
   }
@@ -143,17 +150,14 @@ function drawCard(k, parent, game, unlocked, dailyLocked) {
     k.anchor("center"),
   ]);
 
-  // Daily-locked cards show "今天练够啦" above the play arrow. Mirrors
-  // levelPicker.js's daily-locked path so a kid sees the same cue
-  // for both math and game tracks.
-  if (unlocked && dailyLocked) {
-    card.add([
-      k.text("今天练够啦", { size: 24, font: FONT }),
-      k.color(...LOCKED_INK),
-      k.pos(0, h / 2 - 12),
-      k.anchor("center"),
-    ]);
-  }
+  // Daily-locked cards fall back to "今天练够啦" text when the lock
+  // sprite is missing — title and subtitle are kept readable so the
+  // text fallback still lands. The lock sprite is the primary visual
+  // (replaces the regular sprite above), so the fallback is rare.
+  //
+  // (No lock icon drawn at the bottom: 2026-08-16 user feedback
+  // "锁放最上面" moved the lock to the top of the card, replacing the
+  // regular sprite. The text below is purely a defensive fallback.)
 
   const onPick = () => {
     if (!unlocked) return;
