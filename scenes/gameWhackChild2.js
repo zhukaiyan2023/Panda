@@ -11,7 +11,7 @@ import { buildQuestion, pickType } from "../data/whackRounds.js?v=20260816";
 
 const GAME_ID = 5;
 const ROUND_SECONDS = 90;
-const MOLE_VISIBLE_SECONDS = 6;
+const MOLE_VISIBLE_SECONDS = 4;
 const NEXT_MOLE_GAP_SECONDS = 0.45;
 const POP_SECONDS = 0.42;
 const RETREAT_SECONDS = 0.30;
@@ -19,8 +19,8 @@ const SLOTS = [
   [300, 500], [683, 500], [1066, 500],
   [300, 770], [683, 770], [1066, 770],
 ];
-const MOLE_SCALE = 0.19;
-const HOLE_SCALE = 0.22;
+const MOLE_SCALE = 0.21;
+const HOLE_SCALE = 0.16;
 const HIDDEN_OFFSET = 132;
 const REST_OFFSET = -86;
 const NUMBER_Y = 44;
@@ -138,7 +138,6 @@ export default function gameWhackChild2(k) {
   let score = 0;
   let streak = 0;
   let hadWrongs = false;
-  const starNodes = [];
 
   drawScene(k);
 
@@ -156,23 +155,20 @@ export default function gameWhackChild2(k) {
   k.add([k.text("=", { size: 72, font: FONT }), k.pos(776, 106), k.anchor("center"), k.color(98, 47, 25), k.z(34)]);
   const eqAnswer = k.add([k.text("?", { size: 84, font: FONT }), k.pos(868, 104), k.anchor("center"), k.color(...ORANGE), k.outline(3, k.rgb(...DANGER)), k.z(34)]);
 
-  addWoodPanel(k, 185, 105, 236, 102, 28, 30);
-  const clock = k.add([k.circle(40), k.pos(125, 104), k.anchor("center"), k.color(...PAPER), k.outline(7, k.rgb(...ORANGE_DEEP)), k.z(34)]);
-  clock.add([k.rect(5, 22, { radius: 3 }), k.pos(0, -10), k.anchor("center"), k.color(...ORANGE_DEEP)]);
-  clock.add([k.rect(16, 5, { radius: 3 }), k.pos(7, 6), k.anchor("center"), k.color(...ORANGE_DEEP)]);
-  clock.add([k.circle(5), k.color(...ORANGE_DEEP)]);
+  addWoodPanel(k, 212, 105, 192, 88, 24, 30);
+  const clock = k.add([k.circle(33), k.pos(150, 104), k.anchor("center"), k.color(...PAPER), k.outline(6, k.rgb(...ORANGE_DEEP)), k.z(34)]);
+  clock.add([k.rect(4, 18, { radius: 2 }), k.pos(0, -8), k.anchor("center"), k.color(...ORANGE_DEEP)]);
+  clock.add([k.rect(13, 4, { radius: 2 }), k.pos(6, 5), k.anchor("center"), k.color(...ORANGE_DEEP)]);
+  clock.add([k.circle(4), k.color(...ORANGE_DEEP)]);
   const timeText = k.add([
-    k.text(String(roundSeconds), { size: 49, font: FONT }), k.pos(211, 106),
-    k.anchor("center"), k.color(...PAPER), k.outline(5, k.rgb(91, 47, 25)),
+    k.text(String(roundSeconds), { size: 42, font: FONT }), k.pos(220, 106),
+    k.anchor("center"), k.color(...PAPER), k.outline(4, k.rgb(91, 47, 25)),
     k.z(35), "whack-time",
   ]);
 
-  k.add([k.rect(250, 38, { radius: 18 }), k.pos(1159, 105), k.anchor("center"), k.color(97, 109, 111), k.outline(6, k.rgb(113, 61, 31)), k.z(31)]);
-  const scoreFill = k.add([k.rect(14, 26, { radius: 12 }), k.pos(1041, 105), k.anchor("left"), k.color(255, 214, 48), k.z(32)]);
-  for (let i = 0; i < 3; i += 1) {
-    starNodes.push(k.add([k.sprite("star"), k.pos(1242 + i * 45, 105), k.anchor("center"), k.scale(0.12), k.color(137, 81, 48), k.opacity(0.72), k.z(34)]));
-  }
-  const scoreText = k.add([k.text("0", { size: 29, font: FONT }), k.pos(1030, 156), k.anchor("center"), k.color(91, 47, 25), k.z(34), "whack-score"]);
+  k.add([k.rect(268, 42, { radius: 20 }), k.pos(1166, 105), k.anchor("center"), k.color(97, 109, 111), k.outline(6, k.rgb(113, 61, 31)), k.z(31)]);
+  const scoreFill = k.add([k.rect(14, 28, { radius: 13 }), k.pos(1034, 105), k.anchor("left"), k.color(255, 214, 48), k.z(32)]);
+  const scoreText = k.add([k.text("0", { size: 29, font: FONT }), k.pos(1166, 105), k.anchor("center"), k.color(...PAPER), k.outline(3, k.rgb(91, 47, 25)), k.z(34), "whack-score"]);
 
   const hint = addWoodPanel(k, 176, 946, 300, 112, 20, 42);
   hint.angle = -4;
@@ -182,13 +178,7 @@ export default function gameWhackChild2(k) {
 
   function updateScoreHud() {
     scoreText.text = String(score * 10);
-    scoreFill.width = Math.max(14, Math.min(174, 14 + score * 18));
-    const stars = score >= 10 ? 3 : score >= 6 ? 2 : score >= 3 ? 1 : 0;
-    starNodes.forEach((node, index) => {
-      node.color = k.rgb(...(index < stars ? YELLOW : [137, 81, 48]));
-      node.opacity = index < stars ? 1 : 0.72;
-      node.scale = k.vec2(index < stars ? 0.15 : 0.12);
-    });
+    scoreFill.width = Math.max(14, Math.min(254, 14 + score * 24));
   }
 
   function setEntryVisible(entry, visible) {
