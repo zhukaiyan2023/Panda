@@ -359,9 +359,15 @@ export default function scene(k) {
       // already includes the panda voice on streak-3+ or level-complete,
       // so no extra playAfter → panda-cue is needed.
       streak += 1;
+      // isRoundComplete drives the "level complete" tier (enc-level-N +
+      // panda-cheer-N). It must flip on ONLY the last round — firing it
+      // mid-session tells the kid "you're done" while rounds are still
+      // queued, which is jarring. Each round has 1 pick, so "complete"
+      // == "this was the last round of the session".
+      const isRoundComplete = roundIdx + 1 >= ROUND_COUNT;
       const { chain, lastEncourageId, tier } = pickCheerCue({
         streak,
-        isRoundComplete: true,  // cloud: 1 pick per round = always round-end
+        isRoundComplete,
         levelId: 3,
         hasDiscovery: false,
         // Gate enc-streak5-1 on the kid having actually missed before

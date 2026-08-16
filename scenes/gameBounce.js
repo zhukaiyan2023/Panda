@@ -243,9 +243,15 @@ function drawRound(k, ctx) {
         // "level" path since this is single-pick), and consecutive
         // rounds keep climbing.
         streak += 1;
+        // isRoundComplete drives the "level complete" tier (enc-level-N +
+        // panda-cheer-N). It must flip on ONLY the last round — firing it
+        // mid-session tells the kid "you're done" while rounds are still
+        // queued, which is jarring. Each round has 1 pick, so "complete"
+        // == "this was the last round of the session".
+        const isRoundComplete = roundIdx + 1 >= ROUND_COUNT;
         const { chain, lastEncourageId, tier } = pickCheerCue({
           streak,
-          isRoundComplete: true,  // gameBounce: 1 pick per round = always round-end
+          isRoundComplete,
           levelId: 2,             // gameBounce is levelId 2; unlocks cloud (id 3)
           hasDiscovery: false,
           hadWrongs,

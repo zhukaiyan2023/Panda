@@ -222,9 +222,15 @@ export default function scene(k) {
         buddy.setMood("cheer", { silent: true });
         window.PandaAudio.playCue("count-pair");
         streak += 1;
+        // isRoundComplete drives the "level complete" tier in the audio
+        // chain (enc-level-N + panda-cheer-N). It must flip on ONLY the last
+        // round — firing it on round 1/2 tells the kid "you're done" while
+        // 2 rounds are still queued, which is jarring. Each round has 1
+        // pick, so "complete" == "this was the last round of the session".
+        const isRoundComplete = roundIdx + 1 >= ROUND_COUNT;
         const { chain, lastEncourageId, tier } = pickCheerCue({
           streak,
-          isRoundComplete: true,    // gameCount: 1 pick per round = always round-end
+          isRoundComplete,
           levelId: 6,               // gameCount levelId 6
           hasDiscovery: false,
           hadWrongs,
