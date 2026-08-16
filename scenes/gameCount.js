@@ -243,7 +243,13 @@ export default function scene(k) {
         });
         celebrate(k, {
           tier,
-          anchor: { x: it.node.pos.x, y: it.node.pos.y },
+          // Anchor at the picked item's world position (descriptor x/y),
+          // NOT node.pos.x/y — pickerItem's root is created with k.pos(0,0)
+          // and only positions children, so node.pos is always (0,0) and
+          // the burst would explode at the canvas origin instead of the
+          // answer the kid just tapped. 2026-08-16 user feedback: "鲜花在
+          // 外面" — celebration was rendering at the upper-left corner.
+          anchor: { x: it.x, y: it.y },
           pandaBody: buddy?.body,
           pandaBaseSize: 180,
         });

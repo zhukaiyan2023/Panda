@@ -383,7 +383,7 @@ export default function scene(k) {
       // panda, not the roundScene one.
       celebrate(k, {
         tier,
-        anchor: { x: it.node.pos.x, y: it.node.pos.y },
+        anchor: { x: it.x, y: it.y },     // pickerItem descriptor's world position — see gameCount.js
         pandaBody: buddy?.body,
         pandaBaseSize: 160,
       });

@@ -204,10 +204,17 @@ export default function createPairScene(config) {
         // opts out via noCelebrate: true (boat, 2026-08-12 — the
         // shared burst/fireworks were too noisy for that scene).
         if (!config.noCelebrate) {
-          const aNode = ctx.items[aIdx].node;
-          const bNode = ctx.items[bIdx].node;
-          const mx = (aNode.pos.x + bNode.pos.x) / 2;
-          const my = (aNode.pos.y + bNode.pos.y) / 2;
+          // Anchor at the midpoint of the two picked items' world
+          // positions (descriptor x/y), not node.pos — pickerItem sets
+          // its root to k.pos(0,0) and only positions children, so
+          // node.pos is always (0,0) and the burst would explode at the
+          // canvas origin instead of between the two matched items. The
+          // same bug existed in gameBounce / gameCloud / gameCount and
+          // was fixed 2026-08-16.
+          const aNode = ctx.items[aIdx];
+          const bNode = ctx.items[bIdx];
+          const mx = (aNode.x + bNode.x) / 2;
+          const my = (aNode.y + bNode.y) / 2;
           celebrate(k, {
             tier,
             anchor: { x: mx, y: my },
