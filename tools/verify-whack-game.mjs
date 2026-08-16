@@ -19,8 +19,18 @@ try {
   await page.evaluate(() => {
     window.__skipTimers = true;
     Math.random = () => 0.999;
-    window.kaplay.go("gameWhack");
+    window.localStorage.setItem("panda-save-v1", JSON.stringify({
+      unlockedGame: 5,
+      starsByGame: {},
+    }));
   });
+
+  const canvas = await page.$("canvas");
+  const box = await canvas?.boundingBox();
+  if (!box) throw new Error("game canvas is unavailable");
+  await page.mouse.click(box.x + 1166, box.y + 200);
+  await page.waitForTimeout(250);
+  await page.mouse.click(box.x + 1163, box.y + 600);
 
   await page.waitForFunction(() => {
     const moles = window.kaplay.get("whack-mole");

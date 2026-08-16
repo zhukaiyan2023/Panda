@@ -119,7 +119,7 @@ function drawScene(k) {
     k.add([k.rect(28, 126, { radius: 7 }), k.pos(x, 318), k.color(229, 163, 78), k.outline(4, k.rgb(139, 82, 39)), k.z(-5)]);
   }
   k.add([k.rect(k.width(), 630), k.pos(0, 420), k.color(99, 201, 65), k.z(-3)]);
-  k.add([k.ellipse(850, 260), k.pos(683, 655), k.anchor("center"), k.color(231, 177, 94), k.opacity(0.72), k.z(-2)]);
+  k.add([k.circle(425), k.pos(683, 655), k.anchor("center"), k.scale(1, 260 / 850), k.color(231, 177, 94), k.opacity(0.72), k.z(-2)]);
   addFlower(k, 74, 470, 1.0);
   addFlower(k, 1290, 486, 1.0);
   addFlower(k, 92, 890, 0.85);
