@@ -19,12 +19,12 @@ const SLOTS = [
   [300, 500], [683, 500], [1066, 500],
   [300, 770], [683, 770], [1066, 770],
 ];
-const MOLE_SCALE = 0.21;
+const MOLE_SCALE = 0.26;
 const HOLE_SCALE = 0.16;
 const HIDDEN_OFFSET = 132;
 const REST_OFFSET = -86;
-const NUMBER_Y = 44;
-const NUMBER_SIZE = 56;
+const NUMBER_Y = 48;
+const NUMBER_SIZE = 72;
 const DIGIT_COLORS = [BLUE, GREEN, ORANGE, PURPLE, PINK, ORANGE_DEEP];
 
 function shuffle(values) {
@@ -162,7 +162,7 @@ export default function gameWhackChild2(k) {
   clock.add([k.circle(4), k.color(...ORANGE_DEEP)]);
   const timeText = k.add([
     k.text(String(roundSeconds), { size: 42, font: FONT }), k.pos(220, 106),
-    k.anchor("center"), k.color(...PAPER), k.outline(4, k.rgb(91, 47, 25)),
+    k.anchor("center"), k.color(...INK), k.outline(3, k.rgb(...PAPER)),
     k.z(35), "whack-time",
   ]);
 
@@ -201,7 +201,7 @@ export default function gameWhackChild2(k) {
       mole.angle = [-3, 0, 3, 2, -2, 1][index];
       const number = group.add([
         k.text("", { size: NUMBER_SIZE, font: FONT }), k.pos(0, NUMBER_Y),
-        k.anchor("center"), k.color(...INK), k.outline(5, k.rgb(...PAPER)),
+        k.anchor("center"), k.color(...INK), k.outline(7, k.rgb(...PAPER)),
         k.opacity(0), k.z(3),
       ]);
       const entry = { index, x, y, hole, group, mole, number, value: null, visible: false };
@@ -496,7 +496,7 @@ export default function gameWhackChild2(k) {
     if (!running) return;
     timeLeft = Math.max(0, timeLeft - 1);
     timeText.text = String(timeLeft);
-    timeText.color = k.rgb(...(timeLeft <= 10 ? DANGER : PAPER));
+    timeText.color = k.rgb(...(timeLeft <= 10 ? DANGER : INK));
     if (timeLeft <= 0) endGame();
   }
 
@@ -512,7 +512,7 @@ export default function gameWhackChild2(k) {
     activeIndex = 0;
     audioToken += 1;
     timeText.text = String(roundSeconds);
-    timeText.color = k.rgb(...PAPER);
+    timeText.color = k.rgb(...INK);
     updateScoreHud();
     safeCancel(timerHandle);
     timerHandle = null;
