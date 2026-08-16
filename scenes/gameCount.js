@@ -114,11 +114,14 @@ let streak = 0;
 let hadWrongs = false;
 
 export default function scene(k) {
-  // Audio: only the first round of a session speaks the intro. Subsequent
-  // rounds continue silently to keep the rhythm from getting noisy.
-  if (roundIdx === 0) {
-    window.PandaAudio.playCue("count-intro");
-  }
+  // Audio: play the intro every round, not just round 0. The other panda-park
+  // games skip the intro on rounds 2+ because the equation reads naturally as
+  // a recap ("a + ? = N" stays the same), but 一眼识数 has a no-equation
+  // design — the prompt "一眼看是几？" alone doesn't tell the kid what to do
+  // with the grid. Replaying the intro each round keeps the mechanic explicit
+  // without depending on a per-round contextual cue. With 3 rounds the
+  // repetition is short-lived; if the round count grows we can revisit.
+  window.PandaAudio.playCue("count-intro");
 
   const round = buildRound();
 
@@ -238,15 +241,20 @@ export default function scene(k) {
           pandaBody: buddy?.body,
           pandaBaseSize: 180,
         });
-        // After the cheer chain finishes, play the game-specific done cue
-        // and navigate. Empty follow-up list mirrors gameBounce's choice —
-        // the audio chain itself carries the "yes!" moment.
+        // After the cheer chain finishes, advance. The "count-done" cue
+        // ("全做完啦") is only meaningful after the LAST round — hearing it
+        // before round 2 would tell the kid "you're done" when there are
+        // still rounds left, which is jarring. Match gameBounce's pattern:
+        // mid-session rounds advance silently, the final round plays the
+        // done cue alongside the level-complete cheer.
+        const isLastRound = roundIdx + 1 >= ROUND_COUNT;
+        const postChainCues = isLastRound ? ["count-done"] : [];
         window.PandaAudio.playAfter(
           lastEncourageId,
-          ["count-done"],
+          postChainCues,
           { gapMs: 0, seqGapMs: 0 },
           () => {
-            if (roundIdx + 1 < ROUND_COUNT) {
+            if (!isLastRound) {
               roundIdx += 1;
               k.go("gameCount");
             } else {

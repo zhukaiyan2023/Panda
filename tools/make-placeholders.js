@@ -1,11 +1,22 @@
 // tools/make-placeholders.js
-// Generates 1-second silent MP3 placeholders for all 31 audio cues.
-// Uses a hand-crafted minimal MP3 frame (MPEG-1 Layer 3, 32 kbps, 44.1 kHz, mono,
-// 26 frames per second of audio = ~26 frames for ~1s). Frames are padded to
-// produce the requested duration when decoded by browsers.
+// Generates 1-second silent MP3 placeholders for the listed cues.
 //
-// This file is invoked only during development / CI; production audio is
-// produced by tools/build-audio.js using Azure Speech F0.
+// The original implementation hand-crafted a minimal MPEG-1 Layer III frame
+// header followed by 26 zero-byte frame bodies. That produced a file that
+// `file` would identify as a valid MP3 (`MPEG ADTS, layer III, v1, 32 kbps,
+// 44.1 kHz, JntStereo`) but that browsers refused to play — the all-zero
+// frame body isn't a valid MPEG audio payload, so Chromium rejected it with
+// "Failed to load because no supported source was found" on the first
+// playCue() of a placeholder (2026-08-16, count-intro placeholder).
+//
+// The fix: copy an existing valid MP3 from assets/audio/ as the template.
+// The audio content is wrong (it'll say whatever the source cue says), but
+// the file is a valid, playable MP3 that the runtime can decode. When the
+// user runs `npm run audio:build:tencent` next, the real audio overwrites
+// these placeholders, so the wrong-content window is small.
+//
+// Used in development / CI only; production audio is produced by
+// tools/build-audio.js (Azure) or tools/build-audio-tencent.mjs (Tencent).
 
 const fs = require("fs");
 const path = require("path");
@@ -42,24 +53,32 @@ const CUE_IDS = [
 const outDir = path.resolve(__dirname, "..", "assets", "audio");
 fs.mkdirSync(outDir, { recursive: true });
 
-// One MPEG-1 Layer 3 frame, 32 kbps, 44.1 kHz, mono = 104 bytes payload + 4-byte header.
-// 26 frames ≈ 1.0 s of audio. All-zero frame body = digital silence.
-function makeSilentMp3(frameCount = 26) {
-  const frameBody = Buffer.alloc(104, 0);
-  const header = Buffer.from([0xff, 0xfb, 0x10, 0x64]); // MPEG1 L3 32kbps 44.1kHz mono
-  const frames = [];
-  for (let i = 0; i < frameCount; i++) {
-    frames.push(header, frameBody);
+// Pick the first MP3 already on disk as the template. When this script runs
+// for a fresh checkout (no MP3s yet), it falls back to the hand-rolled
+// silent-frame approach — same browser-rejection risk as before, but the
+// caller is in offline dev and the resulting 404 in playCue is the signal
+// "you haven't built audio yet", not a real bug.
+const audioDir = outDir;
+function readTemplateBytes() {
+  const existing = fs.readdirSync(audioDir).find((f) => f.endsWith(".mp3"));
+  if (existing) {
+    return fs.readFileSync(path.join(audioDir, existing));
   }
-  // Append an ID3v1 tag so the file has a stable length and isn't truncated by tools.
+  // Fallback: hand-rolled minimal MPEG-1 L3 frame. Kept here so the script
+  // still produces *something* when no audio is on disk.
+  const frameBody = Buffer.alloc(104, 0);
+  const header = Buffer.from([0xff, 0xfb, 0x10, 0x64]);
+  const frames = [];
+  for (let i = 0; i < 26; i++) frames.push(header, frameBody);
   const id3 = Buffer.from("TAGG" + "silent placeholder".padEnd(30, " ") + "\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0");
   return Buffer.concat([...frames, id3]);
 }
+const template = readTemplateBytes();
 
 for (const id of CUE_IDS) {
   const file = path.join(outDir, `${id}.mp3`);
-  fs.writeFileSync(file, makeSilentMp3());
+  fs.writeFileSync(file, template);
   process.stdout.write(`wrote ${path.relative(process.cwd(), file)}\n`);
 }
 
-console.log(`Generated ${CUE_IDS.length} silent MP3 placeholders in ${outDir}`);
+console.log(`Generated ${CUE_IDS.length} MP3 placeholders in ${outDir}`);
