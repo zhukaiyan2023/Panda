@@ -19,13 +19,8 @@ const SLOTS = [
   [300, 500], [683, 500], [1066, 500],
   [300, 770], [683, 770], [1066, 770],
 ];
-const MOLE_ART = [
-  "whack-mole-blue-child",
-  "whack-mole-orange-child",
-  "whack-mole-green-child",
-];
-const MOLE_SCALE = 0.40;
-const HOLE_SCALE = 0.35;
+const MOLE_SCALE = 0.19;
+const HOLE_SCALE = 0.22;
 const HIDDEN_OFFSET = 132;
 const REST_OFFSET = -86;
 const NUMBER_Y = 44;
@@ -54,22 +49,6 @@ function easeOutBack(t) {
 
 function easeIn(t) {
   return t * t * t;
-}
-
-function loadSceneArt(k) {
-  const specs = [
-    [MOLE_ART[0], "assets/art/whack-mole-blue.svg?v=20260816c"],
-    [MOLE_ART[1], "assets/art/whack-mole-orange.svg?v=20260816c"],
-    [MOLE_ART[2], "assets/art/whack-mole-green.svg?v=20260816c"],
-    ["whack-hole-child", "assets/art/whack-hole.svg?v=20260816c"],
-    ["whack-hole-front-child", "assets/art/whack-hole-front.svg?v=20260816c"],
-  ];
-  return Promise.all(specs.map(([name, url]) => (
-    Promise.resolve(k.loadSprite(name, url)).catch((error) => {
-      console.warn(`[whack] failed to load ${name}:`, error?.message || error);
-      return null;
-    })
-  )));
 }
 
 function addWoodPanel(k, x, y, width, height, radius = 28, z = 30) {
@@ -222,10 +201,10 @@ export default function gameWhackChild2(k) {
     SLOTS.forEach(([x, y], index) => {
       const row = index < 3 ? 0 : 1;
       const baseZ = 8 + row * 12;
-      const hole = k.add([k.sprite("whack-hole-child"), k.pos(x, y + 8), k.anchor("center"), k.scale(HOLE_SCALE), k.z(baseZ)]);
+      const hole = k.add([k.sprite("whack-hole-clean"), k.pos(x, y + 8), k.anchor("center"), k.scale(HOLE_SCALE), k.z(baseZ)]);
       const group = k.add([k.pos(x, y + HIDDEN_OFFSET), k.opacity(0), k.z(baseZ + 2)]);
       const mole = group.add([
-        k.sprite(MOLE_ART[index % MOLE_ART.length]), k.anchor("center"),
+        k.sprite("whack-mole-popup"), k.anchor("center"),
         k.scale(MOLE_SCALE * (index % 2 === 0 ? 1 : 0.96)), k.opacity(0),
         k.area({ scale: 0.88 }), "whack-mole",
       ]);
@@ -235,8 +214,7 @@ export default function gameWhackChild2(k) {
         k.anchor("center"), k.color(...INK), k.outline(5, k.rgb(...PAPER)),
         k.opacity(0), k.z(3),
       ]);
-      const front = k.add([k.sprite("whack-hole-front-child"), k.pos(x, y + 8), k.anchor("center"), k.scale(HOLE_SCALE), k.z(baseZ + 4)]);
-      const entry = { index, x, y, hole, front, group, mole, number, value: null, visible: false };
+      const entry = { index, x, y, hole, group, mole, number, value: null, visible: false };
       mole.onClick(() => tap(entry));
       entries.push(entry);
     });
@@ -557,20 +535,8 @@ export default function gameWhackChild2(k) {
     });
   }
 
-  const loading = addWoodPanel(k, 683, 540, 420, 120, 26, 60);
-  const loadingText = loading.add([k.text("准备中...", { size: 40, font: FONT }), k.anchor("center"), k.color(...INK)]);
-
-  loadSceneArt(k).then(() => {
-    const required = ["whack-hole-child", "whack-hole-front-child", ...MOLE_ART];
-    if (required.some((name) => !k.getSprite(name))) {
-      loadingText.text = "游戏素材加载失败";
-      loadingText.color = k.rgb(...DANGER);
-      return;
-    }
-    loading.destroy();
-    createTargets();
-    startGame();
-  });
+  createTargets();
+  startGame();
 
   k.onSceneLeave?.(() => {
     running = false;
