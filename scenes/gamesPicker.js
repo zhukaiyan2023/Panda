@@ -179,6 +179,47 @@ export default function gamesPickerScene(k) {
 
   sceneBg(k, "bg-meadow");
 
+  // Pre-create Audio elements for the most common cues across all
+  // panda-park games. The browser starts downloading each MP3 as the
+  // element is touched; by the time the kid picks a game, the intro +
+  // common encouragements are already buffered and the first .play()
+  // lands gap-free. The LRU cache (MAX_AUDIO_CACHE=40 in main.js)
+  // bounds how much of this sticks around — anything beyond the cap
+  // is evicted immediately as fresh game-specific cues come in.
+  //
+  // The set covers:
+  //   - Game intros for all 6 games (count-/bounce-/cloud-/boat-/
+  //     feed-/whack-intro) so the very first cue in a fresh game
+  //     doesn't buffer-stall
+  //   - "好棒"/"对啦"/enc-first-N (always plays on first correct)
+  //   - enc-streak3-N (streak escalation — high prob after 3 picks)
+  //   - enc-wrong-N (wrong picks — common during learning)
+  //   - panda-praise-N + panda-cheer-N (the panda character voice)
+  //   - daily-done (the daily-locked response cue)
+  //
+  // Game-specific deep chain cues (whack-pop, feed-q-pre, etc.) are
+  // still preloaded via playSequence/playAfter inside each scene —
+  // see the chain-preload comment in main.js.
+  window.PandaAudio?.preloadCueIds([
+    // Common encouragements — fire on most correct picks.
+    "enc-first-1", "enc-first-2", "enc-first-3", "enc-first-4",
+    "enc-streak3-1", "enc-streak3-2", "enc-streak3-3",
+    "enc-wrong-1", "enc-wrong-2", "enc-wrong-3",
+    "panda-praise-1", "panda-praise-2", "panda-praise-3",
+    "panda-cheer-1", "panda-cheer-2",
+    "daily-done",
+    // Game intros — the very first cue played on a fresh game.
+    "count-intro", "bounce-intro", "cloud-intro",
+    "boat-intro", "feed-intro", "whack-intro",
+    // Game "all done" / pair cues — fire at round-end / mid-session.
+    "count-pair", "count-done",
+    "bounce-pop", "bounce-done",
+    "cloud-pair", "cloud-done",
+    "boat-pair", "boat-done",
+    "feed-nom", "feed-done",
+    "whack-correct", "whack-done",
+  ]);
+
   // Tabs at the top.
   drawTab(k, k, "学数学", 600, 200, 200, 70, false);
   drawTab(k, k, "小游戏", 850, 200, 200, 70, true);

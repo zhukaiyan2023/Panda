@@ -465,26 +465,31 @@ const CUE_IDS = [
 
 ];
 
-// Lazy audio pool. With ~2000 pool-driven composite cues, eager
-// construction would hit Chrome's per-page WebMediaPlayer cap
-// (crbug.com/1144736 — typically ~50 <audio> elements per tab) and
-// burn ~20 MB of upfront memory for cues that may never fire in a
-// given session. Instead we build each Audio element on first access
-// via a Proxy, then cache it. Safari/iPad doesn't have the Chrome
-// cap, but the lazy pattern is harmless there and keeps `audioUnlocked`
-// semantics tight (only the cues the kid actually heard get the unlock
-// play/pause cycle, instead of every mp3 in the manifest).
-const audioCache = new Map();
-// Audio elements that were materialized (via the Proxy below) AFTER the
-// last user gesture. iPad Safari only allows `.play()` to actually start
-// playback for elements whose first play/pause cycle ran inside a user
-// activation — otherwise the call rejects with "the user didn't interact
-// with the document first" (user-visible as silent failure on every pool-
-// driven composite cue the first time it's requested, e.g. l3-s1-12-6).
-// We can't unlock these lazily at creation time (the Proxy often runs
-// outside a gesture — inside scene init, inside a `playSequence` chain),
-// so we mark them and drain the set on the next pointerdown. drainNeedsUnlock()
-// is called from the gesture handler at the bottom of this file.
+// Lazy + LRU-capped audio pool. With ~2500 pool-driven composite cues,
+// eager construction would hit Chrome's per-page WebMediaPlayer cap
+// (crbug.com/1144736 — typically ~50 <audio> elements per tab on
+// desktop, ~32-64 on iPad Safari) and burn ~20 MB of upfront memory
+// for cues that may never fire in a given session. Instead we build
+// each Audio element on first access via a Proxy, then cache it.
+//
+// The cache is bounded: when it grows past MAX_AUDIO_CACHE, the
+// least-recently-played entry is evicted (its src is cleared, which
+// tells Chrome to release the WebMediaPlayer and decoded buffer).
+// Without this cap, audioCache grows monotonically for the whole
+// session and crosses Chrome's WebMediaPlayer hard cap after ~50-100
+// distinct cues played; subsequent playCue() calls then fail with
+// "no supported source was found" (crbug.com/1144736 — the Audio
+// element exists but no source could be attached). With the cap at
+// 40 (leaving a ~20% safety margin under Chrome's ceiling), every
+// cue plays at the cost of one ~50-200ms reload for an evicted
+// element. Memory stays at ~hundreds-of-KB.
+//
+// Safari/iPad doesn't have the Chrome cap, but the lazy pattern is
+// harmless there and keeps `audioUnlocked` semantics tight (only the
+// cues the kid actually heard get the unlock play/pause cycle,
+// instead of every mp3 in the manifest).
+const MAX_AUDIO_CACHE = 40;
+const audioCache = new Map();   // Map preserves insertion order → LRU via delete+set
 const needsUnlock = new WeakSet();
 // Set of valid cue ids for O(1) lookup in the Proxy traps below — built
 // once from CUE_IDS at boot. Probing `CUE_IDS.includes(id)` per access
@@ -503,7 +508,12 @@ const audio = new Proxy({}, {
     // typo case instead.
     if (!validCueIds.has(id)) return undefined;
     let el = audioCache.get(id);
-    if (!el) {
+    if (el) {
+      // LRU touch: re-insert so this entry moves to the END of the
+      // Map's iteration order. Next eviction will skip past it.
+      audioCache.delete(id);
+      audioCache.set(id, el);
+    } else {
       // MP3 from Tencent TTS (see tools/build-audio-tencent.mjs) and
       // tools/build-composite-audio.mjs. Safari on iPad and Chromium
       // on desktop both handle MP3 in <audio> natively.
@@ -517,6 +527,28 @@ const audio = new Proxy({}, {
       // gets one play/pause cycle inside a gesture before its first
       // real play() attempt.
       needsUnlock.add(el);
+      // Evict the oldest entry when the cache crosses MAX_AUDIO_CACHE.
+      // Map iteration order is insertion order, so .keys().next()
+      // yields the entry that hasn't been touched the longest. Skip
+      // a currently-playing element so eviction doesn't cut audio
+      // mid-cue — the next miss will evict it once it finishes.
+      if (audioCache.size > MAX_AUDIO_CACHE) {
+        for (const [oldId, oldEl] of audioCache) {
+          if (oldEl.paused || oldEl.ended) {
+            // Clear src to tell Chrome to release the WebMediaPlayer
+            // + decoded audio buffer. removeAttribute("src") + load()
+            // is the belt-and-suspenders form some older WebKit
+            // versions need — assigning src="" alone works on modern
+            // Chromium but is a no-op on some 2019-era iOS Safari
+            // builds, which is exactly the iPad target.
+            try { oldEl.removeAttribute("src"); } catch (_) {}
+            try { oldEl.src = ""; } catch (_) {}
+            try { oldEl.load && oldEl.load(); } catch (_) {}
+            audioCache.delete(oldId);
+            break;
+          }
+        }
+      }
     }
     return el;
   },
@@ -923,6 +955,15 @@ function playSequence(ids, seqGapMs = 90, startDelayMs = 0, onComplete) {
     if (onComplete) onComplete();
     return;
   }
+  // Pre-create Audio elements for the entire chain. Each touch through
+  // the Proxy spawns an <audio preload="auto"> element and starts the
+  // MP3 download. Without this, each cue is only created when its
+  // playIdx slot starts — at which point the browser is already behind
+  // on the network and the cue buffers mid-playback. Pre-creating
+  // the whole chain up front lets the browser download all MP3s in
+  // parallel so by the time the chain reaches cue N, the previous N-1
+  // (and most of the remaining ones) are already buffered.
+  for (const id of ids) audio[id];
   const seq = { cancelled: false };
   activeSequences.add(seq);
 
@@ -1019,6 +1060,11 @@ function playAfter(referenceId, ids, { gapMs = 1000, seqGapMs = 90 } = {}, onCom
     playSequence(ids, seqGapMs, 4000, onComplete);
     return;
   }
+  // Pre-create Audio elements for the chain. The browser downloads
+  // their MP3s in parallel with the reference cue's playback, so by
+  // the time the reference's `ended` fires (or the fallback timer
+  // kicks in), the chain is fully buffered and starts gap-free.
+  for (const id of ids) audio[id];
   // Per-playAfter context — registered with stopAllAudio so a
   // back-button tap (or any other navigation) can cancel the fallback
   // timer AND detach the `ended` listener. Without this, tapping ←
@@ -1060,6 +1106,21 @@ function playAfter(referenceId, ids, { gapMs = 1000, seqGapMs = 90 } = {}, onCom
   ctx.ref.addEventListener("ended", ctx.onEnded);
 }
 
+// Pre-create Audio elements for a list of cue ids. Each touch goes
+// through the Proxy → spawns an <audio preload="auto"> → browser
+// starts downloading the MP3. The element sits idle (no .play()) until
+// playCue() actually fires for it, at which point the file is usually
+// already buffered.
+//
+// Use this at scene entry to warm the cache for cues that are about to
+// play. With the LRU cap at MAX_AUDIO_CACHE, preloading more than the
+// cap just evicts older entries immediately — still cheap (one download
+// is cancelled), but the practical sweet spot is ~20-30 cues.
+function preloadCueIds(ids) {
+  if (!Array.isArray(ids) || ids.length === 0) return;
+  for (const id of ids) audio[id];
+}
+
 const k = kaplay({
   width: 1366,
   height: 1024,
@@ -1072,7 +1133,7 @@ const k = kaplay({
 });
 
 window.kaplay = k;
-window.PandaAudio = { audio, unlockAudio, unlockLevelPool, playCue, playSequence, playAfter, stopAllAudio, isUnlocked: () => audioUnlocked,
+window.PandaAudio = { audio, unlockAudio, unlockLevelPool, playCue, playSequence, playAfter, stopAllAudio, preloadCueIds, isUnlocked: () => audioUnlocked,
 // Number of cues whose Audio element has been materialized so far. Tests
 // use this instead of Object.keys(audio) — that would force-create every
 // element in CUE_IDS and trip Chrome's WebMediaPlayer cap (~50 per tab).
