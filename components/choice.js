@@ -27,9 +27,6 @@ function installAudioMutex() {
   let activeAudio = null;
 
   HTMLMediaElement.prototype.play = function patchedPlay(...args) {
-    // Only police actual audio elements. The game uses <audio> for PandaAudio;
-    // leaving other media types alone avoids changing browser behaviour for
-    // unrelated page elements.
     if (this instanceof HTMLAudioElement) {
       if (activeAudio && activeAudio !== this && !activeAudio.paused) {
         try { originalPause.call(activeAudio); } catch (_) {}
@@ -53,6 +50,111 @@ function installAudioMutex() {
 }
 
 installAudioMutex();
+
+// `playAfter()` has an important Safari race: the caller starts the reference
+// cue with playSequence() and immediately calls playAfter(referenceId,...).
+// On some WebKit versions the Audio element can still report `ended === true`
+// for the previous playback for one event-loop turn. The old playAfter()
+// interprets that stale flag as "reference already finished" and starts the
+// reward immediately, which creates exactly the bug seen on L3-L8:
+//
+//   encouragement ────────────────┐
+//   expression reward ────────────┘  (OVERLAP)
+//
+// Gate the public playAfter() at the interaction boundary. If the reference
+// audio is currently playing, wait for THIS playback's real `ended` event
+// before delegating to the original implementation. Once ended has fired,
+// the original playAfter() is safe to call because its `ref.ended` fast path
+// now refers to the current playback, not the previous one.
+//
+// This wrapper is installed after main.js exposes window.PandaAudio. choice.js
+// is loaded by the shared roundScene, so polling here keeps the fix independent
+// of individual level files and covers L1-L8.
+function installPlayAfterGate() {
+  if (typeof window === "undefined") return;
+  if (window.__pandaPlayAfterGateInstalled) return true;
+
+  const api = window.PandaAudio;
+  if (!api || typeof api.playAfter !== "function" || !api.audio) return false;
+
+  const originalPlayAfter = api.playAfter;
+  const wrappedPlayAfter = function gatedPlayAfter(referenceId, ids, options, onComplete) {
+    const ref = api.audio[referenceId];
+    if (!ref) return originalPlayAfter(referenceId, ids, options, onComplete);
+
+    // Only gate when the reference is actually playing. If it is already
+    // finished, the original implementation can correctly use its ended fast
+    // path. If playback was rejected and the element is paused, there is no
+    // reference audio to wait for, so also delegate immediately.
+    if (ref.paused || ref.ended) {
+      return originalPlayAfter(referenceId, ids, options, onComplete);
+    }
+
+    let settled = false;
+    let timeoutId = null;
+
+    const cleanup = () => {
+      if (settled) return;
+      settled = true;
+      ref.removeEventListener("ended", onEnded);
+      if (timeoutId != null) clearTimeout(timeoutId);
+    };
+
+    const startAfterReference = () => {
+      if (settled) return;
+      cleanup();
+      originalPlayAfter(referenceId, ids, options, onComplete);
+    };
+
+    const onEnded = () => startAfterReference();
+    ref.addEventListener("ended", onEnded, { once: true });
+
+    // The reference is already playing, so duration is a safe wall-clock
+    // fallback only for the WebKit case where `ended` is missed. Never use a
+    // short fixed delay: that would reintroduce the overlap this gate exists
+    // to prevent. Add 1500ms after the actual duration, not before it.
+    const durationMs = Number.isFinite(ref.duration) && ref.duration > 0
+      ? ref.duration * 1000 + 1500
+      : 10000;
+    timeoutId = setTimeout(() => {
+      // If Safari missed `ended`, only start after the media position has
+      // reached the end. If it is merely paused/stopped before the end,
+      // do NOT start the reward on top of another audio flow.
+      const duration = Number.isFinite(ref.duration) ? ref.duration : 0;
+      const reachedEnd = duration > 0 && ref.currentTime >= duration - 0.05;
+      if (ref.ended || reachedEnd) {
+        startAfterReference();
+      } else {
+        // Keep waiting rather than violating the single-audio invariant.
+        timeoutId = setTimeout(() => {
+          const d = Number.isFinite(ref.duration) ? ref.duration : 0;
+          if (ref.ended || (d > 0 && ref.currentTime >= d - 0.05)) {
+            startAfterReference();
+          }
+        }, 2000);
+      }
+    }, durationMs);
+
+    return undefined;
+  };
+
+  wrappedPlayAfter.__pandaOriginal = originalPlayAfter;
+  api.playAfter = wrappedPlayAfter;
+  window.__pandaPlayAfterGateInstalled = true;
+  return true;
+}
+
+// PandaAudio is created later by main.js, after this module is evaluated.
+// Stop polling as soon as the wrapper is installed; the interval is only a
+// bootstrap mechanism and does not participate in game timing.
+if (typeof window !== "undefined") {
+  const gateTimer = setInterval(() => {
+    if (installPlayAfterGate()) clearInterval(gateTimer);
+  }, 50);
+  // Do not leave a bootstrap timer around forever if audio initialization is
+  // delayed or the game is loaded in a non-game document.
+  setTimeout(() => clearInterval(gateTimer), 15000);
+}
 
 // area() falls back to the object's own renderArea(), which only shape
 // components (rect/circle/sprite/text) provide. The shape here lives on a child,
@@ -92,7 +194,6 @@ function stopAudioBeforeAnswer() {
 
 export default function choice(parent, opts = {}) {
   const k = window.kaplay;
-  // Every newly-rendered answer row starts a fresh interaction window.
   resetAnswerLockForNewStep();
 
   const label = String(opts.label);
@@ -103,8 +204,6 @@ export default function choice(parent, opts = {}) {
 
   const root = parent.add([k.pos(0, 0), k.z(opts.z ?? 0), hitShape(k, x, y, w, h)]);
 
-  // A flat offset slab behind the face reads as a raised key, which is easier
-  // for a small child to recognize as pressable than an outlined rectangle.
   const shadow = root.add([
     k.rect(w, h, { radius: 24 }),
     k.color(...INK),
@@ -129,14 +228,8 @@ export default function choice(parent, opts = {}) {
   ]);
 
   if (opts.onClick && !opts.disabled) {
-    // Kaplay is configured with touchToMouse, so onClick covers both mouse and
-    // touch input without double-firing on iPad Safari.
     root.onClick(() => {
       if (isAnswerLocked()) return;
-      // Stop the currently speaking prompt BEFORE invoking the answer logic.
-      // The round-scene handler also calls stopAllAudio; keeping this guard at
-      // the interaction boundary makes the no-overlap invariant independent
-      // of which shared scene/step supplied the button.
       stopAudioBeforeAnswer();
       opts.onClick();
     });
@@ -149,9 +242,6 @@ export default function choice(parent, opts = {}) {
     shadow.opacity = disabled ? 0.08 : 0.18;
   };
 
-  // Marks a button as the confirmed correct answer, distinct from the dimmed
-  // "already tried this" state. It also locks the entire answer row until
-  // the next teaching step creates a fresh set of choice buttons.
   root.setCorrect = () => {
     if (typeof window !== "undefined") window.__pandaAnswerLocked = true;
     face.color = k.rgb(...ORANGE);
@@ -160,9 +250,6 @@ export default function choice(parent, opts = {}) {
 
   return root;
 }
-
-// iconButton — small square button used for scene chrome (back / replay / etc).
-// Smaller than the numeric choice buttons and uses the accent palette.
 
 export function iconButton(parent, opts = {}) {
   const k = window.kaplay;
@@ -190,8 +277,6 @@ export function iconButton(parent, opts = {}) {
   ]);
 
   if (opts.onClick) {
-    // Kaplay is configured with touchToMouse, so onClick covers both mouse and
-    // touch input without double-firing on iPad Safari.
     root.onClick(() => opts.onClick());
   }
 
