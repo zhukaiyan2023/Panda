@@ -6,6 +6,54 @@
 
 import { INK, CARD, DISABLED_BG, DISABLED_INK, ORANGE, FONT } from "./theme.js?v=20260812";
 
+// Audio invariant: the game must never have two HTMLAudioElements playing at
+// the same time. roundScene already calls PandaAudio.stopAllAudio() when an
+// answer is accepted, but Safari can deliver a late ended/timer callback from
+// an older sequence. This final browser-level mutex makes the invariant true
+// even if an old callback reaches HTMLMediaElement.play() after the logical
+// sequence was cancelled: starting one audio element always pauses the other.
+//
+// This is intentionally installed here rather than in a level because choice
+// is loaded by the shared round scene used by L1-L8. It therefore protects all
+// eight levels and every pool-driven cue without changing their individual
+// teaching logic.
+function installAudioMutex() {
+  if (typeof window === "undefined" || typeof HTMLMediaElement === "undefined") return;
+  if (window.__pandaAudioMutexInstalled) return;
+  window.__pandaAudioMutexInstalled = true;
+
+  const originalPlay = HTMLMediaElement.prototype.play;
+  const originalPause = HTMLMediaElement.prototype.pause;
+  let activeAudio = null;
+
+  HTMLMediaElement.prototype.play = function patchedPlay(...args) {
+    // Only police actual audio elements. The game uses <audio> for PandaAudio;
+    // leaving other media types alone avoids changing browser behaviour for
+    // unrelated page elements.
+    if (this instanceof HTMLAudioElement) {
+      if (activeAudio && activeAudio !== this && !activeAudio.paused) {
+        try { originalPause.call(activeAudio); } catch (_) {}
+      }
+      activeAudio = this;
+    }
+    return originalPlay.apply(this, args);
+  };
+
+  HTMLMediaElement.prototype.pause = function patchedPause(...args) {
+    if (this === activeAudio) activeAudio = null;
+    return originalPause.apply(this, args);
+  };
+
+  window.__pandaAudioMutexReset = () => {
+    if (activeAudio && !activeAudio.paused) {
+      try { originalPause.call(activeAudio); } catch (_) {}
+    }
+    activeAudio = null;
+  };
+}
+
+installAudioMutex();
+
 // area() falls back to the object's own renderArea(), which only shape
 // components (rect/circle/sprite/text) provide. The shape here lives on a child,
 // so the shape must be handed to area() explicitly — otherwise the root has no
@@ -28,6 +76,18 @@ function isAnswerLocked() {
 
 function resetAnswerLockForNewStep() {
   if (typeof window !== "undefined") window.__pandaAnswerLocked = false;
+}
+
+function stopAudioBeforeAnswer() {
+  // Do this synchronously in the same input callback, before roundScene's
+  // answer handler starts any feedback. This closes the critical window:
+  // previous spoken prompt -> child taps correct -> new feedback starts.
+  try {
+    window.PandaAudio?.stopAllAudio?.();
+  } catch (_) {}
+  try {
+    window.__pandaAudioMutexReset?.();
+  } catch (_) {}
 }
 
 export default function choice(parent, opts = {}) {
@@ -73,6 +133,11 @@ export default function choice(parent, opts = {}) {
     // touch input without double-firing on iPad Safari.
     root.onClick(() => {
       if (isAnswerLocked()) return;
+      // Stop the currently speaking prompt BEFORE invoking the answer logic.
+      // The round-scene handler also calls stopAllAudio; keeping this guard at
+      // the interaction boundary makes the no-overlap invariant independent
+      // of which shared scene/step supplied the button.
+      stopAudioBeforeAnswer();
       opts.onClick();
     });
   }
