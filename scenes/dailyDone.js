@@ -1,31 +1,20 @@
 // scenes/dailyDone.js — transient "今天练够啦" message scene.
 //
 // Shown when a kid's just-finished round hits the per-level daily
-// round cap. The celebration audio from the round that triggered
-// the cap has already finished by the time we get here (roundScene
-// waits on its `onAdvance` Promise), so we play our own short
-// friendly cue on entry. A single "好" button returns to the
-// picker.
-//
-// Layout mirrors the level picker: PAPER background, panda buddy
-// in the upper-left, centered card with the message, single button
-// at the bottom.
+// round cap. The scene is intentionally silent; the round's audio
+// has already been handled by the shared audio scheduler.
+// A single "好" button returns to the picker.
 
 import panda from "../components/panda.js?v=20260812";
-import { INK, PAPER, FONT, ORANGE } from "../components/theme.js?v=20260812";
+import { INK, FONT, ORANGE } from "../components/theme.js?v=20260812";
 import sceneBg from "../components/sceneBg.js?v=20260812";
 
 export default function dailyDoneScene(k) {
-  // Background.
   sceneBg(k, "bg-bamboo-grove");
 
-  // Panda buddy at the same position as the picker (kept from
-  // there so the visual is familiar — same panda, same room).
   const buddy = panda(k, { x: 150, y: 248, size: 172 });
   buddy.setMood("idle");
 
-  // Centered card (same shape as a single level-picker card so the
-  // kid sees a familiar element).
   const cardW = 720;
   const cardH = 460;
   const cx = k.width() / 2;
@@ -47,7 +36,6 @@ export default function dailyDoneScene(k) {
     k.anchor("center"),
   ]);
 
-  // Friendly message — same Mandarin text as the audio cue.
   k.add([
     k.text("今天练够啦", { size: 96, font: FONT }),
     k.color(...INK),
@@ -61,9 +49,6 @@ export default function dailyDoneScene(k) {
     k.anchor("center"),
   ]);
 
-  // "好" button — wide, centered, orange. Mirrors the round-scene
-  // button style so it looks like a "next" affordance the kid is
-  // used to.
   const btnW = 240;
   const btnH = 110;
   const btn = k.add([
@@ -81,10 +66,4 @@ export default function dailyDoneScene(k) {
     k.anchor("center"),
   ]);
   btn.onClick(() => k.go("levelPicker"));
-
-  // Friendly audio — plays once on scene entry. The k.go() wrapper
-  // in main.js calls stopAllAudio before navigating, so this cue
-  // starts cleanly even if the round's celebration audio is still
-  // tailing off (shouldn't be, but defensive).
-  window.PandaAudio.playCue("daily-done");
 }
