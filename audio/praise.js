@@ -25,11 +25,9 @@ function pickFrom(list) {
   return list[Math.floor(Math.random() * list.length)];
 }
 
-// IMPORTANT: this is a per-correct-attempt recovery counter, not a sticky
-// "has ever been wrong" flag. A wrong answer arms the recovery praise. The
-// next correct answer consumes it and clears it immediately. Therefore a
-// clean correct run can NEVER hear enc-streak5-1, and a previous mistake
-// cannot leak into a later unrelated question/round.
+// Per-correct-attempt recovery state. This is deliberately NOT a sticky
+// session flag. A wrong answer arms the recovery praise; the next correct
+// answer consumes it and clears it. A later correct answer is then clean.
 let failedAttempts = 0;
 
 export function resetFailureCount() {
@@ -82,24 +80,24 @@ function buildCheerChain({ tier, levelId, hasDiscovery = false, hadWrongs = fals
 }
 
 function pickWrongCue({ isNearMiss = false } = {}) {
-  // Any wrong answer arms the recovery praise. Multiple wrong answers are
-  // intentionally collapsed into one state: the next correct answer is the
-  // recovery event, and then the failure count is cleared.
+  // Wrong answers arm exactly one recovery event. Multiple wrong taps before
+  // the eventual correct answer still produce one recovery praise, and that
+  // state is cleared by pickCheerCue when the correct answer is accepted.
   failedAttempts += 1;
   return isNearMiss ? pickFrom(ENC_NEAR) : pickFrom(ENC_WRONG);
 }
 
 function pickCheerCue({ streak, isRoundComplete, levelId, hasDiscovery = false, hadWrongs = false }) {
-  // The explicit failedAttempts state is authoritative. `hadWrongs` remains
-  // accepted for backwards compatibility with existing level callers, but it
-  // is no longer sticky and is never allowed to make the recovery praise leak
-  // into later correct answers.
-  const hadFailure = failedAttempts > 0 || hadWrongs;
+  // `hadWrongs` is kept in the signature for compatibility with existing
+  // roundScene callers, but it is intentionally ignored. The old implementation
+  // made it sticky for the whole session, which caused "你试了好几次才对" to
+  // play on unrelated later correct answers. The real failure state lives here.
+  const hadFailure = failedAttempts > 0;
   const tier = pickTier(streak, isRoundComplete);
 
-  // "你试了好几次才对，这叫有耐心" is a recovery praise. It MUST be caused
-  // by an actual wrong answer immediately preceding a later correct answer.
-  // Consume the failure state now so the following correct answer starts clean.
+  // Recovery praise MUST happen only after at least one actual wrong answer.
+  // Consume the failure state on the successful correct answer so the next
+  // correct answer starts with zero failures.
   if (hadFailure) {
     failedAttempts = 0;
     return {
@@ -136,8 +134,8 @@ export {
   ENC_FIRST,
   ENC_STREAK3,
   ENC_STREAK5,
-  ENC_STREAK10,
   ENC_LEVEL,
+  ENC_STREAK10,
   PANDA_PRAISE,
   PANDA_CHEER,
   ENC_WRONG,
