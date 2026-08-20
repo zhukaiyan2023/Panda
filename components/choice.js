@@ -2,19 +2,20 @@
 import { INK, CARD, DISABLED_BG, DISABLED_INK, ORANGE, FONT } from "./theme.js?v=20260812";
 
 /*
- * Audio policy
- * ------------
- * The game has one hard rule: audio is serialized. A later cue may start
- * only after the previous cue has really finished. In particular, never use
- * HTMLAudioElement.ended immediately after play() as proof that the current
- * playback has finished — WebKit can expose the previous playback state for
- * an event-loop turn.
+ * Global audio rule:
  *
- * main.js owns the actual audio pool and playSequence implementation. This
- * module installs a small compatibility layer once PandaAudio exists. It does
- * NOT try to play audio itself; it only makes playAfter() wait for the exact
- * current playback before starting the next sequence.
+ *   - one HTMLAudioElement may play at a time;
+ *   - one PandaAudio sequence may own playback at a time;
+ *   - additional playSequence() calls are queued, not overlapped;
+ *   - playAfter() waits for the exact current sequence to finish;
+ *   - stopAllAudio() cancels the active sequence, queued sequences and
+ *     waiters, so navigation/wrong answers can never resurrect old audio.
+ *
+ * This is installed from choice.js because every game imports this module
+ * (directly or through the shared scene chrome). It protects the math levels
+ * and the panda-park mini-games with one implementation.
  */
+
 function installAudioMutex() {
   if (typeof window === "undefined" || typeof HTMLMediaElement === "undefined") return;
   if (window.__pandaAudioMutexInstalled) return;
@@ -59,41 +60,96 @@ function installAudioSequencer() {
   const originalPlaySequence = api.playSequence;
   const originalStopAllAudio = api.stopAllAudio;
   const waiters = new Set();
-  let activeSequence = null;
-  let sequenceGeneration = 0;
+  const queue = [];
+  let active = null;
+  let generation = 0;
 
-  function trackSequence(ids, seqGapMs, startDelayMs, onComplete) {
-    const state = {
-      generation: ++sequenceGeneration,
-      ids: Array.isArray(ids) ? ids.slice() : [],
-      lastId: Array.isArray(ids) && ids.length ? ids[ids.length - 1] : null,
-      done: false,
-      cancelled: false,
-      resolve: null,
-      promise: null,
-    };
-    state.promise = new Promise((resolve) => { state.resolve = resolve; });
-    activeSequence = state;
-
-    const complete = () => {
-      if (state.done || state.cancelled) return;
-      state.done = true;
-      if (activeSequence === state) activeSequence = null;
-      state.resolve();
-      if (typeof onComplete === "function") onComplete();
-    };
-
-    originalPlaySequence(ids, seqGapMs, startDelayMs, complete);
-    return state;
+  function cancelState(state) {
+    if (!state || state.cancelled || state.done) return;
+    state.cancelled = true;
+    state.resolve?.();
   }
 
-  api.playSequence = trackSequence;
+  function drainQueue() {
+    if (active || queue.length === 0) return;
+    const request = queue.shift();
+    startSequence(request);
+  }
+
+  function startSequence(request) {
+    const state = {
+      generation: ++generation,
+      ids: Array.isArray(request.ids) ? request.ids.slice() : [],
+      lastId: Array.isArray(request.ids) && request.ids.length
+        ? request.ids[request.ids.length - 1]
+        : null,
+      cancelled: false,
+      done: false,
+      resolve: null,
+    };
+
+    state.promise = new Promise((resolve) => { state.resolve = resolve; });
+    active = state;
+
+    const complete = () => {
+      if (state.done) return;
+      state.done = true;
+      if (active === state) active = null;
+      state.resolve?.();
+      if (!state.cancelled && typeof request.onComplete === "function") {
+        request.onComplete();
+      }
+      drainQueue();
+    };
+
+    originalPlaySequence(
+      request.ids,
+      request.seqGapMs,
+      request.startDelayMs,
+      complete,
+    );
+  }
+
+  function enqueueSequence(ids, seqGapMs, startDelayMs, onComplete) {
+    const request = {
+      ids: Array.isArray(ids) ? ids.slice() : [],
+      seqGapMs,
+      startDelayMs,
+      onComplete,
+    };
+
+    // A sequence requested while another sequence is speaking belongs behind
+    // the current one. This is especially important for pairScene: the child
+    // can find the next boat/cloud/bubble pair before the previous praise has
+    // finished. Previously that started a second cheer chain immediately.
+    if (active) {
+      queue.push(request);
+      return active;
+    }
+
+    startSequence(request);
+    return active;
+  }
+
+  api.playSequence = function serializedPlaySequence(ids, seqGapMs = 90, startDelayMs = 0, onComplete) {
+    if (window.__skipTimers) {
+      // Keep verifier/headless behavior synchronous.
+      if (typeof onComplete === "function") onComplete();
+      return null;
+    }
+    return enqueueSequence(ids, seqGapMs, startDelayMs, onComplete);
+  };
 
   api.stopAllAudio = function serializedStopAllAudio(...args) {
-    if (activeSequence) {
-      activeSequence.cancelled = true;
-      activeSequence.resolve();
-      activeSequence = null;
+    // Navigation and explicit replacement are cancellation boundaries, not
+    // queue points. Everything belonging to the old scene/answer disappears.
+    if (active) {
+      cancelState(active);
+      active = null;
+    }
+    while (queue.length) {
+      const request = queue.shift();
+      request.cancelled = true;
     }
     for (const waiter of [...waiters]) waiter.cancel();
     waiters.clear();
@@ -133,56 +189,46 @@ function installAudioSequencer() {
 
     const onEnded = () => finish();
 
-    // The exact sequence that owns this reference is authoritative. This is
-    // the critical case for L3-L8: roundScene calls playSequence(cheer) and
-    // immediately calls playAfter(lastCheer, expression). We wait for the
-    // sequence completion callback, never for a stale ref.ended flag.
-    if (state && !state.cancelled && !state.done && state.lastId === (ref?.dataset?.cue || null)) {
+    // Best case: the reference is the last cue of the exact active sequence.
+    // Sequence completion is authoritative and avoids stale ended/paused
+    // values from a previous reuse of the same Audio element.
+    if (state && active === state && !state.cancelled && !state.done && state.lastId === ref?.dataset?.cue) {
       state.promise.then(() => {
         if (!settled && !state.cancelled) finish();
       });
-      // A sequence can complete while this waiter is being installed. The
-      // promise above handles that case deterministically.
       return waiter;
     }
 
-    if (!ref || ref.ended) {
+    // If it is already genuinely ended, no event is coming; apply only the
+    // requested gap. Never treat paused as ended — paused may mean another
+    // sequence is queued or the element was interrupted.
+    if (ref?.ended) {
       finish();
       return waiter;
     }
 
-    ref.addEventListener("ended", onEnded, { once: true });
+    if (ref) ref.addEventListener("ended", onEnded, { once: true });
 
-    // WebKit occasionally misses ended. Poll currentTime instead of guessing
-    // from duration. This cannot fire early because currentTime is required
-    // to reach the actual media duration. If the media is paused/stopped by
-    // stopAllAudio, the waiter is cancelled and never starts stale audio.
+    // WebKit can miss ended. currentTime reaching duration is a conservative
+    // fallback; a fixed duration estimate is deliberately NOT used.
     pollId = setInterval(() => {
       if (settled) return;
-      const d = Number.isFinite(ref.duration) ? ref.duration : 0;
-      if (ref.ended || (d > 0 && ref.currentTime >= d - 0.05)) finish();
+      const d = Number.isFinite(ref?.duration) ? ref.duration : 0;
+      if (ref?.ended || (d > 0 && ref.currentTime >= d - 0.05)) finish();
     }, 50);
 
-    // Absolute guard only prevents a permanently broken media element from
-    // hanging forever. It intentionally does NOT start the next cue. This is
-    // different from the old duration+2500ms fallback, which could overlap.
-    timeoutId = setTimeout(() => {
-      waiter.cancel();
-    }, 60000);
-
+    // Safety only: never starts the next cue. It prevents a permanently
+    // broken media element from keeping a waiter alive forever.
+    timeoutId = setTimeout(() => waiter.cancel(), 60000);
     return waiter;
   }
 
   api.playAfter = function serializedPlayAfter(referenceId, ids, options = {}, onComplete) {
     const ref = api.audio?.[referenceId];
-    const state = activeSequence;
     const gapMs = Number.isFinite(options.gapMs) ? options.gapMs : 1000;
     const seqGapMs = Number.isFinite(options.seqGapMs) ? options.seqGapMs : 90;
 
     const startNext = () => {
-      // Never call main.js's old playAfter(). It contains the stale ended
-      // shortcut and duration-based fallback that caused the overlap. Start
-      // the next sequence directly after the verified reference completion.
       api.playSequence(ids, seqGapMs, gapMs, onComplete);
     };
 
@@ -192,29 +238,35 @@ function installAudioSequencer() {
     }
 
     if (!ref) {
-      // Missing reference: preserve the old safe behaviour, but route through
-      // the new serialized scheduler. There is no reference to overlap.
+      // No reference means there is nothing to overlap. Keep the caller's
+      // requested gap, but still enter the single scheduler.
       api.playSequence(ids, seqGapMs, gapMs, onComplete);
       return;
     }
 
-    // Exact current sequence match. We identify the sequence by its last cue
-    // and the Audio element's dataset cue, avoiding any dependence on ended /
-    // paused state immediately after play().
-    if (state && !state.cancelled && !state.done && state.lastId === referenceId) {
-      waitForReference(ref, state, startNext);
+    // The reference is the current sequence's final cue. Wait for the exact
+    // sequence completion rather than trusting ref.ended immediately after a
+    // new play() of the same element.
+    if (active && !active.cancelled && !active.done && active.lastId === referenceId) {
+      waitForReference(ref, active, startNext);
       return;
     }
 
-    // Reference already ended: it is safe to apply only the requested gap.
     if (ref.ended) {
       api.playSequence(ids, seqGapMs, gapMs, onComplete);
       return;
     }
 
-    // Reference is currently playing but not owned by a tracked sequence.
+    // Reference is playing outside a tracked sequence. Wait for its real end.
     waitForReference(ref, null, startNext);
   };
+
+  api.audioSchedulerState = () => ({
+    activeGeneration: active?.generation ?? null,
+    activeLastId: active?.lastId ?? null,
+    queuedSequences: queue.length,
+    activeWaiters: waiters.size,
+  });
 
   return true;
 }
