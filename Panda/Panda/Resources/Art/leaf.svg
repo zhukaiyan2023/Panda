@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <title>Bamboo Leaf</title>
+  <desc>A single lanceolate bamboo leaf, pointed at both ends, with central vein.</desc>
+
+  <!-- Leaf body: long pointed lanceolate shape -->
+  <path d="M 10 108 Q 18 64 56 32 Q 96 12 118 18 Q 114 60 80 96 Q 38 116 10 108 Z"
+        fill="#6cc28a" stroke="#3d3652" stroke-width="4" stroke-linejoin="round"/>
+
+  <!-- Central vein -->
+  <path d="M 16 104 Q 56 70 114 22" fill="none" stroke="#3d3652" stroke-width="3" stroke-linecap="round"/>
+
+  <!-- Side veins (diagonal) -->
+  <path d="M 34 100 Q 50 88 64 70" fill="none" stroke="#3d3652" stroke-width="2" stroke-linecap="round"/>
+  <path d="M 52 102 Q 70 94 86 78" fill="none" stroke="#3d3652" stroke-width="2" stroke-linecap="round"/>
+  <path d="M 30 86 Q 44 72 58 50" fill="none" stroke="#3d3652" stroke-width="2" stroke-linecap="round"/>
+  <path d="M 56 80 Q 78 60 96 38" fill="none" stroke="#3d3652" stroke-width="2" stroke-linecap="round"/>
+
+  <!-- Highlight along the leaf -->
+  <path d="M 28 90 Q 60 60 100 30" fill="none" stroke="#fffaf0" stroke-width="2" opacity="0.55"/>
+</svg>

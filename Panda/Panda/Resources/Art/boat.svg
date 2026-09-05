@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="200" viewBox="0 0 256 200">
+  <title>Wooden Rowboat (short)</title>
+  <desc>Shortened boat: lower mast, no oversized water ripples — leaves more vertical breathing room in the 3x2 grid.</desc>
+
+  <!-- Mast (vertical pole) -->
+  <line x1="128" y1="28" x2="128" y2="130" stroke="#c9531c" stroke-width="6" stroke-linecap="round"/>
+
+  <!-- Small triangular flag on top of mast -->
+  <path d="M 128 28 L 168 40 L 128 54 Z" fill="#FF8A3D" stroke="#c9531c" stroke-width="3" stroke-linejoin="round"/>
+
+  <!-- White sail (triangle) -->
+  <path d="M 128 50 L 128 124 L 184 124 Z" fill="#fffaf0" stroke="#c9531c" stroke-width="4" stroke-linejoin="round"/>
+
+  <!-- Sail crease for character -->
+  <path d="M 128 64 L 128 118" fill="none" stroke="#c9531c" stroke-width="2" opacity="0.4" stroke-linecap="round"/>
+
+  <!-- Hull (rounded brown) -->
+  <path d="M 36 124 Q 44 120 56 124 L 200 124 Q 212 120 220 124 Q 220 162 188 174 Q 168 180 128 180 Q 88 180 68 174 Q 36 162 36 124 Z"
+        fill="#8B5A2B" stroke="#c9531c" stroke-width="4" stroke-linejoin="round"/>
+
+  <!-- Hull top edge plank -->
+  <path d="M 36 124 Q 128 116 220 124" fill="none" stroke="#c9531c" stroke-width="3" stroke-linecap="round"/>
+
+  <!-- Wood plank lines -->
+  <path d="M 70 142 Q 70 152 72 160" fill="none" stroke="#c9531c" stroke-width="2" stroke-linecap="round" opacity="0.6"/>
+  <path d="M 128 144 Q 128 154 128 164" fill="none" stroke="#c9531c" stroke-width="2" stroke-linecap="round" opacity="0.6"/>
+  <path d="M 186 142 Q 186 152 184 160" fill="none" stroke="#c9531c" stroke-width="2" stroke-linecap="round" opacity="0.6"/>
+
+  <!-- Inner highlight on hull -->
+  <path d="M 60 134 Q 100 130 196 134" fill="none" stroke="#fffaf0" stroke-width="3" stroke-linecap="round" opacity="0.45"/>
+
+  <!-- Water ripples below (small) -->
+  <path d="M 50 192 Q 90 188 128 192 Q 166 196 206 192" fill="none" stroke="#c9531c" stroke-width="2.5" stroke-linecap="round" opacity="0.7"/>
+</svg>

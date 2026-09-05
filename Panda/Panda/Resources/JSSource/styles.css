@@ -1,0 +1,158 @@
+:root {
+  --c-paper: #fff1dc;
+  --c-paper-dark: #ffe6c2;
+  --c-ink: #3d3652;
+  --c-orange: #ff8a3d;
+  --c-orange-deep: #d96a1f;
+  --c-frame-empty: #f0ede6;
+  --c-frame-fill: #ff8a3d;
+  --c-success: #6cc28a;
+  --c-danger: #e16b6b;
+  --c-pink: #ff8fab;
+  --c-yellow: #cda528;
+  --c-blue: #7cc7ff;
+  --c-purple: #9b8cff;
+}
+
+* { box-sizing: border-box; }
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--c-paper);
+  color: var(--c-ink);
+  font-family: "Arial Rounded MT Bold", "Trebuchet MS", system-ui, sans-serif;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none;
+  user-select: none;
+  touch-action: manipulation;
+}
+
+#root {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  place-items: center;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  background: linear-gradient(160deg, #dff7ff, #fff1f7 48%, #fff8d9);
+}
+
+/*
+ * Global game viewport.
+ *
+ * The game keeps a 1366x1024 (4:3) logical coordinate system so existing
+ * scenes, sprites, text and hit areas do not need to be rewritten. The CSS
+ * canvas is scaled uniformly to the actual visual viewport instead of being
+ * kept at a fixed 1366x1024 CSS size.
+ *
+ * This is the key fix for 11-inch iPad landscape: an iPad viewport is roughly
+ * 1194x834 CSS px, so the full 4:3 game becomes about 1112x834 and nothing is
+ * clipped. The same rule also handles Split View and Stage Manager windows.
+ */
+#game {
+  display: block;
+  width: min(1366px, 100vw, calc(100dvh * 4 / 3));
+  height: min(1024px, 100dvh, calc(100vw * 3 / 4));
+  aspect-ratio: 4 / 3;
+  max-width: 100%;
+  max-height: 100%;
+  flex: 0 0 auto;
+  background: var(--c-paper);
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Older iPad Safari fallback. */
+@supports not (height: 100dvh) {
+  #game {
+    width: min(1366px, 100vw, calc(100vh * 4 / 3));
+    height: min(1024px, 100vh, calc(100vw * 3 / 4));
+  }
+}
+
+#rotate-hint {
+  position: fixed;
+  inset: 0;
+  background: rgba(20, 12, 36, 0.72);
+  display: grid;
+  place-items: center;
+  z-index: 10;
+  color: #fff;
+  text-align: center;
+  padding: 24px;
+  padding-top: max(24px, env(safe-area-inset-top));
+  padding-right: max(24px, env(safe-area-inset-right));
+  padding-bottom: max(24px, env(safe-area-inset-bottom));
+  padding-left: max(24px, env(safe-area-inset-left));
+}
+
+#rotate-hint[hidden] { display: none; }
+
+.rotate-card {
+  background: #fff;
+  color: var(--c-ink);
+  border-radius: 28px;
+  padding: 28px 36px;
+  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.35);
+  max-width: min(90vw, 520px);
+  max-height: 90vh;
+  overflow: auto;
+}
+
+.rotate-icon {
+  font-size: 64px;
+  line-height: 1;
+  color: var(--c-orange);
+  animation: rotate-spin 2.2s linear infinite;
+}
+
+.rotate-title {
+  font-size: 28px;
+  font-weight: 1000;
+  margin-top: 8px;
+}
+
+.rotate-sub {
+  font-size: 18px;
+  opacity: 0.7;
+  margin-top: 4px;
+}
+
+.rotate-btn {
+  display: inline-block;
+  margin-top: 20px;
+  padding: 14px 28px;
+  border: none;
+  border-radius: 999px;
+  background: var(--c-orange);
+  color: #fff;
+  font-size: 22px;
+  font-weight: 1000;
+  font-family: inherit;
+  cursor: pointer;
+  box-shadow: 0 6px 18px rgba(217, 106, 31, 0.35);
+  transition: transform 0.15s ease, background 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.rotate-btn:hover { background: var(--c-orange-deep); }
+.rotate-btn:active { transform: scale(0.96); }
+
+@keyframes rotate-spin {
+  0%   { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Landscape tablets, including 11-inch iPad. */
+@media (orientation: landscape) and (pointer: coarse) {
+  #root { place-items: center; }
+}

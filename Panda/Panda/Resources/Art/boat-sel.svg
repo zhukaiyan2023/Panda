@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="200" viewBox="0 0 256 200">
+  <title>Wooden Rowboat (selected)</title>
+  <desc>Selected state: golden sail, golden flag, small heart on the hull. The kid sees "this one is picked" without the boat getting taller.</desc>
+
+  <!-- Mast (vertical pole) -->
+  <line x1="128" y1="28" x2="128" y2="130" stroke="#c9531c" stroke-width="6" stroke-linecap="round"/>
+
+  <!-- Bigger golden flag (selected) -->
+  <path d="M 128 28 L 178 42 L 128 60 Z" fill="#FFD166" stroke="#c9531c" stroke-width="3" stroke-linejoin="round"/>
+
+  <!-- Golden sail (triangle) — instead of white, so the kid sees the picked boat at a glance -->
+  <path d="M 128 50 L 128 124 L 184 124 Z" fill="#FFD166" stroke="#c9531c" stroke-width="4" stroke-linejoin="round"/>
+
+  <!-- Sail crease for character -->
+  <path d="M 128 64 L 128 118" fill="none" stroke="#c9531c" stroke-width="2" opacity="0.5" stroke-linecap="round"/>
+
+  <!-- Hull (rounded brown, slightly warmer) -->
+  <path d="M 36 124 Q 44 120 56 124 L 200 124 Q 212 120 220 124 Q 220 162 188 174 Q 168 180 128 180 Q 88 180 68 174 Q 36 162 36 124 Z"
+        fill="#9B6635" stroke="#c9531c" stroke-width="4" stroke-linejoin="round"/>
+
+  <!-- Hull top edge plank -->
+  <path d="M 36 124 Q 128 116 220 124" fill="none" stroke="#c9531c" stroke-width="3" stroke-linecap="round"/>
+
+  <!-- Heart on the hull (selected marker) — drawn between the sail and
+       the wood plank lines so it sits in the empty space, not on the
+       mast. The heart is the "this one is picked" indicator the kid
+       sees, instead of the pulsing orange ring. 2026-08-12 follow-up:
+       made bigger (~50 wide vs ~28 before) and bumped to a brighter
+       pink so it reads at the smaller (200-tall) sprite size. -->
+  <path d="M 128 138
+           C 128 132, 120 130, 114 130
+           C 104 130, 98 138, 98 146
+           C 98 158, 128 172, 128 172
+           C 128 172, 158 158, 158 146
+           C 158 138, 152 130, 142 130
+           C 136 130, 128 132, 128 138 Z"
+        fill="#FF5A8A" stroke="#c9531c" stroke-width="2.5" stroke-linejoin="round"/>
+  <!-- Tiny white sparkle on the heart, so it has a "shiny" highlight -->
+  <circle cx="112" cy="142" r="3" fill="#FFFFFF" opacity="0.85"/>
+
+  <!-- Wood plank lines -->
+  <path d="M 70 158 Q 70 166 72 172" fill="none" stroke="#c9531c" stroke-width="2" stroke-linecap="round" opacity="0.6"/>
+  <path d="M 128 160 Q 128 168 128 174" fill="none" stroke="#c9531c" stroke-width="2" stroke-linecap="round" opacity="0.6"/>
+  <path d="M 186 158 Q 186 166 184 172" fill="none" stroke="#c9531c" stroke-width="2" stroke-linecap="round" opacity="0.6"/>
+
+  <!-- Inner highlight on hull -->
+  <path d="M 60 134 Q 100 130 196 134" fill="none" stroke="#fffaf0" stroke-width="3" stroke-linecap="round" opacity="0.45"/>
+
+  <!-- Water ripples below (small) -->
+  <path d="M 50 192 Q 90 188 128 192 Q 166 196 206 192" fill="none" stroke="#c9531c" stroke-width="2.5" stroke-linecap="round" opacity="0.7"/>
+</svg>

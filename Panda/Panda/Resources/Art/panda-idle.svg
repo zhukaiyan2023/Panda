@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <title>Panda - Idle</title>
+  <desc>Front-facing friendly panda, head and upper body, smiling neutrally.</desc>
+
+  <!-- Body (upper) -->
+  <path d="M 60 232 Q 50 210 56 188 Q 64 168 84 164 L 172 164 Q 192 168 200 188 Q 206 210 196 232 Z"
+        fill="#fffaf0" stroke="#3d3652" stroke-width="4" stroke-linejoin="round"/>
+
+  <!-- Arms (black patches hugging the body) -->
+  <path d="M 64 184 Q 48 188 46 208 Q 46 226 60 232 Q 74 232 78 218 Q 80 200 78 188 Z"
+        fill="#3d3652" stroke="#3d3652" stroke-width="4" stroke-linejoin="round"/>
+  <path d="M 192 184 Q 208 188 210 208 Q 210 226 196 232 Q 182 232 178 218 Q 176 200 178 188 Z"
+        fill="#3d3652" stroke="#3d3652" stroke-width="4" stroke-linejoin="round"/>
+
+  <!-- Ears (behind head) -->
+  <circle cx="74" cy="64" r="22" fill="#3d3652" stroke="#3d3652" stroke-width="4"/>
+  <circle cx="182" cy="64" r="22" fill="#3d3652" stroke="#3d3652" stroke-width="4"/>
+
+  <!-- Inner ear pink -->
+  <circle cx="74" cy="66" r="9" fill="#ff8fab"/>
+  <circle cx="182" cy="66" r="9" fill="#ff8fab"/>
+
+  <!-- Head -->
+  <ellipse cx="128" cy="118" rx="76" ry="72" fill="#fffaf0" stroke="#3d3652" stroke-width="4"/>
+
+  <!-- Eye patches (signature panda) -->
+  <ellipse cx="98" cy="112" rx="20" ry="26" fill="#3d3652" transform="rotate(-18 98 112)"/>
+  <ellipse cx="158" cy="112" rx="20" ry="26" fill="#3d3652" transform="rotate(18 158 112)"/>
+
+  <!-- Eye whites (slightly larger for a brighter friendly gaze) -->
+  <circle cx="98" cy="112" r="11" fill="#fffaf0"/>
+  <circle cx="158" cy="112" r="11" fill="#fffaf0"/>
+
+  <!-- Pupils -->
+  <circle cx="100" cy="114" r="5.5" fill="#3d3652"/>
+  <circle cx="160" cy="114" r="5.5" fill="#3d3652"/>
+
+  <!-- Eye highlights -->
+  <circle cx="102" cy="111" r="2" fill="#fffaf0"/>
+  <circle cx="162" cy="111" r="2" fill="#fffaf0"/>
+
+  <!-- Cheeks (soft pink) -->
+  <circle cx="76" cy="142" r="7" fill="#ff8fab" opacity="0.85"/>
+  <circle cx="180" cy="142" r="7" fill="#ff8fab" opacity="0.85"/>
+
+  <!-- Nose -->
+  <path d="M 122 138 Q 128 144 134 138 Q 132 146 128 148 Q 124 146 122 138 Z"
+        fill="#3d3652" stroke="#3d3652" stroke-width="2" stroke-linejoin="round"/>
+
+  <!-- Mouth (gentle smile) -->
+  <path d="M 128 148 L 128 156" fill="none" stroke="#3d3652" stroke-width="3" stroke-linecap="round"/>
+  <path d="M 110 160 Q 128 172 146 160" fill="none" stroke="#3d3652" stroke-width="3.5" stroke-linecap="round"/>
+</svg>

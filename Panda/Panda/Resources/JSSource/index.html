@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport"
+        content="width=device-width, initial-scale=1.0, maximum-scale=1.0,
+                 user-scalable=no, viewport-fit=cover" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="format-detection" content="telephone=no" />
+  <meta name="theme-color" content="#FF8A3D" />
+  <title>熊猫凑十乐园</title>
+  <link rel="icon" type="image/svg+xml" href="assets/art/star.svg" />
+  <link rel="apple-touch-icon" href="assets/art/panda-idle.svg" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="root">
+    <canvas id="game" aria-label="熊猫学数学"></canvas>
+    <div id="rotate-hint" role="status" aria-live="polite" hidden>
+      <div class="rotate-card">
+        <div class="rotate-icon" aria-hidden="true">⟳</div>
+        <div class="rotate-title">请把设备转过来</div>
+        <div class="rotate-sub">本游戏需要横屏玩哦</div>
+        <button id="rotate-btn" class="rotate-btn" type="button">
+          点击进入横屏
+        </button>
+      </div>
+    </div>
+  </div>
+  <script type="module" src="assets/vendor/kaplay.mjs"></script>
+  <script type="module" src="main.js?v=20260812"></script>
+</body>
+</html>

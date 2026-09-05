@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="180" height="180" viewBox="0 0 180 180">
+  <title>Bonus Bubble</title>
+  <desc>A round orange bonus bubble with radial gradient and white highlight.</desc>
+
+  <defs>
+    <radialGradient id="bubbleGradient" cx="50%" cy="38%" r="65%">
+      <stop offset="0%" stop-color="#FFB347"/>
+      <stop offset="100%" stop-color="#FF8A3D"/>
+    </radialGradient>
+  </defs>
+
+  <!-- Bubble body with radial gradient -->
+  <circle cx="90" cy="90" r="76" fill="url(#bubbleGradient)" stroke="#c9531c" stroke-width="4"/>
+
+  <!-- White inner highlight at top-left -->
+  <ellipse cx="62" cy="56" rx="22" ry="16" fill="#fffaf0" opacity="0.7"/>
+  <circle cx="54" cy="50" r="6" fill="#fffaf0" opacity="0.9"/>
+
+  <!-- Soft secondary glow on bottom-right -->
+  <ellipse cx="120" cy="130" rx="14" ry="8" fill="#fffaf0" opacity="0.18"/>
+</svg>

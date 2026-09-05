@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <title>Friendly Hugging Cloud</title>
+  <desc>A fluffy cartoon cloud made of overlapping circles with a tiny smiley face, hugging pose.</desc>
+
+  <!-- Cloud body: overlapping circles to make a fluffy shape -->
+  <circle cx="80"  cy="140" r="42" fill="#E0F2FF" stroke="#4FB7F0" stroke-width="4"/>
+  <circle cx="128" cy="108" r="54" fill="#E0F2FF" stroke="#4FB7F0" stroke-width="4"/>
+  <circle cx="184" cy="140" r="44" fill="#E0F2FF" stroke="#4FB7F0" stroke-width="4"/>
+  <circle cx="106" cy="158" r="38" fill="#E0F2FF" stroke="#4FB7F0" stroke-width="4"/>
+  <circle cx="156" cy="160" r="40" fill="#E0F2FF" stroke="#4FB7F0" stroke-width="4"/>
+
+  <!-- Bottom rounded base (smooths the bottom) -->
+  <path d="M 44 156 Q 50 196 92 200 Q 128 208 164 200 Q 206 196 212 156"
+        fill="#E0F2FF" stroke="#4FB7F0" stroke-width="4" stroke-linejoin="round" stroke-linecap="round"/>
+
+  <!-- Hugging arms (curved bumps wrapping under, suggesting embrace) -->
+  <path d="M 60 188 Q 40 198 50 220 Q 78 224 92 208" fill="#E0F2FF" stroke="#4FB7F0" stroke-width="4" stroke-linejoin="round"/>
+  <path d="M 196 188 Q 216 198 206 220 Q 178 224 164 208" fill="#E0F2FF" stroke="#4FB7F0" stroke-width="4" stroke-linejoin="round"/>
+
+  <!-- Highlight on cloud (top-left soft sheen) -->
+  <ellipse cx="100" cy="80" rx="22" ry="10" fill="#fffaf0" opacity="0.6"/>
+  <circle cx="68" cy="116" r="6" fill="#fffaf0" opacity="0.55"/>
+
+  <!-- Smiley face: eyes -->
+  <circle cx="108" cy="138" r="6" fill="#2a7eb8"/>
+  <circle cx="152" cy="138" r="6" fill="#2a7eb8"/>
+
+  <!-- Eye sparkles -->
+  <circle cx="110" cy="136" r="1.6" fill="#fffaf0"/>
+  <circle cx="154" cy="136" r="1.6" fill="#fffaf0"/>
+
+  <!-- Mouth (small curved smile) -->
+  <path d="M 118 158 Q 130 170 142 158" fill="none" stroke="#2a7eb8" stroke-width="4" stroke-linecap="round"/>
+
+  <!-- Cheek blush -->
+  <circle cx="92" cy="158" r="6" fill="#FF8FB3" opacity="0.55"/>
+  <circle cx="168" cy="158" r="6" fill="#FF8FB3" opacity="0.55"/>
+</svg>

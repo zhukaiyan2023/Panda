@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <title>Badge 1</title>
+  <desc>Circular badge with numeral 1, blue accent.</desc>
+
+  <!-- Outer dark ring -->
+  <circle cx="128" cy="128" r="104" fill="#3d3652"/>
+
+  <!-- Inner color disc -->
+  <circle cx="128" cy="128" r="92" fill="#7cc7ff" stroke="#fffaf0" stroke-width="6"/>
+
+  <!-- Glossy highlight -->
+  <path d="M 60 88 Q 92 60 156 60" fill="none" stroke="#fffaf0" stroke-width="10" stroke-linecap="round" opacity="0.6"/>
+
+  <!-- Numeral 1 (vector path) -->
+  <path d="M 96 96 L 124 78 L 124 188 M 100 188 L 148 188"
+        fill="none" stroke="#fffaf0" stroke-width="18"
+        stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

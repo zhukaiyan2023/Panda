@@ -1,0 +1,33 @@
+# Xcode
+*.xcuserdata/
+*.xcuserstate
+*.xcscmblueprint
+*.xccheckout
+DerivedData/
+build/
+.build/
+xcuserdata/
+
+# CocoaPods (not used, but standard)
+Pods/
+
+# Swift Package Manager
+.build/
+Packages/
+Package.resolved
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Editor
+.vscode/
+.idea/
+*.swp
+
+# Audio placeholder noise (intentionally kept, but skip macOS noise)
+._*
+
+# Logs
+*.log

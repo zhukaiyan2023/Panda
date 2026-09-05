@@ -1,0 +1,28 @@
+{
+  "name": "panda-math-adventure",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node tools/dev-server.mjs",
+    "smoke": "node tools/smoke.cjs",
+    "verify:math": "node tools/verify-math.mjs",
+    "verify:games": "node tools/verify-games.mjs",
+    "verify:whack": "node tools/verify-whack-game.mjs",
+    "verify:feed:full": "node tools/verify-feed-multiround.mjs",
+    "verify:feed:rounds": "node tools/verify-feed-rounds.mjs",
+    "verify:audio": "node tools/verify-audio-timing.mjs",
+    "verify:l1:mt": "node tools/verify-l1-mt-audio.mjs",
+    "verify:subtraction-pools": "node tools/verify-subtraction-pools.mjs",
+    "placeholders": "node tools/make-placeholders.js",
+    "audio:build": "node tools/build-audio-tencent.mjs",
+    "test:visual": "playwright test",
+    "deploy": "wrangler deploy",
+    "preview": "wrangler dev"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.47.0",
+    "edge-tts": "^1.0.1",
+    "wrangler": "^4.120.0"
+  }
+}
