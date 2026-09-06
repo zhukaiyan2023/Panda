@@ -144,8 +144,9 @@ private struct TeenPlusTeenStepView: View {
     }
 
     private var currentSplit2Slots: [MathSlot] {
-        if step <= 2 { return split2Slots("□", "□", "□") }
-        return split2Slots("10", "\(onesB)", "□")
+        step <= 2
+            ? split2Slots("□", "□", "□")
+            : split2Slots("10", "\(onesB)", "□")
     }
 
     private var currentCombineOnesSlots: [MathSlot] {
@@ -158,6 +159,26 @@ private struct TeenPlusTeenStepView: View {
         step <= 4
             ? combineTensSlots("□", "□")
             : combineTensSlots("20", "□")
+    }
+
+    /// Align the result column of each lower row to the true midpoint of
+    /// the two source columns above it. This is calculated from the local
+    /// slot grid, not from a fixed magic offset, so the geometry remains
+    /// symmetric whenever the row size or iPad width changes.
+    private var combineOnesOffset: CGFloat {
+        guard split2SlotCenters.indices.contains(2),
+              split2SlotCenters.indices.contains(6),
+              combineOnesSlotCenters.indices.contains(4) else { return 0 }
+        let sourceMid = (split2SlotCenters[2].x + split2SlotCenters[6].x) / 2
+        return sourceMid - combineOnesSlotCenters[4].x
+    }
+
+    private var combineTensOffset: CGFloat {
+        guard combineOnesSlotCenters.indices.contains(0),
+              combineOnesSlotCenters.indices.contains(2),
+              combineTensSlotCenters.indices.contains(0) else { return 0 }
+        let sourceMid = (combineOnesSlotCenters[0].x + combineOnesSlotCenters[2].x) / 2
+        return sourceMid - combineTensSlotCenters[0].x
     }
 
     var body: some View {
@@ -185,9 +206,7 @@ private struct TeenPlusTeenStepView: View {
 
                 if showCombineOnesRow {
                     row(currentCombineOnesSlots, size: combineSize, frame: $combineOnesRowFrame, centers: $combineOnesSlotCenters)
-                        // Position the `10 + 10 + sum` row so its SUM column
-                        // sits exactly at the midpoint of onesA/onesB above.
-                        .offset(x: -72)
+                        .offset(x: combineOnesOffset)
                 } else {
                     Color.clear.frame(height: combineSize + 24)
                 }
@@ -196,9 +215,7 @@ private struct TeenPlusTeenStepView: View {
 
                 if showCombineTensRow {
                     row(currentCombineTensSlots, size: combineSize, frame: $combineTensRowFrame, centers: $combineTensSlotCenters)
-                        // Align the `20` column with the midpoint of the two
-                        // ten-columns above after the combine-ones row shift.
-                        .offset(x: -120)
+                        .offset(x: combineTensOffset)
                 } else {
                     Color.clear.frame(height: combineSize + 24)
                 }
@@ -323,20 +340,20 @@ private struct TeenPlusTeenStepView: View {
         guard showCombineOnesRow,
               split2SlotCenters.indices.contains(6),
               combineOnesSlotCenters.indices.contains(4) else { return nil }
-        let a = edgePoint(split2SlotCenters, split2RowFrame, 2, splitSize, .bottom)
-        let b = edgePoint(split2SlotCenters, split2RowFrame, 6, splitSize, .bottom)
+        let sourceA = edgePoint(split2SlotCenters, split2RowFrame, 2, splitSize, .bottom)
+        let sourceB = edgePoint(split2SlotCenters, split2RowFrame, 6, splitSize, .bottom)
         let target = edgePoint(combineOnesSlotCenters, combineOnesRowFrame, 4, combineSize, .top)
-        return (a, b, target)
+        return (sourceA, sourceB, target)
     }
 
     private var combineTensV: (sourceA: CGPoint, sourceB: CGPoint, target: CGPoint)? {
         guard showCombineTensRow,
               combineOnesSlotCenters.indices.contains(2),
               combineTensSlotCenters.indices.contains(0) else { return nil }
-        let a = edgePoint(combineOnesSlotCenters, combineOnesRowFrame, 0, combineSize, .bottom)
-        let b = edgePoint(combineOnesSlotCenters, combineOnesRowFrame, 2, combineSize, .bottom)
+        let sourceA = edgePoint(combineOnesSlotCenters, combineOnesRowFrame, 0, combineSize, .bottom)
+        let sourceB = edgePoint(combineOnesSlotCenters, combineOnesRowFrame, 2, combineSize, .bottom)
         let target = edgePoint(combineTensSlotCenters, combineTensRowFrame, 0, combineSize, .top)
-        return (a, b, target)
+        return (sourceA, sourceB, target)
     }
 
     private var l9Connector: (source: CGPoint, target: CGPoint)? {
@@ -344,7 +361,7 @@ private struct TeenPlusTeenStepView: View {
               combineOnesSlotCenters.indices.contains(4),
               combineTensSlotCenters.indices.contains(2) else { return nil }
         let source = edgePoint(combineOnesSlotCenters, combineOnesRowFrame, 4, combineSize, .bottom)
-        let target = edgePoint(combineTensSlotCenters, combineTensRowFrame, 2, combineSize, .top, 0.5)
+        let target = edgePoint(combineTensSlotCenters, combineTensRowFrame, 2, combineSize, .top)
         return (source, target)
     }
 
