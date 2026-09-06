@@ -1,26 +1,14 @@
 import SwiftUI
 
-// MARK: - Shared connector geometry
+// MARK: - Connector geometry
 
-// The level views report slot centres from MathExpressionWithSlots.
-// Their row frames include vertical padding, so the old connector
-// implementation started/ended the strokes too close to the row's
-// middle. That made the lines visibly cross the digits and boxes.
-// Normalize the two ends here instead of duplicating fragile offsets
-// in every level.
-private enum BalancedConnectorGeometry {
-    static let sourceInset: CGFloat = 6
-    static let targetInset: CGFloat = 12
-    static let bendRatio: CGFloat = 0.42
-    static let targetClearance: CGFloat = 4
-
-    static func source(_ p: CGPoint) -> CGPoint {
-        CGPoint(x: p.x, y: p.y + sourceInset)
-    }
-
-    static func target(_ p: CGPoint) -> CGPoint {
-        CGPoint(x: p.x, y: p.y + targetInset)
-    }
+/// The level views already provide connector endpoints at the visual
+/// bottom/top edges of the slots. Do NOT add another inset here.
+/// Applying a second offset was causing the lines to float away from
+/// the boxes and digits.
+private enum ConnectorGeometry {
+    static let bendRatio: CGFloat = 0.46
+    static let targetClearance: CGFloat = 2
 
     static func stroke(_ context: GraphicsContext,
                        _ points: [CGPoint],
@@ -30,9 +18,7 @@ private enum BalancedConnectorGeometry {
         guard points.count > 1 else { return }
         var path = Path()
         path.move(to: points[0])
-        for point in points.dropFirst() {
-            path.addLine(to: point)
-        }
+        for p in points.dropFirst() { path.addLine(to: p) }
         context.stroke(
             path,
             with: .color(color.opacity(opacity)),
@@ -47,13 +33,18 @@ private enum BalancedConnectorGeometry {
 
 // MARK: - One source -> two destinations
 
-/// One source splits into two destinations.
+/// A single source splits into two targets.
 ///
-/// The important rule is that the TWO COLORED HORIZONTAL ARMS have
-/// exactly the same length. The branch point is therefore the midpoint
-/// of the two destination x coordinates. The source first drops
-/// vertically to that branch point; a short neutral trunk keeps the
-/// visual hierarchy clear without introducing a diagonal line.
+/// Geometry is deliberately canonical:
+///   source -> vertical stem -> common branch point
+///                         /                  \
+///                 equal horizontal arms
+///                       |                       |
+///                    target A                target B
+///
+/// The branch X is the midpoint of the two target X coordinates, so the
+/// two horizontal arms are exactly equal in length. Both vertical drops
+/// use the same target Y, so the two lower legs are equal as well.
 public struct BalancedSplitConnector: View {
     public let source: CGPoint
     public let destA: CGPoint
@@ -84,35 +75,35 @@ public struct BalancedSplitConnector: View {
 
     public var body: some View {
         Canvas { context, _ in
-            let from = BalancedConnectorGeometry.source(source)
-            let rawA = BalancedConnectorGeometry.target(destA)
-            let rawB = BalancedConnectorGeometry.target(destB)
-
-            let leftFirst = rawA.x <= rawB.x
-            let left = leftFirst ? rawA : rawB
-            let right = leftFirst ? rawB : rawA
+            let leftFirst = destA.x <= destB.x
+            let left = leftFirst ? destA : destB
+            let right = leftFirst ? destB : destA
             let leftColor = leftFirst ? colorA : colorB
             let rightColor = leftFirst ? colorB : colorA
 
-            let span = min(left.y, right.y) - from.y
+            let targetY = (left.y + right.y) * 0.5
+            let span = targetY - source.y
             guard span > 4 else { return }
 
-            let branchY = from.y + span * BalancedConnectorGeometry.bendRatio
+            let branchY = source.y + span * ConnectorGeometry.bendRatio
             let branchX = (left.x + right.x) * 0.5
             let branch = CGPoint(x: branchX, y: branchY)
-            let finalY = min(left.y, right.y) - BalancedConnectorGeometry.targetClearance
+            let finalY = targetY - ConnectorGeometry.targetClearance
 
-            // Shared source stem.
-            BalancedConnectorGeometry.stroke(
+            // Neutral stem from the source to the common split point.
+            ConnectorGeometry.stroke(
                 context,
-                [from, CGPoint(x: from.x, y: branchY), branch],
+                [source,
+                 CGPoint(x: source.x, y: branchY),
+                 branch],
                 color: Color(PandaTheme.ink),
                 opacity: 0.42,
                 width: lineThickness
             )
 
-            // Left arm. Horizontal length == right arm length.
-            BalancedConnectorGeometry.stroke(
+            // LEFT branch: horizontal arm and vertical drop have the same
+            // geometry as the RIGHT branch; only X and color differ.
+            ConnectorGeometry.stroke(
                 context,
                 [branch,
                  CGPoint(x: left.x, y: branchY),
@@ -123,8 +114,7 @@ public struct BalancedSplitConnector: View {
                 width: lineThickness
             )
 
-            // Right arm. Horizontal length == left arm length.
-            BalancedConnectorGeometry.stroke(
+            ConnectorGeometry.stroke(
                 context,
                 [branch,
                  CGPoint(x: right.x, y: branchY),
@@ -141,11 +131,9 @@ public struct BalancedSplitConnector: View {
 
 // MARK: - Two sources -> one destination
 
-/// Two sources converge into one destination.
-///
-/// The two colored horizontal arms end at a common midpoint join, so
-/// their horizontal lengths are symmetric. A single neutral trunk then
-/// continues down to the destination.
+/// Two sources converge on a single target using one shared center join.
+/// The colored source arms are symmetric; a neutral trunk carries the
+/// merged result to the target.
 public struct BalancedMergeConnector: View {
     public let anchorTop: CGPoint
     public let anchorMid: CGPoint
@@ -170,41 +158,41 @@ public struct BalancedMergeConnector: View {
 
     public var body: some View {
         Canvas { context, _ in
-            let fromA = BalancedConnectorGeometry.source(anchorTop)
-            let fromB = BalancedConnectorGeometry.source(anchorMid)
-            let target = BalancedConnectorGeometry.target(mergeBox)
-
-            let sourceY = max(fromA.y, fromB.y)
-            let span = target.y - sourceY
+            let sourceY = max(anchorTop.y, anchorMid.y)
+            let span = mergeBox.y - sourceY
             guard span > 4 else { return }
 
-            let joinY = sourceY + span * BalancedConnectorGeometry.bendRatio
-            let joinX = (fromA.x + fromB.x) * 0.5
+            let joinY = sourceY + span * ConnectorGeometry.bendRatio
+            let joinX = (anchorTop.x + anchorMid.x) * 0.5
             let join = CGPoint(x: joinX, y: joinY)
-            let finalY = target.y - BalancedConnectorGeometry.targetClearance
+            let finalY = mergeBox.y - ConnectorGeometry.targetClearance
 
-            BalancedConnectorGeometry.stroke(
+            ConnectorGeometry.stroke(
                 context,
-                [fromA, CGPoint(x: fromA.x, y: joinY), join],
+                [anchorTop,
+                 CGPoint(x: anchorTop.x, y: joinY),
+                 join],
                 color: colorA,
                 opacity: 0.86,
                 width: lineThickness
             )
 
-            BalancedConnectorGeometry.stroke(
+            ConnectorGeometry.stroke(
                 context,
-                [fromB, CGPoint(x: fromB.x, y: joinY), join],
+                [anchorMid,
+                 CGPoint(x: anchorMid.x, y: joinY),
+                 join],
                 color: colorB,
                 opacity: 0.86,
                 width: lineThickness
             )
 
-            BalancedConnectorGeometry.stroke(
+            ConnectorGeometry.stroke(
                 context,
                 [join,
                  CGPoint(x: join.x, y: finalY),
-                 CGPoint(x: target.x, y: finalY),
-                 target],
+                 CGPoint(x: mergeBox.x, y: finalY),
+                 mergeBox],
                 color: Color(PandaTheme.ink),
                 opacity: 0.42,
                 width: lineThickness
@@ -216,57 +204,7 @@ public struct BalancedMergeConnector: View {
 
 // MARK: - One source -> one destination
 
-/// Single elbow connector with a stable bend position.
-public struct BalancedSingleConnector: View {
-    public let from: CGPoint
-    public let to: CGPoint
-    public let color: Color
-    public let lineThickness: CGFloat
-    public let opacity: Double
-
-    public init(from: CGPoint,
-                to: CGPoint,
-                color: Color,
-                lineThickness: CGFloat = 8,
-                opacity: Double = 0.85) {
-        self.from = from
-        self.to = to
-        self.color = color
-        self.lineThickness = lineThickness
-        self.opacity = opacity
-    }
-
-    public var body: some View {
-        Canvas { context, _ in
-            let start = BalancedConnectorGeometry.source(from)
-            let end = BalancedConnectorGeometry.target(to)
-            let span = end.y - start.y
-            guard span > 4 else { return }
-
-            let bendY = start.y + span * BalancedConnectorGeometry.bendRatio
-            let finalY = end.y - BalancedConnectorGeometry.targetClearance
-
-            BalancedConnectorGeometry.stroke(
-                context,
-                [start,
-                 CGPoint(x: start.x, y: bendY),
-                 CGPoint(x: end.x, y: bendY),
-                 CGPoint(x: end.x, y: finalY),
-                 end],
-                color: color,
-                opacity: opacity,
-                width: lineThickness
-            )
-        }
-        .allowsHitTesting(false)
-    }
-}
-
-// MARK: - Fixed horizontal arm connector
-
-/// Used by L7/L8 for the original L3-style polyline.
-/// The principal horizontal arm has a fixed length so sibling arrows
-/// don't become one very long arm and one very short arm.
+/// Stable right-angle connector used by L7/L8.
 public struct BalancedFixedArmConnector: View {
     public let from: CGPoint
     public let to: CGPoint
@@ -291,26 +229,25 @@ public struct BalancedFixedArmConnector: View {
 
     public var body: some View {
         Canvas { context, _ in
-            let start = BalancedConnectorGeometry.source(from)
-            let end = BalancedConnectorGeometry.target(to)
-            let span = end.y - start.y
+            let span = to.y - from.y
             guard span > 4 else { return }
 
-            let bendY = start.y + span * BalancedConnectorGeometry.bendRatio
-            let direction: CGFloat = end.x >= start.x ? 1 : -1
-            let dx = abs(end.x - start.x)
-            let arm = min(armLength, max(24, dx))
-            let bendX = start.x + direction * arm
-            let finalY = end.y - BalancedConnectorGeometry.targetClearance
+            let bendY = from.y + span * ConnectorGeometry.bendRatio
 
-            BalancedConnectorGeometry.stroke(
+            // Use the midpoint as the elbow. This is stable for every
+            // source/target pair and avoids the exaggerated long/short
+            // elbows created by the old fixed-distance implementation.
+            let bendX = (from.x + to.x) * 0.5
+            let finalY = to.y - ConnectorGeometry.targetClearance
+
+            ConnectorGeometry.stroke(
                 context,
-                [start,
-                 CGPoint(x: start.x, y: bendY),
+                [from,
+                 CGPoint(x: from.x, y: bendY),
                  CGPoint(x: bendX, y: bendY),
                  CGPoint(x: bendX, y: finalY),
-                 CGPoint(x: end.x, y: finalY),
-                 end],
+                 CGPoint(x: to.x, y: finalY),
+                 to],
                 color: color,
                 opacity: opacity,
                 width: lineThickness
@@ -363,7 +300,6 @@ public struct BalancedConnectorCollection: View {
                 let segment = segments[index]
                 guard !consumed.contains(segment.id) else { continue }
 
-                // Group segments that converge on the same target.
                 let group = segments.filter {
                     abs($0.to.x - segment.to.x) < 0.5 &&
                     abs($0.to.y - segment.to.y) < 0.5
@@ -372,29 +308,34 @@ public struct BalancedConnectorCollection: View {
                 if group.count >= 2 {
                     for item in group { consumed.insert(item.id) }
 
-                    let correctedSources = group.map { BalancedConnectorGeometry.source($0.from) }
-                    let target = BalancedConnectorGeometry.target(segment.to)
-                    let sourceY = correctedSources.map(\.y).max() ?? target.y
+                    let sourcePoints = group.map { $0.from }
+                    let sourceY = sourcePoints.map(\.y).max() ?? segment.from.y
+                    let target = segment.to
                     let span = target.y - sourceY
                     guard span > 4 else { continue }
 
-                    let joinY = sourceY + span * BalancedConnectorGeometry.bendRatio
-                    let joinX = correctedSources.map(\.x).reduce(0, +) / CGFloat(correctedSources.count)
+                    let joinY = sourceY + span * ConnectorGeometry.bendRatio
+                    let joinX = sourcePoints.map(\.x).reduce(0, +) /
+                        CGFloat(sourcePoints.count)
                     let join = CGPoint(x: joinX, y: joinY)
-                    let finalY = target.y - BalancedConnectorGeometry.targetClearance
+                    let finalY = target.y - ConnectorGeometry.targetClearance
 
+                    // Each source gets its own colored arm to the common
+                    // join. Since joinX is the arithmetic midpoint, the
+                    // horizontal arms are equal for a two-source group.
                     for item in group {
-                        let start = BalancedConnectorGeometry.source(item.from)
-                        BalancedConnectorGeometry.stroke(
+                        ConnectorGeometry.stroke(
                             context,
-                            [start, CGPoint(x: start.x, y: joinY), join],
+                            [item.from,
+                             CGPoint(x: item.from.x, y: joinY),
+                             join],
                             color: item.color,
                             opacity: item.opacity,
                             width: item.thickness
                         )
                     }
 
-                    BalancedConnectorGeometry.stroke(
+                    ConnectorGeometry.stroke(
                         context,
                         [join,
                          CGPoint(x: join.x, y: finalY),
@@ -408,29 +349,30 @@ public struct BalancedConnectorCollection: View {
                 }
 
                 consumed.insert(segment.id)
-                let start = BalancedConnectorGeometry.source(segment.from)
-                let end = BalancedConnectorGeometry.target(segment.to)
+                let start = segment.from
+                let end = segment.to
                 let dy = end.y - start.y
                 guard dy > 4 else { continue }
 
                 switch segment.style {
                 case .straight:
-                    BalancedConnectorGeometry.stroke(
-                        context,
-                        [start, end],
+                    ConnectorGeometry.stroke(
+                        context, [start, end],
                         color: segment.color,
                         opacity: segment.opacity,
                         width: segment.thickness
                     )
 
                 case .elbow, .symmetric:
-                    let bendY = start.y + dy * BalancedConnectorGeometry.bendRatio
-                    let finalY = end.y - BalancedConnectorGeometry.targetClearance
-                    BalancedConnectorGeometry.stroke(
+                    let bendY = start.y + dy * ConnectorGeometry.bendRatio
+                    let finalY = end.y - ConnectorGeometry.targetClearance
+                    let bendX = (start.x + end.x) * 0.5
+                    ConnectorGeometry.stroke(
                         context,
                         [start,
                          CGPoint(x: start.x, y: bendY),
-                         CGPoint(x: end.x, y: bendY),
+                         CGPoint(x: bendX, y: bendY),
+                         CGPoint(x: bendX, y: finalY),
                          CGPoint(x: end.x, y: finalY),
                          end],
                         color: segment.color,
