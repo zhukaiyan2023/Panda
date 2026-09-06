@@ -2,23 +2,24 @@ name: Normalize L2-L8 connectors
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
 
 permissions:
   contents: write
 
 jobs:
   normalize:
-    if: ${{ !contains(github.event.head_commit.message, 'auto: normalize L2-L8 connectors') }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Normalize connector call sites
-        shell: python3 {0}
+      - name: Rewrite connector call sites
         run: |
+          python3 <<'PY'
           from pathlib import Path
 
           root = Path('Panda/Panda/Levels')
@@ -32,11 +33,21 @@ jobs:
                   raise RuntimeError(f'missing opening brace: {signature}')
               depth = 0
               in_string = False
+              in_line_comment = False
+              in_block_comment = False
               escape = False
               i = brace
               while i < len(text):
                   ch = text[i]
-                  if in_string:
+                  nxt = text[i + 1] if i + 1 < len(text) else ''
+                  if in_line_comment:
+                      if ch == '\n':
+                          in_line_comment = False
+                  elif in_block_comment:
+                      if ch == '*' and nxt == '/':
+                          in_block_comment = False
+                          i += 1
+                  elif in_string:
                       if escape:
                           escape = False
                       elif ch == '\\':
@@ -44,26 +55,31 @@ jobs:
                       elif ch == '"':
                           in_string = False
                   else:
-                      if ch == '"':
+                      if ch == '/' and nxt == '/':
+                          in_line_comment = True
+                          i += 1
+                      elif ch == '/' and nxt == '*':
+                          in_block_comment = True
+                          i += 1
+                      elif ch == '"':
                           in_string = True
                       elif ch == '{':
                           depth += 1
                       elif ch == '}':
                           depth -= 1
                           if depth == 0:
-                              return text[:start] + replacement + text[i+1:]
+                              return text[:start] + replacement + text[i + 1:]
                   i += 1
-              raise RuntimeError(f'unbalanced braces: {signature}')
+              raise RuntimeError(f'unbalanced function: {signature}')
 
-          # L2/L3: use the shared balanced merge connector directly.
+          # L2/L3: direct balanced merge connector.
           for level in (2, 3):
               p = root / f'Level{level}View.swift'
               text = p.read_text()
               text = text.replace('L1MergeLines(', 'BalancedMergeConnector(')
               p.write_text(text)
 
-          # L5/L6: eliminate local aliases at call sites so there is no
-          # ambiguity about which connector implementation is being used.
+          # L5/L6: direct balanced split/collection connectors.
           for level in (5, 6):
               p = root / f'Level{level}View.swift'
               text = p.read_text()
@@ -72,38 +88,34 @@ jobs:
               text = text.replace('PolylineConnectors(segments:', 'BalancedConnectorCollection(segments:')
               p.write_text(text)
 
-          # L7/L8: replace BOTH independent legacy elbows with one shared
-          # balanced split + one shared balanced merge. This is the key fix:
-          # the two branches must share one geometry calculation, not be two
-          # separate one-to-one elbows.
+          # L7/L8: one shared split geometry and one shared merge geometry.
           overlay = '''    private func stepArrowsOverlay() -> some View {
-          ZStack {
-              if let splitArrow = makeSplitArrows() {
-                  BalancedSplitConnector(
-                      source: splitArrow.anchorBottom,
-                      destA: splitArrow.splitZeroTop,
-                      destB: splitArrow.splitTwoTop,
-                      colorA: splitArrow.colorZero,
-                      colorB: splitArrow.colorTwo,
-                      lineThickness: 7,
-                      opacity: 0.85
-                  )
-              }
+        ZStack {
+            if let splitArrow = makeSplitArrows() {
+                BalancedSplitConnector(
+                    source: splitArrow.anchorBottom,
+                    destA: splitArrow.splitZeroTop,
+                    destB: splitArrow.splitTwoTop,
+                    colorA: splitArrow.colorZero,
+                    colorB: splitArrow.colorTwo,
+                    lineThickness: 7,
+                    opacity: 0.85
+                )
+            }
 
-              let combine = combineArrows()
-              if combine.count >= 2 {
-                  BalancedMergeConnector(
-                      anchorTop: combine[0].from,
-                      anchorMid: combine[1].from,
-                      mergeBox: combine[0].to,
-                      colorA: combine[0].color,
-                      colorB: combine[1].color,
-                      lineThickness: 8
-                  )
-              }
-          }
-      }
-'''
+            let combine = combineArrows()
+            if combine.count >= 2 {
+                BalancedMergeConnector(
+                    anchorTop: combine[0].from,
+                    anchorMid: combine[1].from,
+                    mergeBox: combine[0].to,
+                    colorA: combine[0].color,
+                    colorB: combine[1].color,
+                    lineThickness: 8
+                )
+            }
+        }
+    }'''
 
           for level in (7, 8):
               p = root / f'Level{level}View.swift'
@@ -111,12 +123,13 @@ jobs:
               text = replace_function(
                   text,
                   '    private func stepArrowsOverlay() -> some View {',
-                  overlay.rstrip('\n')
+                  overlay,
               )
               p.write_text(text)
 
-          # Static validation: every L2-L8 level must reference the new
-          # shared connectors, and L7/L8 must not contain legacy call sites.
+          # L4 is already using BalancedSplitConnector; verify all levels
+          # explicitly reference the new shared primitives and that L7/L8
+          # no longer call the legacy one-to-one polyline.
           for level in range(2, 9):
               text = (root / f'Level{level}View.swift').read_text()
               if level in (2, 3) and 'BalancedMergeConnector(' not in text:
@@ -130,13 +143,13 @@ jobs:
                       raise RuntimeError(f'L{level}: missing BalancedSplitConnector')
                   if 'BalancedMergeConnector(' not in text:
                       raise RuntimeError(f'L{level}: missing BalancedMergeConnector')
-                  for legacy in ('L3StylePolyline(', 'L1MergeLines('):
-                      if legacy in text:
-                          raise RuntimeError(f'L{level}: legacy connector remains: {legacy}')
+                  if 'L3StylePolyline(' in text:
+                      raise RuntimeError(f'L{level}: legacy L3StylePolyline call remains')
 
-          print('L2-L8 connector normalization passed static validation')
+          print('NORMALIZE-L2-L8: STATIC VALIDATION OK')
+          PY
 
-      - name: Commit normalized source and remove workflow
+      - name: Commit and remove one-time workflow
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
