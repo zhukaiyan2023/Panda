@@ -28,20 +28,11 @@ public struct MathExpressionWithSlots: View {
         self.onCenters = onCenters
     }
 
-    /// The slot column width must accommodate the widest token (normally a
-    /// two-digit number such as 10 or 20) while keeping enough breathing room
-    /// around +, -, and =. It is intentionally independent of the text value.
-    private var columnSpacing: CGFloat {
-        size * 1.35
-    }
-
-    private var slotCenters: [CGFloat] {
-        let count = slots.count
-        guard count > 0 else { return [] }
-        let xCenter: CGFloat = 0
-        let first = xCenter - CGFloat(count - 1) * columnSpacing / 2
-        return slots.indices.map { first + CGFloat($0) * columnSpacing }
-    }
+    /// One global slot pitch for every connector-aware row in L5-L8.
+    /// Keeping the pitch independent of font/row size is critical: an
+    /// anchor row may use size 72 while a decomposition row uses 50-56,
+    /// but their corresponding mathematical columns must still align.
+    private let columnSpacing: CGFloat = 96
 
     public var body: some View {
         GeometryReader { geo in
@@ -71,11 +62,9 @@ public struct MathExpressionWithSlots: View {
         }
     }
 
-    /// The surrounding L5-L8 endpoint helpers already compensate for the
-    /// expression row's 12pt top/bottom padding. They expect the published
-    /// center to be in the row's unadjusted coordinate system, so report the
-    /// visual center plus that padding once. This keeps the existing endpoint
-    /// helpers aligned with the actual token/box edges.
+    /// The surrounding L5-L8 endpoint helpers compensate for the existing
+    /// row frame's 12pt top/bottom padding. Publish that padding exactly once
+    /// so the legacy endpoint conversion lands on the visible token edges.
     private func publishCenters(xCenter: CGFloat, count: Int) {
         guard count > 0 else {
             onCenters([])
