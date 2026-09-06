@@ -1,0 +1,146 @@
+name: Normalize L2-L8 connectors
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  normalize:
+    if: ${{ !contains(github.event.head_commit.message, 'auto: normalize L2-L8 connectors') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Normalize connector call sites
+        shell: python3 {0}
+        run: |
+          from pathlib import Path
+
+          root = Path('Panda/Panda/Levels')
+
+          def replace_function(text: str, signature: str, replacement: str) -> str:
+              start = text.find(signature)
+              if start < 0:
+                  raise RuntimeError(f'missing function: {signature}')
+              brace = text.find('{', start)
+              if brace < 0:
+                  raise RuntimeError(f'missing opening brace: {signature}')
+              depth = 0
+              in_string = False
+              escape = False
+              i = brace
+              while i < len(text):
+                  ch = text[i]
+                  if in_string:
+                      if escape:
+                          escape = False
+                      elif ch == '\\':
+                          escape = True
+                      elif ch == '"':
+                          in_string = False
+                  else:
+                      if ch == '"':
+                          in_string = True
+                      elif ch == '{':
+                          depth += 1
+                      elif ch == '}':
+                          depth -= 1
+                          if depth == 0:
+                              return text[:start] + replacement + text[i+1:]
+                  i += 1
+              raise RuntimeError(f'unbalanced braces: {signature}')
+
+          # L2/L3: use the shared balanced merge connector directly.
+          for level in (2, 3):
+              p = root / f'Level{level}View.swift'
+              text = p.read_text()
+              text = text.replace('L1MergeLines(', 'BalancedMergeConnector(')
+              p.write_text(text)
+
+          # L5/L6: eliminate local aliases at call sites so there is no
+          # ambiguity about which connector implementation is being used.
+          for level in (5, 6):
+              p = root / f'Level{level}View.swift'
+              text = p.read_text()
+              text = text.replace('SymmetricVDiagram(', 'BalancedSplitConnector(')
+              text = text.replace('PolylineConnectors.Segment', 'BalancedConnectorCollection.Segment')
+              text = text.replace('PolylineConnectors(segments:', 'BalancedConnectorCollection(segments:')
+              p.write_text(text)
+
+          # L7/L8: replace BOTH independent legacy elbows with one shared
+          # balanced split + one shared balanced merge. This is the key fix:
+          # the two branches must share one geometry calculation, not be two
+          # separate one-to-one elbows.
+          overlay = '''    private func stepArrowsOverlay() -> some View {
+          ZStack {
+              if let splitArrow = makeSplitArrows() {
+                  BalancedSplitConnector(
+                      source: splitArrow.anchorBottom,
+                      destA: splitArrow.splitZeroTop,
+                      destB: splitArrow.splitTwoTop,
+                      colorA: splitArrow.colorZero,
+                      colorB: splitArrow.colorTwo,
+                      lineThickness: 7,
+                      opacity: 0.85
+                  )
+              }
+
+              let combine = combineArrows()
+              if combine.count >= 2 {
+                  BalancedMergeConnector(
+                      anchorTop: combine[0].from,
+                      anchorMid: combine[1].from,
+                      mergeBox: combine[0].to,
+                      colorA: combine[0].color,
+                      colorB: combine[1].color,
+                      lineThickness: 8
+                  )
+              }
+          }
+      }
+'''
+
+          for level in (7, 8):
+              p = root / f'Level{level}View.swift'
+              text = p.read_text()
+              text = replace_function(
+                  text,
+                  '    private func stepArrowsOverlay() -> some View {',
+                  overlay.rstrip('\n')
+              )
+              p.write_text(text)
+
+          # Static validation: every L2-L8 level must reference the new
+          # shared connectors, and L7/L8 must not contain legacy call sites.
+          for level in range(2, 9):
+              text = (root / f'Level{level}View.swift').read_text()
+              if level in (2, 3) and 'BalancedMergeConnector(' not in text:
+                  raise RuntimeError(f'L{level}: missing BalancedMergeConnector')
+              if level == 4 and 'BalancedSplitConnector(' not in text:
+                  raise RuntimeError('L4: missing BalancedSplitConnector')
+              if level in (5, 6) and 'BalancedSplitConnector(' not in text:
+                  raise RuntimeError(f'L{level}: missing BalancedSplitConnector')
+              if level in (7, 8):
+                  if 'BalancedSplitConnector(' not in text:
+                      raise RuntimeError(f'L{level}: missing BalancedSplitConnector')
+                  if 'BalancedMergeConnector(' not in text:
+                      raise RuntimeError(f'L{level}: missing BalancedMergeConnector')
+                  for legacy in ('L3StylePolyline(', 'L1MergeLines('):
+                      if legacy in text:
+                          raise RuntimeError(f'L{level}: legacy connector remains: {legacy}')
+
+          print('L2-L8 connector normalization passed static validation')
+
+      - name: Commit normalized source and remove workflow
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          rm -f .github/workflows/normalize-l2-l8-connectors.yml
+          git add Panda/Panda/Levels/Level2View.swift Panda/Panda/Levels/Level3View.swift Panda/Panda/Levels/Level5View.swift Panda/Panda/Levels/Level6View.swift Panda/Panda/Levels/Level7View.swift Panda/Panda/Levels/Level8View.swift .github/workflows/normalize-l2-l8-connectors.yml
+          git commit -m 'auto: normalize L2-L8 connectors'
+          git push
