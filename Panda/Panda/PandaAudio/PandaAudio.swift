@@ -9,10 +9,9 @@
 //  bundle — `audio/<cue-id>.mp3`. If the cue isn't bundled, it falls
 //  back to a 1-second silent tone so the call chain still walks.
 //
-//  The original project's `tools/make-placeholders.js` emits 1-second
-//  silent MP3s for any cue that doesn't have a real voice recording.
-//  We replicate that contract: silent placeholders are fine, real voice
-//  drops in just by adding the MP3 to the bundle.
+//  Playback is intentionally single-channel. Starting a new top-level cue
+//  cancels stale playback, while sequences and playAfter are serialized so
+//  narration can never overlap itself.
 //
 
 import Foundation
@@ -25,6 +24,15 @@ public final class PandaAudio: ObservableObject {
 
     private var players: [String: AVAudioPlayer] = [:]
     private var sessionConfigured = false
+
+    /// Monotonically increasing token used to invalidate delayed callbacks
+    /// whenever navigation / a new cue cancels the previous playback.
+    private var generation: UInt64 = 0
+    private var operationTask: Task<Void, Never>?
+    private var currentPlayer: AVAudioPlayer?
+    private var currentCueId: String?
+    private var isBusy = false
+    private var idleCallbacks: [() -> Void] = []
 
     private init() {}
 
@@ -46,121 +54,192 @@ public final class PandaAudio: ObservableObject {
         }
     }
 
-    /// Play one cue by id. If no asset is bundled for the id we fall
-    /// back to silence.
-    public func playCue(_ id: String) {
-        guard !id.isEmpty else { return }
-        configureSession()
-        let player = playerFor(id)
-        guard let player = player else { return }
-        player.stop()
-        player.currentTime = 0
-        player.play()
-    }
-
-    /// Play a sequence of cues one after the other.
-    public func playSequence(_ ids: [String], gapMs: Int = 200, onComplete: (() -> Void)? = nil) {
-        playSequenceInternal(ids: ids, gapMs: gapMs, index: 0, onComplete: onComplete)
-    }
-
-    /// Play a sequence AFTER the previous cue finishes.
-    public func playAfter(_ prevId: String?, then ids: [String], gapMs: Int = 200, seqGapMs: Int = 40,
-                          onComplete: (() -> Void)? = nil) {
-        guard !ids.isEmpty else {
+    /// Play one cue by id. A new top-level cue owns the narration channel:
+    /// any previous prompt / answer is stopped before this cue starts.
+    public func playCue(_ id: String, onComplete: (() -> Void)? = nil) {
+        guard !id.isEmpty else {
             onComplete?()
             return
         }
-        if let prevId = prevId, let prev = players[prevId] {
-            NotificationCenter.default.removeObserver(self, name: .pandaAudioDidFinish, object: prev)
-            NotificationCenter.default.addObserver(
-                forName: .pandaAudioDidFinish,
-                object: prev,
-                queue: .main
-            ) { [weak self] _ in
-                Task { @MainActor in
-                    self?.playSequence(ids, gapMs: seqGapMs, onComplete: onComplete)
-                }
-            }
-            // Safety ceiling.
-            let delay = max(1.0, prev.duration + Double(gapMs) / 1000.0)
-            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
-                Task { @MainActor in
-                    self?.playSequence(ids, gapMs: seqGapMs, onComplete: onComplete)
-                }
-            }
-        } else {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
-                Task { @MainActor in
-                    self?.playSequence(ids, gapMs: seqGapMs, onComplete: onComplete)
-                }
-            }
+        configureSession()
+        cancelCurrentPlayback(clearIdleCallbacks: true)
+        generation &+= 1
+        let token = generation
+        isBusy = true
+
+        guard let player = playerFor(id) else {
+            isBusy = false
+            onComplete?()
+            flushIdleCallbacks()
+            return
+        }
+
+        start(player: player, cueId: id)
+        let duration = max(0.05, player.duration)
+        operationTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(duration))
+            guard let self, !Task.isCancelled, self.generation == token else { return }
+            self.currentPlayer = nil
+            self.currentCueId = nil
+            self.operationTask = nil
+            self.isBusy = false
+            onComplete?()
+            self.flushIdleCallbacks()
         }
     }
 
-    /// Pre-create players for a list of cues so the first playback is
-    /// gap-free.
+    /// Play a sequence of cues one after the other. Starting a sequence
+    /// cancels stale playback first; cues inside the sequence never overlap.
+    public func playSequence(_ ids: [String], gapMs: Int = 200, onComplete: (() -> Void)? = nil) {
+        let cleanIds = ids.filter { !$0.isEmpty }
+        guard !cleanIds.isEmpty else {
+            onComplete?()
+            return
+        }
+        configureSession()
+        cancelCurrentPlayback(clearIdleCallbacks: true)
+        generation &+= 1
+        let token = generation
+        isBusy = true
+        operationTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            await self.runSequence(cleanIds, gapMs: gapMs, token: token)
+            guard !Task.isCancelled, self.generation == token else { return }
+            self.currentPlayer = nil
+            self.currentCueId = nil
+            self.operationTask = nil
+            self.isBusy = false
+            onComplete?()
+            self.flushIdleCallbacks()
+        }
+    }
+
+    /// Play a sequence only after `prevId` has finished. This is used by
+    /// the level flow to place read-back narration after an encouragement.
+    public func playAfter(_ prevId: String?, then ids: [String], gapMs: Int = 200, seqGapMs: Int = 40,
+                          onComplete: (() -> Void)? = nil) {
+        let cleanIds = ids.filter { !$0.isEmpty }
+        guard !cleanIds.isEmpty else {
+            onComplete?()
+            return
+        }
+        configureSession()
+
+        // Keep the current player alive only when it is exactly the cue the
+        // caller asked us to wait for. Otherwise this is a fresh sequence.
+        if let prevId,
+           currentCueId == prevId,
+           let currentPlayer,
+           currentPlayer.isPlaying {
+            operationTask?.cancel()
+            generation &+= 1
+            let token = generation
+            isBusy = true
+            let remaining = max(0, currentPlayer.duration - currentPlayer.currentTime)
+            operationTask = Task { @MainActor [weak self] in
+                guard let self else { return }
+                try? await Task.sleep(for: .seconds(remaining + Double(gapMs) / 1000.0))
+                guard !Task.isCancelled, self.generation == token else { return }
+                self.currentPlayer = nil
+                self.currentCueId = nil
+                await self.runSequence(cleanIds, gapMs: seqGapMs, token: token)
+                guard !Task.isCancelled, self.generation == token else { return }
+                self.currentPlayer = nil
+                self.currentCueId = nil
+                self.operationTask = nil
+                self.isBusy = false
+                onComplete?()
+                self.flushIdleCallbacks()
+            }
+        } else {
+            playSequence(cleanIds, gapMs: seqGapMs, onComplete: onComplete)
+        }
+    }
+
+    /// Run `callback` once the narration channel becomes idle. Unlike a
+    /// fixed DispatchQueue delay this follows the actual MP3 duration and is
+    /// therefore safe for long answer read-backs.
+    public func whenIdle(_ callback: @escaping () -> Void) {
+        if isBusy || currentPlayer?.isPlaying == true {
+            idleCallbacks.append(callback)
+        } else {
+            callback()
+        }
+    }
+
+    /// Pre-create players for a list of cues so the first playback is gap-free.
     public func preloadCueIds(_ ids: [String]) {
         for id in ids {
             _ = playerFor(id)
         }
     }
 
-    /// Stop all in-flight audio.
+    /// Stop all in-flight audio and invalidate every delayed continuation.
     public func stopAllAudio() {
-        for (_, p) in players { p.stop() }
+        cancelCurrentPlayback(clearIdleCallbacks: true)
+        generation &+= 1
+        for (_, player) in players {
+            player.stop()
+            player.currentTime = 0
+        }
     }
 
     // MARK: Internals
 
-    private func playSequenceInternal(ids: [String], gapMs: Int, index: Int,
-                                      onComplete: (() -> Void)?) {
-        guard index < ids.count else {
-            onComplete?()
-            return
-        }
-        let id = ids[index]
-        guard let player = playerFor(id) else {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
-                Task { @MainActor in
-                    self?.playSequenceInternal(ids: ids, gapMs: gapMs, index: index + 1, onComplete: onComplete)
-                }
-            }
-            return
-        }
-        player.stop()
-        player.currentTime = 0
-        player.play()
-        NotificationCenter.default.removeObserver(self, name: .pandaAudioDidFinish, object: player)
-        NotificationCenter.default.addObserver(
-            forName: .pandaAudioDidFinish,
-            object: player,
-            queue: .main
-        ) { [weak self] _ in
-            Task { @MainActor in
-                self?.playSequenceInternal(ids: ids, gapMs: gapMs, index: index + 1, onComplete: onComplete)
-            }
-        }
-        // Safety ceiling.
-        let delay = max(0.6, player.duration + Double(gapMs) / 1000.0)
-        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
-            Task { @MainActor in
-                self?.playSequenceInternal(ids: ids, gapMs: gapMs, index: index + 1, onComplete: onComplete)
-            }
+    private func cancelCurrentPlayback(clearIdleCallbacks: Bool) {
+        operationTask?.cancel()
+        operationTask = nil
+        currentPlayer?.stop()
+        currentPlayer = nil
+        currentCueId = nil
+        isBusy = false
+        if clearIdleCallbacks {
+            idleCallbacks.removeAll()
         }
     }
 
-    /// Look up or create a player for the given cue id. The engine
-    /// first looks in the main bundle (`audio/<id>.mp3`), then falls
-    /// back to a synthesised silent WAV.
+    private func start(player: AVAudioPlayer, cueId: String) {
+        // AVAudioPlayer instances are cached, so always rewind before reuse.
+        player.stop()
+        player.currentTime = 0
+        player.prepareToPlay()
+        currentPlayer = player
+        currentCueId = cueId
+        player.play()
+    }
+
+    private func runSequence(_ ids: [String], gapMs: Int, token: UInt64) async {
+        for (index, id) in ids.enumerated() {
+            guard !Task.isCancelled, generation == token else { return }
+            guard let player = playerFor(id) else { continue }
+            start(player: player, cueId: id)
+            let isLast = index == ids.count - 1
+            let gap = isLast ? 0 : max(0, gapMs)
+            let wait = max(0.05, player.duration) + Double(gap) / 1000.0
+            try? await Task.sleep(for: .seconds(wait))
+        }
+    }
+
+    private func flushIdleCallbacks() {
+        guard !isBusy, currentPlayer?.isPlaying != true, !idleCallbacks.isEmpty else { return }
+        let callbacks = idleCallbacks
+        idleCallbacks.removeAll()
+        callbacks.forEach { $0() }
+    }
+
+    /// Look up or create a player for the given cue id. The engine first
+    /// looks in the main bundle (`audio/<id>.mp3`), then falls back to a
+    /// synthesised silent WAV.
     private func playerFor(_ id: String) -> AVAudioPlayer? {
-        if let p = players[id] { return p }
+        if let player = players[id] { return player }
         guard let url = lookupCueURL(for: id) else { return nil }
         do {
-            let p = try AVAudioPlayer(contentsOf: url)
-            p.prepareToPlay()
-            players[id] = p
-            return p
+            let player = try AVAudioPlayer(contentsOf: url)
+            player.prepareToPlay()
+            players[id] = player
+            return player
         } catch {
+            print("[PandaAudio] failed to create player for \(id): \(error)")
             return nil
         }
     }
@@ -169,21 +248,17 @@ public final class PandaAudio: ObservableObject {
     /// otherwise a synthesised silent WAV in the cache.
     private func lookupCueURL(for id: String) -> URL? {
         let safe = id.replacingOccurrences(of: "/", with: "_")
-        // 1. Bundle root (Xcode's PBXFileSystemSynchronizedRootGroup
-        //    flattens all resources to the bundle root).
         if let bundleURL = Bundle.main.url(forResource: safe, withExtension: "mp3") {
             return bundleURL
         }
-        // 2. Some setups nest audio under audio/.
         if let bundleURL = Bundle.main.url(forResource: safe, withExtension: "mp3", subdirectory: "audio") {
             return bundleURL
         }
-        // 3. Synthesised silent fallback.
         return silentCueURL(for: safe)
     }
 
-    /// Build a silent WAV file once per cue id. The result is a
-    /// 1-second silent tone at 8 kHz mono.
+    /// Build a silent WAV file once per cue id. The result is a 1-second
+    /// silent tone at 8 kHz mono.
     private func silentCueURL(for id: String) -> URL? {
         let caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first
         let dir = caches?.appendingPathComponent("panda-cues", isDirectory: true)
@@ -193,10 +268,6 @@ public final class PandaAudio: ObservableObject {
         if FileManager.default.fileExists(atPath: url.path) { return url }
         return SilentWAV.write(to: url, durationSeconds: 1.0) ? url : nil
     }
-}
-
-extension Notification.Name {
-    public static let pandaAudioDidFinish = Notification.Name("PandaAudioDidFinish")
 }
 
 // MARK: - Silent WAV writer
