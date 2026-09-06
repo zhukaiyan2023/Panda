@@ -1,12 +1,20 @@
 import SwiftUI
 
-/// Math expression renderer that exposes the exact local center of every
-/// slot. Level 5-8 use these coordinates to draw teaching connectors.
+/// Connector-aware math expression renderer.
 ///
-/// The reported y coordinate deliberately includes the expression view's
-/// 12pt vertical padding. This matches the fixed `size + 24` frame used by
-/// the level views, so `topOf` / `bottomOf` calculations land on the real
-/// visual bounds instead of the middle of the row.
+/// L5-L8 are teaching diagrams: the same mathematical slot must stay on
+/// the same x-column while a □ is replaced by a digit, and related rows
+/// must share the same column grid. Content-width-based layout makes the
+/// source/target columns drift and produces asymmetric elbows.
+///
+/// This renderer therefore uses a fixed column grid. For an expression
+/// with N slots, slot i is always placed at:
+///
+///   centerX + (i - (N-1)/2) * columnSpacing
+///
+/// Because L5-L8 use the same slot indices for related concepts (0→0/2,
+/// 2/4→2, 2/6→4, 0/2→0, etc.), the teaching connectors become geometrically
+/// symmetric by construction.
 public struct MathExpressionWithSlots: View {
     public let slots: [MathSlot]
     public let size: CGFloat
@@ -20,45 +28,72 @@ public struct MathExpressionWithSlots: View {
         self.onCenters = onCenters
     }
 
+    /// The slot column width must accommodate the widest token (normally a
+    /// two-digit number such as 10 or 20) while keeping enough breathing room
+    /// around +, -, and =. It is intentionally independent of the text value.
+    private var columnSpacing: CGFloat {
+        size * 1.35
+    }
+
+    private var slotCenters: [CGFloat] {
+        let count = slots.count
+        guard count > 0 else { return [] }
+        let xCenter: CGFloat = 0
+        let first = xCenter - CGFloat(count - 1) * columnSpacing / 2
+        return slots.indices.map { first + CGFloat($0) * columnSpacing }
+    }
+
     public var body: some View {
         GeometryReader { geo in
             let xCenter = geo.size.width / 2
-            let layout = ExpressionLayoutCache.shared.layout(
-                key: layoutKey,
-                slots: slots,
-                size: size,
-                xCenter: xCenter,
-                yCenter: geo.size.height / 2
-            )
+            let count = slots.count
+            let first = xCenter - CGFloat(max(0, count - 1)) * columnSpacing / 2
+            let centers = slots.indices.map {
+                first + CGFloat($0) * columnSpacing
+            }
 
             ZStack {
                 ForEach(Array(slots.enumerated()), id: \.offset) { index, slot in
-                    tokenView(slot: slot,
-                              centerX: layout.centerX(at: index),
-                              size: size)
+                    tokenView(
+                        slot: slot,
+                        centerX: centers[index],
+                        size: size
+                    )
                 }
             }
             .frame(width: geo.size.width, height: geo.size.height)
             .onAppear {
-                publishCenters(layout: layout)
+                publishCenters(xCenter: xCenter, count: count)
             }
-            .onChange(of: layoutKey) { _, _ in
-                publishCenters(layout: layout)
+            .onChange(of: slotSignature) { _, _ in
+                publishCenters(xCenter: xCenter, count: slots.count)
             }
         }
     }
 
-    private var layoutKey: String {
-        slots.map { $0.reserveKey }.joined(separator: "|")
+    /// The surrounding L5-L8 endpoint helpers already compensate for the
+    /// expression row's 12pt top/bottom padding. They expect the published
+    /// center to be in the row's unadjusted coordinate system, so report the
+    /// visual center plus that padding once. This keeps the existing endpoint
+    /// helpers aligned with the actual token/box edges.
+    private func publishCenters(xCenter: CGFloat, count: Int) {
+        guard count > 0 else {
+            onCenters([])
+            return
+        }
+        let first = xCenter - CGFloat(count - 1) * columnSpacing / 2
+        let reportedY = 24 + size / 2
+        let points = slots.indices.map { index in
+            CGPoint(
+                x: first + CGFloat(index) * columnSpacing,
+                y: reportedY
+            )
+        }
+        onCenters(points)
     }
 
-    private func publishCenters(layout: CachedLayout) {
-        // The expression rows are framed at `size + 24` with 12pt vertical
-        // padding on both sides. The actual text/box center is therefore
-        // 12 + size/2 in the row's local coordinates.
-        let y = 12 + size / 2
-        let points = layout.centers.map { CGPoint(x: $0, y: y) }
-        onCenters(points)
+    private var slotSignature: String {
+        slots.map { $0.reserveKey }.joined(separator: "|")
     }
 
     @ViewBuilder
@@ -77,8 +112,7 @@ public struct MathExpressionWithSlots: View {
             Text(op.rawValue)
                 .font(.pandaFont(size: size * 0.7))
                 .foregroundColor(Color(color ?? PandaTheme.ink))
-                .position(x: centerX,
-                          y: 12 + size / 2 - size * 0.05)
+                .position(x: centerX, y: 12 + size / 2 - size * 0.05)
 
         case .answerBox:
             RoundedRectangle(cornerRadius: size * 0.9 * 0.16)
