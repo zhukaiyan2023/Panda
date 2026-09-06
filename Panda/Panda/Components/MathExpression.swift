@@ -2,11 +2,7 @@
 //  MathExpression.swift
 //  Panda
 //
-//  Renders arithmetic expressions with fixed slot geometry. The
-//  layout is computed once per (slot-count, reserve) key and reused
-//  across re-renders so reveal animations don't reflow the row.
-//
-//  Mirrors `components/expression.js`.
+//  Renders arithmetic expressions with fixed slot geometry.
 //
 
 import SwiftUI
@@ -52,6 +48,12 @@ public struct MathExpression: View {
             Text("\(value)")
                 .font(.pandaFont(size: s))
                 .foregroundColor(Color(color ?? PandaTheme.ink))
+                // The meadow background is pale yellow/green. Preserve the
+                // level color vocabulary, but give every colored digit a
+                // light edge + soft ink depth so yellow/orange/blue remain
+                // readable over every part of the illustration.
+                .shadow(color: Color.white.opacity(0.92), radius: 1.0, x: 0, y: 0)
+                .shadow(color: Color(PandaTheme.ink).opacity(0.16), radius: 1.0, x: 0, y: 1)
                 .position(x: centerX, y: size / 2)
 
         case .op(let op, let color):
@@ -61,13 +63,6 @@ public struct MathExpression: View {
                 .position(x: centerX, y: size / 2 - size * 0.05)
 
         case .answerBox(let placeholder, let color, let label):
-            // `placeholder` is the inline glyph to render inside the
-            // box ("□" or "?"). `label` is an OPTIONAL override —
-            // usually nil; callers that want a custom glyph pass it
-            // through. The previous code discarded `placeholder` and
-            // only forwarded `label`, so callers passing
-            // `.answerBox("?")` got an empty box. Default to the
-            // placeholder when `label` is nil.
             AnswerBoxShape(color: color ?? PandaTheme.ink,
                            size: size,
                            label: label ?? placeholder)
@@ -81,7 +76,6 @@ public struct MathExpression: View {
 public enum MathSlot {
     case number(Int, color: RGB? = nil, sizeMultiplier: CGFloat? = nil)
     case op(MathOperator, color: RGB? = nil)
-    /// Renders as a hollow box. `label` is the placeholder glyph ("□" or "?").
     case answerBox(String = "□", color: RGB? = nil, label: String? = nil)
 
     public var reserveKey: String {
@@ -92,13 +86,6 @@ public enum MathSlot {
         }
     }
 
-    /// Build a `.number` slot if `value` parses as an Int (so the
-    /// slot renders as a digit); otherwise build an `.answerBox`
-    /// slot using the original string as the placeholder label.
-    /// Used by L5 / L6 (and any other level) that need to mix
-    /// numeric literals with placeholder boxes inside a single
-    /// slot array — the same row needs "?" boxes pre-pick and
-    /// numeric values post-pick. Mirrors the JS pattern.
     public static func numberOrBox(_ value: String,
                                     numColor: RGB,
                                     boxColor: RGB) -> MathSlot {
@@ -129,13 +116,6 @@ private struct AnswerBoxShape: View {
 
     var body: some View {
         let boxSize = size * 0.9
-        // Single-crisp-frame idiom (see ArrowConnector.swift for the
-        // long-form comment). The inner placeholder glyph (`?` / `□`)
-        // is intentionally NOT rendered here per user feedback
-        // "应该只保留□一个" — with the glyph removed the box reads
-        // as one clean frame instead of "a box inside a box".
-        // Interactive targeting still works because the empty frame
-        // is the only tap target for that slot.
         RoundedRectangle(cornerRadius: boxSize * 0.16)
             .fill(Color(PandaTheme.card))
             .overlay(
@@ -149,7 +129,6 @@ private struct AnswerBoxShape: View {
 
 // MARK: - Layout cache
 
-/// Cached slot-center positions keyed by `(reserve-shape, size, xCenter)`.
 final class ExpressionLayoutCache {
     static let shared = ExpressionLayoutCache()
     private var store: [String: [CGFloat]] = [:]
@@ -194,7 +173,6 @@ struct CachedLayout {
 // MARK: - Convenience builders
 
 public enum ExpressionBuilder {
-    /// `a + b = c` style.
     public static func add(_ a: Int, _ b: Int, sum: Any) -> [MathSlot] {
         [
             .number(a, color: PandaTheme.numBlue),
@@ -205,7 +183,6 @@ public enum ExpressionBuilder {
         ]
     }
 
-    /// `a - b = c` style.
     public static func sub(_ a: Int, _ b: Int, answer: Any) -> [MathSlot] {
         [
             .number(a, color: PandaTheme.numBlue),
