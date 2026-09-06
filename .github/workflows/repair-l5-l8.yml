@@ -10,61 +10,63 @@ permissions:
 jobs:
   repair:
     if: ${{ !contains(github.event.head_commit.message, 'auto: rebuild L5-L8 connectors') }}
-    runs-on: macos-latest
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Rewrite connector geometry
-        shell: python3 {0}
+      - name: Rewrite L5-L8 geometry
         run: |
+          python3 - <<'PY'
           from pathlib import Path
           import re
 
           root = Path('Panda/Panda')
 
-          # 1) Endpoint geometry: the old helpers subtracted the row's
-          # 12pt padding a second time.  MathExpressionWithSlots already
-          # reports centers in the padded row coordinate system, so the
-          # extra yOff moved every endpoint 12pt upward.
-          helper_replacements = {
-              'bottom': (
-                  'let geoH = size + 24\\n'
-                  '        let yOff = size / 2 - geoH / 2\\n'
-                  '        return CGPoint(\\n'
-                  '            x: frame.minX + centers[slot].x,\\n'
-                  '            y: frame.minY + centers[slot].y + yOff + size / 2\\n'
-                  '        )',
-                  'return CGPoint(\\n'
-                  '            x: frame.minX + centers[slot].x,\\n'
-                  '            y: frame.minY + centers[slot].y + size / 2\\n'
-                  '        )'
-              ),
-              'top': (
-                  'let geoH = size + 24\\n'
-                  '        let yOff = size / 2 - geoH / 2\\n'
-                  '        return CGPoint(\\n'
-                  '            x: frame.minX + centers[slot].x,\\n'
-                  '            y: frame.minY + centers[slot].y + yOff - size * halfRatio\\n'
-                  '        )',
-                  'return CGPoint(\\n'
-                  '            x: frame.minX + centers[slot].x,\\n'
-                  '            y: frame.minY + centers[slot].y - size * halfRatio\\n'
-                  '        )'
-              ),
-          }
+          # -----------------------------------------------------------------
+          # 1. Fix endpoint math in L5-L8.
+          # MathExpressionWithSlots reports slot centers at y = 12 + size/2
+          # inside a row whose frame is size+24. The previous helpers applied
+          # the -12 row-padding offset a second time, moving every endpoint
+          # upward by 12pt and causing visible gaps / lines through content.
+          # -----------------------------------------------------------------
+          bottom_old = re.compile(
+              r'''let geoH = size \+ 24\s+let yOff = size / 2 - geoH / 2\s+return CGPoint\(\s*'''
+              r'''x: frame\.minX \+ centers\[slot\]\.x,\s*'''
+              r'''y: frame\.minY \+ centers\[slot\]\.y \+ yOff \+ size / 2\s*'''
+              r'''\)'''
+          )
+          bottom_new = '''return CGPoint(
+                  x: frame.minX + centers[slot].x,
+                  y: frame.minY + centers[slot].y + size / 2
+              )'''
+
+          top_old = re.compile(
+              r'''let geoH = size \+ 24\s+let yOff = size / 2 - geoH / 2\s+return CGPoint\(\s*'''
+              r'''x: frame\.minX \+ centers\[slot\]\.x,\s*'''
+              r'''y: frame\.minY \+ centers\[slot\]\.y \+ yOff - size \* halfRatio\s*'''
+              r'''\)'''
+          )
+          top_new = '''return CGPoint(
+                  x: frame.minX + centers[slot].x,
+                  y: frame.minY + centers[slot].y - size * halfRatio
+              )'''
 
           for level in range(5, 9):
               p = root / 'Levels' / f'Level{level}View.swift'
               text = p.read_text()
-              for old, new in helper_replacements.values():
-                  text = text.replace(old, new)
+              text, bn = bottom_old.subn(bottom_new, text)
+              text, tn = top_old.subn(top_new, text)
+              if bn == 0 or tn == 0:
+                  raise SystemExit(f'L{level}: endpoint helper not found (bottom={bn}, top={tn})')
               p.write_text(text)
 
-          # 2) L5/L6: explicitly use the new balanced split/merge
-          # connectors. Do not rely on typealiases in extensions to
-          # shadow the old global connector types.
+          # -----------------------------------------------------------------
+          # 2. L5/L6 must call the balanced connectors explicitly. The
+          # previous typealiases were members of the view extensions and did
+          # not reliably shadow the existing global connector types.
+          # -----------------------------------------------------------------
           for level in (5, 6):
               p = root / 'Levels' / f'Level{level}View.swift'
               text = p.read_text()
@@ -73,45 +75,121 @@ jobs:
               text = text.replace('PolylineConnectors(segments:', 'BalancedConnectorCollection(segments:')
               p.write_text(text)
 
-          # 3) L7/L8: use one shared split connector for the two
-          # decomposition branches and one shared merge connector for
-          # the two convergence branches. This guarantees true symmetry
-          # instead of drawing two unrelated elbows.
-          overlay = '''    private func stepArrowsOverlay() -> some View {\n        ZStack {\n            if let splitArrow = makeSplitArrows() {\n                BalancedSplitConnector(\n                    source: splitArrow.anchorBottom,\n                    destA: splitArrow.splitZeroTop,\n                    destB: splitArrow.splitTwoTop,\n                    colorA: splitArrow.colorZero,\n                    colorB: splitArrow.colorTwo,\n                    lineThickness: 7,\n                    opacity: 0.85\n                )\n            }\n\n            let combine = combineArrows()\n            if combine.count >= 2 {\n                let first = combine[0]\n                let second = combine[1]\n                BalancedMergeConnector(\n                    anchorTop: first.from,\n                    anchorMid: second.from,\n                    mergeBox: first.to,\n                    colorA: first.color,\n                    colorB: second.color,\n                    lineThickness: 8\n                )\n            }\n        }\n    }\n'''
+          # -----------------------------------------------------------------
+          # 3. L7/L8: both split branches must share one branch point and
+          # both merge branches must share one join point. That makes the
+          # two horizontal arms equal rather than two unrelated elbows.
+          # -----------------------------------------------------------------
+          overlay = '''    private func stepArrowsOverlay() -> some View {
+          ZStack {
+              if let splitArrow = makeSplitArrows() {
+                  BalancedSplitConnector(
+                      source: splitArrow.anchorBottom,
+                      destA: splitArrow.splitZeroTop,
+                      destB: splitArrow.splitTwoTop,
+                      colorA: splitArrow.colorZero,
+                      colorB: splitArrow.colorTwo,
+                      lineThickness: 7,
+                      opacity: 0.85
+                  )
+              }
+
+              let combine = combineArrows()
+              if combine.count >= 2 {
+                  let first = combine[0]
+                  let second = combine[1]
+                  BalancedMergeConnector(
+                      anchorTop: first.from,
+                      anchorMid: second.from,
+                      mergeBox: first.to,
+                      colorA: first.color,
+                      colorB: second.color,
+                      lineThickness: 8
+                  )
+              }
+          }
+      }
+'''
 
           for level in (7, 8):
               p = root / 'Levels' / f'Level{level}View.swift'
               text = p.read_text()
-              pattern = r'    private func stepArrowsOverlay\(\) -> some View \{.*?\n    \}\n\n    /// Endpoint bundle'
-              replacement = overlay + '    /// Endpoint bundle'
-              text, n = re.subn(pattern, replacement, text, count=1, flags=re.S)
+              pattern = re.compile(
+                  r'    private func stepArrowsOverlay\(\) -> some View \{.*?\n    \}\n\n    /// Endpoint bundle',
+                  re.S,
+              )
+              text, n = pattern.subn(overlay + '    /// Endpoint bundle', text, count=1)
               if n != 1:
-                  raise SystemExit(f'Could not replace L{level} stepArrowsOverlay')
+                  raise SystemExit(f'L{level}: stepArrowsOverlay not found')
               p.write_text(text)
 
-          # 4) Remove artificial connector endpoint insets. The level
-          # helpers now return actual edges, so an additional +6/+12pt
-          # inset would recreate the visible gaps.
+          # -----------------------------------------------------------------
+          # 4. Balanced connectors receive actual slot-edge points. Remove
+          # the artificial +6/+12 inset which recreated the same gap.
+          # -----------------------------------------------------------------
           p = root / 'Components' / 'BalancedMathConnectors.swift'
           text = p.read_text()
           text = text.replace('static let sourceInset: CGFloat = 6', 'static let sourceInset: CGFloat = 0')
           text = text.replace('static let targetInset: CGFloat = 12', 'static let targetInset: CGFloat = 0')
           p.write_text(text)
 
-      - name: Build
-        run: |
-          xcodebuild \
-            -project Panda/Panda.xcodeproj \
-            -scheme Panda \
-            -destination 'generic/platform=iOS Simulator' \
-            CODE_SIGNING_ALLOWED=NO \
-            build
+          # -----------------------------------------------------------------
+          # 5. Make connector-capable expression slots geometrically stable:
+          # boxes and digits use one reserved two-digit slot width. This is
+          # intentionally content-independent so changing □ -> 1 or □ -> 10
+          # cannot re-center the entire row after the connector endpoints
+          # have been measured.
+          # -----------------------------------------------------------------
+          p = root / 'Components' / 'MathExpression.swift'
+          text = p.read_text()
+
+          reserve_pattern = re.compile(
+              r'    public var reserveKey: String \{.*?\n    \}', re.S
+          )
+          reserve_replacement = '''    public var reserveKey: String {
+          switch self {
+          case .number:
+              return "reserved-number"
+          case .op(let o, _):
+              return "o\\(o.rawValue)"
+          case .answerBox:
+              return "reserved-number"
+          }
+      }'''
+          text, n = reserve_pattern.subn(reserve_replacement, text, count=1)
+          if n != 1:
+              raise SystemExit('MathSlot.reserveKey not found')
+
+          width_pattern = re.compile(
+              r'        let widths = slots\.map \{ slot -> CGFloat in.*?\n        let total =',
+              re.S,
+          )
+          width_replacement = '''        let widths = slots.map { slot -> CGFloat in
+              switch slot.reserveKey {
+              case "reserved-number":
+                  // One fixed slot for both 1- and 2-digit values / boxes.
+                  return size * 1.24
+              default:
+                  switch slot {
+                  case .op:
+                      return size * 0.4
+                  case .number, .answerBox:
+                      return size * 1.24
+                  }
+              }
+          }
+          let total ='''
+          text, n = width_pattern.subn(width_replacement, text, count=1)
+          if n != 1:
+              raise SystemExit('ExpressionLayoutCache width block not found')
+          p.write_text(text)
+          PY
 
       - name: Commit repaired source and remove one-time workflow
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           rm -f .github/workflows/repair-l5-l8.yml
-          git add Panda/Panda/Levels/Level5View.swift Panda/Panda/Levels/Level6View.swift Panda/Panda/Levels/Level7View.swift Panda/Panda/Levels/Level8View.swift Panda/Panda/Components/BalancedMathConnectors.swift .github/workflows/repair-l5-l8.yml
+          git add Panda/Panda/Levels/Level5View.swift Panda/Panda/Levels/Level6View.swift Panda/Panda/Levels/Level7View.swift Panda/Panda/Levels/Level8View.swift Panda/Panda/Components/BalancedMathConnectors.swift Panda/Panda/Components/MathExpression.swift .github/workflows/repair-l5-l8.yml
           git commit -m 'auto: rebuild L5-L8 connectors'
           git push
