@@ -1,15 +1,5 @@
 import SwiftUI
 
-// Shared geometry used by the math levels.
-//
-// Rules:
-// 1. A one-source/two-target split uses the midpoint of the target columns,
-//    so the two horizontal branch lengths are exactly equal.
-// 2. A two-source/one-target merge uses the midpoint of the source columns,
-//    so the two source arms are exactly equal before the shared trunk.
-// 3. A single connector uses one clean elbow and stops a few points before
-//    the destination outline.
-
 public struct BalancedMergeConnector: View {
     public let anchorTop: CGPoint
     public let anchorMid: CGPoint
@@ -44,48 +34,30 @@ public struct BalancedMergeConnector: View {
             let clearance = min(5, max(2, span * 0.04))
             let trunkTargetY = targetY - clearance
 
-            func stroke(_ points: [CGPoint],
-                        color: Color,
-                        opacity: Double,
-                        width: CGFloat) {
+            func stroke(_ points: [CGPoint], color: Color, opacity: Double = 0.86) {
                 guard points.count > 1 else { return }
                 var path = Path()
                 path.move(to: points[0])
-                for point in points.dropFirst() {
-                    path.addLine(to: point)
-                }
-                context.stroke(
-                    path,
-                    with: .color(color.opacity(opacity)),
-                    style: StrokeStyle(lineWidth: width,
-                                       lineCap: .round,
-                                       lineJoin: .round)
-                )
+                for point in points.dropFirst() { path.addLine(to: point) }
+                context.stroke(path,
+                               with: .color(color.opacity(opacity)),
+                               style: StrokeStyle(lineWidth: lineThickness,
+                                                  lineCap: .round,
+                                                  lineJoin: .round))
             }
 
             let join = CGPoint(x: joinX, y: joinY)
-            // Equal source-side arms.
             stroke([anchorTop,
                     CGPoint(x: anchorTop.x, y: joinY),
-                    join],
-                   color: colorA,
-                   opacity: 0.88,
-                   width: lineThickness)
+                    join], color: colorA)
             stroke([anchorMid,
                     CGPoint(x: anchorMid.x, y: joinY),
-                    join],
-                   color: colorB,
-                   opacity: 0.88,
-                   width: lineThickness)
+                    join], color: colorB)
 
-            // Shared trunk; a single neutral line avoids the two colors
-            // stacking into a muddy double stroke.
             stroke([join,
-                    CGPoint(x: joinX, y: trunkTargetY),
+                    CGPoint(x: join.x, y: trunkTargetY),
                     CGPoint(x: mergeBox.x, y: trunkTargetY)],
-                   color: Color(PandaTheme.ink),
-                   opacity: 0.42,
-                   width: lineThickness)
+                   color: Color(PandaTheme.ink), opacity: 0.42)
         }
         .allowsHitTesting(false)
     }
@@ -132,44 +104,86 @@ public struct BalancedSplitConnector: View {
             let clearance = min(5, max(2, span * 0.04))
             let finalY = targetY - clearance
 
-            func stroke(_ points: [CGPoint],
-                        color: Color,
-                        opacity: Double) {
+            func stroke(_ points: [CGPoint], color: Color, opacity: Double) {
                 guard points.count > 1 else { return }
                 var path = Path()
                 path.move(to: points[0])
-                for point in points.dropFirst() {
-                    path.addLine(to: point)
-                }
-                context.stroke(
-                    path,
-                    with: .color(color.opacity(opacity)),
-                    style: StrokeStyle(lineWidth: lineThickness,
-                                       lineCap: .round,
-                                       lineJoin: .round)
-                )
+                for point in points.dropFirst() { path.addLine(to: point) }
+                context.stroke(path,
+                               with: .color(color.opacity(opacity)),
+                               style: StrokeStyle(lineWidth: lineThickness,
+                                                  lineCap: .round,
+                                                  lineJoin: .round))
             }
 
             let branch = CGPoint(x: branchX, y: branchY)
-            // One common stem; branch starts at the midpoint of the two
-            // targets, giving the two colored horizontal arms exactly the
-            // same length.
             stroke([source,
                     CGPoint(x: source.x, y: branchY),
                     branch],
-                   color: Color(PandaTheme.ink),
-                   opacity: 0.42)
+                   color: Color(PandaTheme.ink), opacity: 0.42)
 
             stroke([branch,
                     CGPoint(x: destA.x, y: branchY),
                     CGPoint(x: destA.x, y: finalY)],
-                   color: colorA,
-                   opacity: opacity)
+                   color: colorA, opacity: opacity)
             stroke([branch,
                     CGPoint(x: destB.x, y: branchY),
                     CGPoint(x: destB.x, y: finalY)],
-                   color: colorB,
-                   opacity: opacity)
+                   color: colorB, opacity: opacity)
+        }
+        .allowsHitTesting(false)
+    }
+}
+
+// One source -> one destination. The horizontal elbow is fixed-length so
+// sibling branches in L7/L8 do not become one long arm and one short arm.
+public struct BalancedFixedArmConnector: View {
+    public let from: CGPoint
+    public let to: CGPoint
+    public let color: Color
+    public let lineThickness: CGFloat
+    public let opacity: Double
+    public let armLength: CGFloat
+
+    public init(from: CGPoint,
+                to: CGPoint,
+                color: Color,
+                lineThickness: CGFloat = 8,
+                opacity: Double = 0.85,
+                armLength: CGFloat = 52) {
+        self.from = from
+        self.to = to
+        self.color = color
+        self.lineThickness = lineThickness
+        self.opacity = opacity
+        self.armLength = armLength
+    }
+
+    public var body: some View {
+        Canvas { context, _ in
+            let dy = to.y - from.y
+            let dx = to.x - from.x
+            guard dy > 2, abs(dx) > 2 else { return }
+
+            let clearance = min(5, max(2, dy * 0.04))
+            let finalY = to.y - clearance
+            let branchY = from.y + dy * 0.48
+            let direction: CGFloat = dx >= 0 ? 1 : -1
+            let actualArm = min(armLength, max(24, abs(dx) * 0.72))
+            let branchX = to.x - direction * actualArm
+
+            var path = Path()
+            path.move(to: from)
+            path.addLine(to: CGPoint(x: from.x, y: branchY))
+            path.addLine(to: CGPoint(x: branchX, y: branchY))
+            path.addLine(to: CGPoint(x: branchX, y: finalY))
+            path.addLine(to: CGPoint(x: to.x, y: finalY))
+
+            context.stroke(path,
+                           with: .color(color.opacity(opacity)),
+                           style: StrokeStyle(lineWidth: lineThickness,
+                                              lineCap: .round,
+                                              lineJoin: .round))
         }
         .allowsHitTesting(false)
     }
@@ -200,31 +214,23 @@ public struct BalancedSingleConnector: View {
             guard dy > 2 else { return }
             let bendY = from.y + dy * 0.48
             let clearance = min(5, max(2, dy * 0.04))
-
             var path = Path()
             path.move(to: from)
             path.addLine(to: CGPoint(x: from.x, y: bendY))
             path.addLine(to: CGPoint(x: to.x, y: bendY))
             path.addLine(to: CGPoint(x: to.x, y: to.y - clearance))
-
-            context.stroke(
-                path,
-                with: .color(color.opacity(opacity)),
-                style: StrokeStyle(lineWidth: lineThickness,
-                                   lineCap: .round,
-                                   lineJoin: .round)
-            )
+            context.stroke(path,
+                           with: .color(color.opacity(opacity)),
+                           style: StrokeStyle(lineWidth: lineThickness,
+                                              lineCap: .round,
+                                              lineJoin: .round))
         }
         .allowsHitTesting(false)
     }
 }
 
 public struct BalancedConnectorCollection: View {
-    public enum Style {
-        case straight
-        case elbow
-        case symmetric
-    }
+    public enum Style { case straight, elbow, symmetric }
 
     public struct Segment: Identifiable {
         public let id = UUID()
@@ -267,16 +273,12 @@ public struct BalancedConnectorCollection: View {
                 guard points.count > 1 else { return }
                 var path = Path()
                 path.move(to: points[0])
-                for point in points.dropFirst() {
-                    path.addLine(to: point)
-                }
-                context.stroke(
-                    path,
-                    with: .color(color.opacity(opacity)),
-                    style: StrokeStyle(lineWidth: width,
-                                       lineCap: .round,
-                                       lineJoin: .round)
-                )
+                for point in points.dropFirst() { path.addLine(to: point) }
+                context.stroke(path,
+                               with: .color(color.opacity(opacity)),
+                               style: StrokeStyle(lineWidth: width,
+                                                  lineCap: .round,
+                                                  lineJoin: .round))
             }
 
             for index in segments.indices {
@@ -289,23 +291,17 @@ public struct BalancedConnectorCollection: View {
                 }
 
                 if group.count >= 2 {
-                    for item in group {
-                        consumed.insert(item.id)
-                    }
-
+                    for item in group { consumed.insert(item.id) }
                     let sourceY = group.map { $0.from.y }.max() ?? segment.from.y
                     let targetY = segment.to.y
-                    let joinX = group.map { $0.from.x }.reduce(0, +) /
-                        CGFloat(group.count)
                     let span = targetY - sourceY
                     guard span > 2 else { continue }
                     let joinY = sourceY + span * 0.48
+                    let joinX = group.map { $0.from.x }.reduce(0, +) /
+                        CGFloat(group.count)
                     let clearance = min(5, max(2, span * 0.04))
                     let join = CGPoint(x: joinX, y: joinY)
-                    let trunkTarget = CGPoint(x: segment.to.x,
-                                              y: targetY - clearance)
 
-                    // Equal source arms.
                     for item in group {
                         stroke([item.from,
                                 CGPoint(x: item.from.x, y: joinY),
@@ -314,10 +310,9 @@ public struct BalancedConnectorCollection: View {
                                opacity: item.opacity,
                                width: item.thickness)
                     }
-                    // One shared trunk.
                     stroke([join,
                             CGPoint(x: joinX, y: targetY - clearance),
-                            trunkTarget],
+                            CGPoint(x: segment.to.x, y: targetY - clearance)],
                            color: Color(PandaTheme.ink),
                            opacity: 0.42,
                            width: group.map { $0.thickness }.max() ?? 7)
@@ -351,9 +346,6 @@ public struct BalancedConnectorCollection: View {
     }
 }
 
-// Existing level files intentionally keep their public source unchanged.
-// These nested typealiases make the level-local connector references resolve
-// to the corrected geometry below, without altering the educational layout.
 extension ThreeSumStepView {
     typealias L1MergeLines = BalancedMergeConnector
 }
@@ -373,13 +365,13 @@ extension TeenPlusTeenStepView {
 }
 
 extension TeenSubNoBorrowStepView {
-    typealias L3StylePolyline = BalancedSingleConnector
+    typealias L3StylePolyline = BalancedFixedArmConnector
     typealias SymmetricVDiagram = BalancedSplitConnector
     typealias L1MergeLines = BalancedMergeConnector
 }
 
 extension TeenSubBorrowStepView {
-    typealias L3StylePolyline = BalancedSingleConnector
+    typealias L3StylePolyline = BalancedFixedArmConnector
     typealias SymmetricVDiagram = BalancedSplitConnector
     typealias L1MergeLines = BalancedMergeConnector
 }
