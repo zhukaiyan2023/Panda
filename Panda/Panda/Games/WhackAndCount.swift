@@ -275,6 +275,21 @@ private struct MoleTile: View {
     let onTap: () -> Void
 
     var body: some View {
+        // Visibility:
+        //   • isUp               → the mole is the current "active" one,
+        //                          so it pops out of the hole.
+        //   • tappedCorrect      → the kid just hit this mole correctly
+        //                          and we're showing the celebration
+        //                          (hammer strike + dizzy stars). The
+        //                          mole stays up for the whole 0.9s
+        //                          feedback window so the kid can see
+        //                          the hammer actually hit it.
+        //   • hammerStrike / StunOverlay are layered ABOVE the mole
+        //     inside the inner ZStack, but the parent visibility ZStack
+        //     wraps mole + overlays together so the hammer and stars
+        //     never get hidden behind a `0` opacity on the mole tile.
+        let showMoleAndOverlay = isUp || tappedCorrect
+
         Button(action: onTap) {
             VStack(spacing: 0) {
                 ZStack {
@@ -302,34 +317,38 @@ private struct MoleTile: View {
                         .shadow(color: .white.opacity(0.85), radius: 2, x: 0, y: 0)
                         .offset(x: -3, y: 15)
 
+                    // Stun overlay — spinning stars + dizzy face on the
+                    // mole that was just hit. Drawn alongside the mole so
+                    // both are visible together during the feedback
+                    // window.
+                    if tappedCorrect {
+                        StunOverlay()
+                            .frame(width: 210, height: 210)
+                            .transition(.scale.combined(with: .opacity))
+                    }
+
                     // Hammer strike overlay — comes down from upper-right,
-                    // bounces back. Sits above the mole so the kid sees
-                    // the hammer meet the mole, then rides the dizzy
-                    // overlay off-screen. Drawn at the tile-level ZStack
-                    // so the mole's spring tilt + scale still animate
-                    // independently underneath.
+                    // bounces back. Sits ABOVE the mole + dizzy stars so
+                    // the kid sees the hammer meet the mole, then bounce
+                    // off. Drawn last so it overlays everything else in
+                    // the tile.
                     if hammerStrike {
                         HammerStrike()
                             .frame(width: 220, height: 220)
                             .transition(.opacity)
                             .allowsHitTesting(false)
                     }
-
-                    // Stun overlay — spinning stars + dizzy face on the
-                    // mole that was just hit. The whole ZStack already
-                    // animates opacity & offset together so this just rides
-                    // along.
-                    if tappedCorrect {
-                        StunOverlay()
-                            .frame(width: 210, height: 210)
-                            .transition(.scale.combined(with: .opacity))
-                    }
                 }
-                // Mole + digit move as one unit — single spring on the
-                // ZStack drives both pop and dive animations together.
-                .offset(y: isUp ? -16 : 110)
-                .opacity((isUp && !tappedCorrect) ? 1 : 0)
+                // Mole + digit + overlays move as one unit — single spring
+                // on the ZStack drives pop and dive animations together.
+                // Visibility stays `1` for the full `tappedCorrect`
+                // feedback window so the hammer animation can actually be
+                // seen — previously the hammer was hidden because this
+                // opacity dropped to `0` the instant the kid hit the mole.
+                .offset(y: isUp ? -16 : (tappedCorrect ? -16 : 110))
+                .opacity(showMoleAndOverlay ? 1 : 0)
                 .animation(.spring(response: 0.6, dampingFraction: 0.7), value: isUp)
+                .animation(.easeInOut(duration: 0.2), value: tappedCorrect)
                 .frame(width: 240, height: 210)
                 .opacity(wrongFlash ? 0.5 : 1)
 

@@ -60,8 +60,17 @@ public struct MathExpression: View {
                 .foregroundColor(Color(color ?? PandaTheme.ink))
                 .position(x: centerX, y: size / 2 - size * 0.05)
 
-        case .answerBox(_, let color, let label):
-            AnswerBoxShape(color: color ?? PandaTheme.ink, size: size, label: label)
+        case .answerBox(let placeholder, let color, let label):
+            // `placeholder` is the inline glyph to render inside the
+            // box ("□" or "?"). `label` is an OPTIONAL override —
+            // usually nil; callers that want a custom glyph pass it
+            // through. The previous code discarded `placeholder` and
+            // only forwarded `label`, so callers passing
+            // `.answerBox("?")` got an empty box. Default to the
+            // placeholder when `label` is nil.
+            AnswerBoxShape(color: color ?? PandaTheme.ink,
+                           size: size,
+                           label: label ?? placeholder)
                 .position(x: centerX, y: size / 2)
         }
     }
@@ -80,6 +89,23 @@ public enum MathSlot {
         case .number(let v, _, _): return "n\(v)"
         case .op(let o, _): return "o\(o.rawValue)"
         case .answerBox(let label, _, _): return "b\(label)"
+        }
+    }
+
+    /// Build a `.number` slot if `value` parses as an Int (so the
+    /// slot renders as a digit); otherwise build an `.answerBox`
+    /// slot using the original string as the placeholder label.
+    /// Used by L5 / L6 (and any other level) that need to mix
+    /// numeric literals with placeholder boxes inside a single
+    /// slot array — the same row needs "?" boxes pre-pick and
+    /// numeric values post-pick. Mirrors the JS pattern.
+    public static func numberOrBox(_ value: String,
+                                    numColor: RGB,
+                                    boxColor: RGB) -> MathSlot {
+        if let n = Int(value) {
+            return .number(n, color: numColor)
+        } else {
+            return .answerBox(value, color: boxColor)
         }
     }
 }
@@ -103,20 +129,21 @@ private struct AnswerBoxShape: View {
 
     var body: some View {
         let boxSize = size * 0.9
-        ZStack {
-            RoundedRectangle(cornerRadius: boxSize * 0.16)
-                .stroke(Color(color), lineWidth: max(5, size * 0.10))
-                .background(
-                    RoundedRectangle(cornerRadius: boxSize * 0.16)
-                        .fill(Color(PandaTheme.card))
-                )
-                .frame(width: boxSize, height: boxSize)
-            if let label = label, !label.isEmpty {
-                Text(label)
-                    .font(.pandaFont(size: size * 0.6))
-                    .foregroundColor(Color(color))
-            }
-        }
+        // Single-crisp-frame idiom (see ArrowConnector.swift for the
+        // long-form comment). The inner placeholder glyph (`?` / `□`)
+        // is intentionally NOT rendered here per user feedback
+        // "应该只保留□一个" — with the glyph removed the box reads
+        // as one clean frame instead of "a box inside a box".
+        // Interactive targeting still works because the empty frame
+        // is the only tap target for that slot.
+        RoundedRectangle(cornerRadius: boxSize * 0.16)
+            .fill(Color(PandaTheme.card))
+            .overlay(
+                RoundedRectangle(cornerRadius: boxSize * 0.16)
+                    .strokeBorder(Color(color),
+                                  lineWidth: max(4, size * 0.08))
+            )
+            .frame(width: boxSize, height: boxSize)
     }
 }
 

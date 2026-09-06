@@ -10,8 +10,8 @@ import SwiftUI
 
 @main
 struct PandaApp: App {
-    @StateObject private var saveStore = PandaSaveStore.shared
-    @StateObject private var audio = PandaAudio.shared
+    @ObservedObject private var saveStore = PandaSaveStore.shared
+    @ObservedObject private var audio = PandaAudio.shared
 
     var body: some Scene {
         WindowGroup {

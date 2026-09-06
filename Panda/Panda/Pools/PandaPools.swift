@@ -47,11 +47,14 @@ public enum PandaPools {
         return out
     }
 
-    /// L3 — 凑十法. (a,b) ∈ {1..9}, a+b > 10.
+    /// L3 — 凑十法. (a,b) ∈ {1..9} with a + b > 10 AND a ≥ b.
+    /// Iterating `b` in `1...a` enforces the a ≥ b constraint
+    /// (mirrors the JS data/pools.js makeTen generator). 20 ordered
+    /// pairs come out of this filter — plenty for `sampleSize: 6`.
     public static func generateMakeTen() -> [PandaRound] {
         var out: [PandaRound] = []
         for a in 1...9 {
-            for b in 1...9 where a + b > 10 {
+            for b in 1...a where a + b > 10 {
                 out.append(.makeTen(a: a, b: b))
             }
         }
