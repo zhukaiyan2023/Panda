@@ -220,8 +220,11 @@ public struct RoundScaffold: View {
             return
         }
         onRoundCorrect?(audio, round, session.lastEncourageId)
-        audio.whenIdle { [weak self] in
-            guard let self else { return }
+        // `RoundScaffold` is a struct (SwiftUI View), not a
+        // class — `[weak self]` is invalid here. The closure runs
+        // on the audio engine's queue; we hop back to the main
+        // actor before mutating @StateObject state.
+        audio.whenIdle {
             Task { @MainActor in
                 self.completeRoundTransition()
             }
