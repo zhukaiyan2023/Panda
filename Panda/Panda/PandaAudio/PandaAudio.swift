@@ -38,7 +38,6 @@ public final class PandaAudio: ObservableObject {
 
     // MARK: Public API
 
-    /// Configure the AVAudioSession for playback. Safe to call multiple times.
     public func configureSession() {
         guard !sessionConfigured else { return }
         do {
@@ -56,6 +55,9 @@ public final class PandaAudio: ObservableObject {
 
     /// Play one cue by id. A new top-level cue owns the narration channel:
     /// any previous prompt / answer is stopped before this cue starts.
+    /// Completion is tied to the player's actual `isPlaying` state instead
+    /// of trusting `AVAudioPlayer.duration` alone, preventing the next
+    /// question from appearing a fraction too early on longer narration.
     public func playCue(_ id: String, onComplete: (() -> Void)? = nil) {
         guard !id.isEmpty else {
             onComplete?()
@@ -75,10 +77,10 @@ public final class PandaAudio: ObservableObject {
         }
 
         start(player: player, cueId: id)
-        let duration = max(0.05, player.duration)
         operationTask = Task { @MainActor [weak self] in
-            try? await Task.sleep(for: .seconds(duration))
-            guard let self, !Task.isCancelled, self.generation == token else { return }
+            guard let self else { return }
+            await self.waitUntilFinished(player)
+            guard !Task.isCancelled, self.generation == token else { return }
             self.currentPlayer = nil
             self.currentCueId = nil
             self.operationTask = nil
@@ -114,8 +116,7 @@ public final class PandaAudio: ObservableObject {
         }
     }
 
-    /// Play a sequence only after `prevId` has finished. This is used by
-    /// the level flow to place read-back narration after an encouragement.
+    /// Play a sequence only after `prevId` has finished.
     public func playAfter(_ prevId: String?, then ids: [String], gapMs: Int = 200, seqGapMs: Int = 40,
                           onComplete: (() -> Void)? = nil) {
         let cleanIds = ids.filter { !$0.isEmpty }
@@ -126,19 +127,21 @@ public final class PandaAudio: ObservableObject {
         configureSession()
 
         // Keep the current player alive only when it is exactly the cue the
-        // caller asked us to wait for. Otherwise this is a fresh sequence.
+        // caller asked us to wait for. Then observe the player's real end,
+        // rather than estimating it from `duration - currentTime`.
         if let prevId,
            currentCueId == prevId,
-           let currentPlayer,
-           currentPlayer.isPlaying {
+           let player = currentPlayer,
+           player.isPlaying {
             operationTask?.cancel()
             generation &+= 1
             let token = generation
             isBusy = true
-            let remaining = max(0, currentPlayer.duration - currentPlayer.currentTime)
             operationTask = Task { @MainActor [weak self] in
                 guard let self else { return }
-                try? await Task.sleep(for: .seconds(remaining + Double(gapMs) / 1000.0))
+                await self.waitUntilFinished(player)
+                guard !Task.isCancelled, self.generation == token else { return }
+                try? await Task.sleep(for: .milliseconds(max(0, gapMs)))
                 guard !Task.isCancelled, self.generation == token else { return }
                 self.currentPlayer = nil
                 self.currentCueId = nil
@@ -157,8 +160,7 @@ public final class PandaAudio: ObservableObject {
     }
 
     /// Run `callback` once the narration channel becomes idle. Unlike a
-    /// fixed DispatchQueue delay this follows the actual MP3 duration and is
-    /// therefore safe for long answer read-backs.
+    /// fixed DispatchQueue delay this follows the actual player state.
     public func whenIdle(_ callback: @escaping () -> Void) {
         if isBusy || currentPlayer?.isPlaying == true {
             idleCallbacks.append(callback)
@@ -167,7 +169,6 @@ public final class PandaAudio: ObservableObject {
         }
     }
 
-    /// Pre-create players for a list of cues so the first playback is gap-free.
     public func preloadCueIds(_ ids: [String]) {
         for id in ids {
             _ = playerFor(id)
@@ -199,7 +200,6 @@ public final class PandaAudio: ObservableObject {
     }
 
     private func start(player: AVAudioPlayer, cueId: String) {
-        // AVAudioPlayer instances are cached, so always rewind before reuse.
         player.stop()
         player.currentTime = 0
         player.prepareToPlay()
@@ -208,15 +208,25 @@ public final class PandaAudio: ObservableObject {
         player.play()
     }
 
+    /// Wait until AVAudioPlayer has actually stopped. A small polling
+    /// interval avoids the race where a duration-based timer fires a few
+    /// milliseconds before the audio renderer finishes.
+    private func waitUntilFinished(_ player: AVAudioPlayer) async {
+        while !Task.isCancelled && player.isPlaying {
+            try? await Task.sleep(for: .milliseconds(20))
+        }
+    }
+
     private func runSequence(_ ids: [String], gapMs: Int, token: UInt64) async {
         for (index, id) in ids.enumerated() {
             guard !Task.isCancelled, generation == token else { return }
             guard let player = playerFor(id) else { continue }
             start(player: player, cueId: id)
-            let isLast = index == ids.count - 1
-            let gap = isLast ? 0 : max(0, gapMs)
-            let wait = max(0.05, player.duration) + Double(gap) / 1000.0
-            try? await Task.sleep(for: .seconds(wait))
+            await waitUntilFinished(player)
+            guard !Task.isCancelled, generation == token else { return }
+            if index < ids.count - 1 {
+                try? await Task.sleep(for: .milliseconds(max(0, gapMs)))
+            }
         }
     }
 
@@ -227,9 +237,6 @@ public final class PandaAudio: ObservableObject {
         callbacks.forEach { $0() }
     }
 
-    /// Look up or create a player for the given cue id. The engine first
-    /// looks in the main bundle (`audio/<id>.mp3`), then falls back to a
-    /// synthesised silent WAV.
     private func playerFor(_ id: String) -> AVAudioPlayer? {
         if let player = players[id] { return player }
         guard let url = lookupCueURL(for: id) else { return nil }
@@ -244,8 +251,6 @@ public final class PandaAudio: ObservableObject {
         }
     }
 
-    /// Returns a file URL for the cue id — bundle resource if present,
-    /// otherwise a synthesised silent WAV in the cache.
     private func lookupCueURL(for id: String) -> URL? {
         let safe = id.replacingOccurrences(of: "/", with: "_")
         if let bundleURL = Bundle.main.url(forResource: safe, withExtension: "mp3") {
@@ -257,8 +262,6 @@ public final class PandaAudio: ObservableObject {
         return silentCueURL(for: safe)
     }
 
-    /// Build a silent WAV file once per cue id. The result is a 1-second
-    /// silent tone at 8 kHz mono.
     private func silentCueURL(for id: String) -> URL? {
         let caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first
         let dir = caches?.appendingPathComponent("panda-cues", isDirectory: true)
@@ -272,7 +275,6 @@ public final class PandaAudio: ObservableObject {
 
 // MARK: - Silent WAV writer
 
-/// Minimal WAV writer. Produces 1-second silent 8 kHz mono PCM.
 enum SilentWAV {
     static func write(to url: URL, durationSeconds: Double, sampleRate: UInt32 = 8000) -> Bool {
         let samples = UInt32(Double(sampleRate) * durationSeconds)
@@ -313,6 +315,7 @@ private extension Data {
         var v = value.littleEndian
         Swift.withUnsafeBytes(of: &v) { append(contentsOf: $0) }
     }
+
     mutating func appendLE(uint32 value: UInt32) {
         var v = value.littleEndian
         Swift.withUnsafeBytes(of: &v) { append(contentsOf: $0) }
