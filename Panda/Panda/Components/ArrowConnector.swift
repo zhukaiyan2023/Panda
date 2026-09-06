@@ -822,84 +822,9 @@ public struct PolylineWithVTip: View {
     }
 }
 
-// MARK: - Slot layout capture (for cross-expression arrows)
-
-/// Captures each MathSlot's center (in the parent's coordinate space)
-/// via a GeometryReader and an overlay. Used by levels that need to
-/// know where the "5" of "5+3=?" is on screen so they can draw an
-/// arrow to another equation's slot.
-///
-/// Use as:
-///   MathExpressionWithSlots(slots: ..., size: ..., id: ...) { centers in
-///     // centers[idx] is the (x, y) of slot idx in MathExpression-local space.
-///   }
-public struct MathExpressionWithSlots: View {
-    public let slots: [MathSlot]
-    public let size: CGFloat
-    public let onLayout: ([CGPoint]) -> Void
-
-    public var body: some View {
-        GeometryReader { geo in
-            let cx = geo.size.width / 2
-            let layout = ExpressionLayoutCache.shared.layout(
-                key: slots.map { $0.reserveKey }.joined(separator: "|"),
-                slots: slots,
-                size: size,
-                xCenter: cx,
-                yCenter: geo.size.height / 2
-            )
-            ZStack {
-                ForEach(Array(slots.enumerated()), id: \.offset) { idx, slot in
-                    tokenView(slot: slot, at: layout.centerX(at: idx), size: size)
-                }
-            }
-            .frame(width: geo.size.width, height: geo.size.height)
-            .onAppear {
-                let centers = (0..<slots.count).map { i in
-                    CGPoint(x: layout.centerX(at: i), y: geo.size.height / 2)
-                }
-                onLayout(centers)
-            }
-            .onChange(of: geo.size) { _, newSize in
-                let centers = (0..<slots.count).map { i in
-                    CGPoint(x: layout.centerX(at: i), y: newSize.height / 2)
-                }
-                onLayout(centers)
-            }
-        }
-    }
-
-    @ViewBuilder
-    private func tokenView(slot: MathSlot, at centerX: CGFloat, size: CGFloat) -> some View {
-        switch slot {
-        case .number(let value, let color, let sizeMultiplier):
-            let s = size * (sizeMultiplier ?? 1.0)
-            Text("\(value)")
-                .font(.pandaFont(size: s))
-                .foregroundColor(Color(color ?? PandaTheme.ink))
-                .position(x: centerX, y: size / 2)
-        case .op(let op, let color):
-            Text(op.rawValue)
-                .font(.pandaFont(size: size * 0.7))
-                .foregroundColor(Color(color ?? PandaTheme.ink))
-                .position(x: centerX, y: size / 2 - size * 0.05)
-        case .answerBox(let placeholder, let color, let label):
-            // Same fix as MathExpression.MathExpression: forward the
-            // placeholder glyph ("□" / "?") to the answer box so
-            // `.answerBox("?")` actually renders the "?" instead of
-            // an empty box. `label` is an optional override; default
-            // to `placeholder` when nil.
-            AnswerBoxShapeView(color: color ?? PandaTheme.ink,
-                               size: size,
-                               label: label ?? placeholder)
-                .position(x: centerX, y: size / 2)
-        }
-    }
-}
-
 /// Lightweight duplicate of `AnswerBoxShape` (kept private in
-/// MathExpression.swift) so the layout-capture view can render
-/// answer boxes without depending on the private type.
+/// MathExpression.swift) so `SlotRow` can render answer boxes without
+/// depending on the private type.
 struct AnswerBoxShapeView: View {
     let color: RGB
     let size: CGFloat
