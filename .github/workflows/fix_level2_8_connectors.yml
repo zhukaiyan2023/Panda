@@ -1,0 +1,474 @@
+name: Fix level 2-8 connectors
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    if: "!contains(github.event.head_commit.message, '[connector-fix]')"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Patch connector geometry
+        shell: bash
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+          import re
+
+          def replace_block(path, start_pat, end_pat, replacement):
+              p = Path(path)
+              text = p.read_text()
+              new, n = re.subn(start_pat + r'.*?' + end_pat, replacement + end_pat.replace('\\', '\\\\'), text, count=1, flags=re.S)
+              if n != 1:
+                  raise SystemExit(f'failed to patch {path}: block not found')
+              p.write_text(new)
+
+          # 1) Shared connector primitives. The previous implementation
+          # mixed slot-centre coordinates with row-edge coordinates and
+          # tried to equalise each arm independently, which cannot make a
+          # two-branch diagram geometrically symmetric.
+          arrow = Path('Panda/Panda/Components/ArrowConnector.swift')
+          text = arrow.read_text()
+
+          l1 = r'''public struct L1MergeLines: View {
+              public let anchorTop: CGPoint
+              public let anchorMid: CGPoint
+              public let mergeBox: CGPoint
+              public let colorA: Color
+              public let colorB: Color
+              public let lineThickness: CGFloat
+
+              public init(anchorTop: CGPoint,
+                          anchorMid: CGPoint,
+                          mergeBox: CGPoint,
+                          colorA: Color,
+                          colorB: Color,
+                          lineThickness: CGFloat = 8) {
+                  self.anchorTop = anchorTop
+                  self.anchorMid = anchorMid
+                  self.mergeBox = mergeBox
+                  self.colorA = colorA
+                  self.colorB = colorB
+                  self.lineThickness = lineThickness
+              }
+
+              public var body: some View {
+                  Canvas { context, _ in
+                      // Two sources -> one destination.
+                      // The two source arms are exactly symmetric: their
+                      // horizontal run ends at the midpoint of the two
+                      // source x coordinates. The remaining trunk then
+                      // travels from that midpoint to the destination.
+                      let sourceY = max(anchorTop.y, anchorMid.y)
+                      let targetY = mergeBox.y
+                      let joinX = (anchorTop.x + anchorMid.x) * 0.5
+                      let extent = max(24, targetY - sourceY)
+                      let joinY = sourceY + extent * 0.48
+                      let clearance: CGFloat = 4
+
+                      func stroke(_ points: [CGPoint], color: Color, opacity: Double = 0.86) {
+                          guard points.count > 1 else { return }
+                          var path = Path()
+                          path.move(to: points[0])
+                          for point in points.dropFirst() { path.addLine(to: point) }
+                          context.stroke(path,
+                                         with: .color(color.opacity(opacity)),
+                                         style: StrokeStyle(lineWidth: lineThickness,
+                                                            lineCap: .round,
+                                                            lineJoin: .round))
+                      }
+
+                      let join = CGPoint(x: joinX, y: joinY)
+                      stroke([anchorTop,
+                              CGPoint(x: anchorTop.x, y: joinY),
+                              join], color: colorA)
+                      stroke([anchorMid,
+                              CGPoint(x: anchorMid.x, y: joinY),
+                              join], color: colorB)
+
+                      // Shared trunk is neutral so two colors do not stack
+                      // into a muddy double stroke.
+                      let trunkTarget = CGPoint(x: mergeBox.x, y: targetY - clearance)
+                      stroke([join, CGPoint(x: join.x, y: targetY - clearance), trunkTarget],
+                             color: Color(PandaTheme.ink), opacity: 0.45)
+                  }
+                  .allowsHitTesting(false)
+              }
+          }
+          '''
+
+          l3 = r'''public struct L3StylePolyline: View {
+              public let from: CGPoint
+              public let to: CGPoint
+              public let color: Color
+              public let lineThickness: CGFloat
+              public let opacity: Double
+
+              public init(from: CGPoint,
+                          to: CGPoint,
+                          color: Color,
+                          lineThickness: CGFloat = 8,
+                          opacity: Double = 0.85) {
+                  self.from = from
+                  self.to = to
+                  self.color = color
+                  self.lineThickness = lineThickness
+                  self.opacity = opacity
+              }
+
+              public var body: some View {
+                  Canvas { context, _ in
+                      let dy = to.y - from.y
+                      guard dy > 2 else { return }
+                      let bendY = from.y + dy * 0.48
+                      let clearance: CGFloat = min(4, max(1, dy * 0.06))
+                      let finalY = to.y - clearance
+                      var path = Path()
+                      path.move(to: from)
+                      path.addLine(to: CGPoint(x: from.x, y: bendY))
+                      path.addLine(to: CGPoint(x: to.x, y: bendY))
+                      path.addLine(to: CGPoint(x: to.x, y: finalY))
+                      context.stroke(path,
+                                     with: .color(color.opacity(opacity)),
+                                     style: StrokeStyle(lineWidth: lineThickness,
+                                                        lineCap: .round,
+                                                        lineJoin: .round))
+                  }
+                  .allowsHitTesting(false)
+              }
+          }
+          '''
+
+          sym = r'''public struct SymmetricVDiagram: View {
+              public let source: CGPoint
+              public let destA: CGPoint
+              public let destB: CGPoint
+              public let colorA: Color
+              public let colorB: Color
+              public let lineThickness: CGFloat
+              public let opacity: Double
+              public let totalLength: CGFloat?
+
+              public init(source: CGPoint,
+                          destA: CGPoint,
+                          destB: CGPoint,
+                          colorA: Color,
+                          colorB: Color,
+                          lineThickness: CGFloat = 7,
+                          opacity: Double = 0.85,
+                          totalLength: CGFloat? = nil) {
+                  self.source = source
+                  self.destA = destA
+                  self.destB = destB
+                  self.colorA = colorA
+                  self.colorB = colorB
+                  self.lineThickness = lineThickness
+                  self.opacity = opacity
+                  self.totalLength = totalLength
+              }
+
+              public var body: some View {
+                  Canvas { context, _ in
+                      // One source -> two destinations.
+                      // The branch x is the midpoint of the two target
+                      // columns, so both horizontal arms are EXACTLY the
+                      // same length. Both targets are in the same row in
+                      // levels 4-8, therefore the two vertical drops are
+                      // also exactly the same length.
+                      let targetY = min(destA.y, destB.y)
+                      let span = max(24, targetY - source.y)
+                      let requested = totalLength ?? span
+                      let branchTravel = min(span * 0.52, max(18, requested * 0.52))
+                      let branchY = source.y + branchTravel
+                      let branchX = (destA.x + destB.x) * 0.5
+                      let clearance: CGFloat = min(5, max(2, span * 0.04))
+                      let finalY = targetY - clearance
+
+                      func stroke(_ points: [CGPoint], color: Color, opacity: Double = self.opacity) {
+                          guard points.count > 1 else { return }
+                          var path = Path()
+                          path.move(to: points[0])
+                          for point in points.dropFirst() { path.addLine(to: point) }
+                          context.stroke(path,
+                                         with: .color(color.opacity(opacity)),
+                                         style: StrokeStyle(lineWidth: lineThickness,
+                                                            lineCap: .round,
+                                                            lineJoin: .round))
+                      }
+
+                      let branch = CGPoint(x: branchX, y: branchY)
+                      // Neutral shared stem prevents the source line from
+                      // looking like two overlaid strokes.
+                      stroke([source, CGPoint(x: source.x, y: branchY), branch],
+                             color: Color(PandaTheme.ink), opacity: 0.42)
+
+                      // Equal left/right arms + equal vertical drops.
+                      stroke([branch,
+                              CGPoint(x: destA.x, y: branchY),
+                              CGPoint(x: destA.x, y: finalY)], color: colorA)
+                      stroke([branch,
+                              CGPoint(x: destB.x, y: branchY),
+                              CGPoint(x: destB.x, y: finalY)], color: colorB)
+                  }
+                  .allowsHitTesting(false)
+              }
+          }
+          '''
+
+          poly = r'''public struct PolylineConnectors: View {
+              public enum Style { case straight, elbow, symmetric }
+
+              public struct Segment: Identifiable {
+                  public let id = UUID()
+                  public let from: CGPoint
+                  public let to: CGPoint
+                  public let color: Color
+                  public let thickness: CGFloat
+                  public let opacity: Double
+                  public let style: Style
+
+                  public init(from: CGPoint,
+                              to: CGPoint,
+                              color: Color,
+                              thickness: CGFloat = 6,
+                              opacity: Double = 0.75,
+                              style: Style = .straight) {
+                      self.from = from
+                      self.to = to
+                      self.color = color
+                      self.thickness = thickness
+                      self.opacity = opacity
+                      self.style = style
+                  }
+              }
+
+              public let segments: [Segment]
+
+              public init(segments: [Segment]) {
+                  self.segments = segments
+              }
+
+              public var body: some View {
+                  Canvas { context, _ in
+                      // Group segments that share the same destination.
+                      // L5/L6 use exactly this pattern for two sources
+                      // converging on one answer slot. Route both source
+                      // arms to the midpoint x first, which guarantees
+                      // equal horizontal lengths; then use one shared
+                      // neutral trunk to the target.
+                      var consumed = Set<UUID>()
+
+                      func stroke(_ points: [CGPoint], color: Color,
+                                  width: CGFloat, opacity: Double) {
+                          guard points.count > 1 else { return }
+                          var path = Path()
+                          path.move(to: points[0])
+                          for point in points.dropFirst() { path.addLine(to: point) }
+                          context.stroke(path,
+                                         with: .color(color.opacity(opacity)),
+                                         style: StrokeStyle(lineWidth: width,
+                                                            lineCap: .round,
+                                                            lineJoin: .round))
+                      }
+
+                      for index in segments.indices {
+                          let segment = segments[index]
+                          if consumed.contains(segment.id) { continue }
+
+                          let group = segments.filter {
+                              abs($0.to.x - segment.to.x) < 0.5 &&
+                              abs($0.to.y - segment.to.y) < 0.5
+                          }
+
+                          if group.count >= 2 {
+                              for item in group { consumed.insert(item.id) }
+                              let sourceY = group.map { $0.from.y }.max() ?? segment.from.y
+                              let targetY = segment.to.y
+                              let joinX = group.map { $0.from.x }.reduce(0, +) / CGFloat(group.count)
+                              let span = max(24, targetY - sourceY)
+                              let joinY = sourceY + span * 0.48
+                              let clearance: CGFloat = min(5, max(2, span * 0.04))
+                              let trunkTop = CGPoint(x: joinX, y: joinY)
+                              let trunkTarget = CGPoint(x: segment.to.x, y: targetY - clearance)
+
+                              for item in group {
+                                  stroke([item.from,
+                                          CGPoint(x: item.from.x, y: joinY),
+                                          trunkTop],
+                                         color: item.color,
+                                         width: item.thickness,
+                                         opacity: item.opacity)
+                              }
+                              stroke([trunkTop,
+                                      CGPoint(x: joinX, y: targetY - clearance),
+                                      trunkTarget],
+                                     color: Color(PandaTheme.ink),
+                                     width: group.map { $0.thickness }.max() ?? 7,
+                                     opacity: 0.42)
+                              continue
+                          }
+
+                          consumed.insert(segment.id)
+                          let dx = segment.to.x - segment.from.x
+                          let dy = segment.to.y - segment.from.y
+                          guard dy > 2 else { continue }
+                          switch segment.style {
+                          case .straight:
+                              stroke([segment.from, segment.to],
+                                     color: segment.color,
+                                     width: segment.thickness,
+                                     opacity: segment.opacity)
+                          case .elbow, .symmetric:
+                              let bendY = segment.from.y + dy * 0.48
+                              let clearance: CGFloat = min(5, max(2, dy * 0.04))
+                              stroke([segment.from,
+                                      CGPoint(x: segment.from.x, y: bendY),
+                                      CGPoint(x: segment.to.x, y: bendY),
+                                      CGPoint(x: segment.to.x, y: segment.to.y - clearance)],
+                                     color: segment.color,
+                                     width: segment.thickness,
+                                     opacity: segment.opacity)
+                          }
+                      }
+                  }
+                  .allowsHitTesting(false)
+              }
+          }
+          '''
+
+          text, n = re.subn(r'public struct L1MergeLines: View \{.*?(?=\n/// A single L3-style)', l1 + '\n', text, count=1, flags=re.S)
+          if n != 1: raise SystemExit('L1MergeLines patch failed')
+          text, n = re.subn(r'public struct L3StylePolyline: View \{.*?(?=\n// MARK: - Symmetric V diagram)', l3 + '\n', text, count=1, flags=re.S)
+          if n != 1: raise SystemExit('L3StylePolyline patch failed')
+          text, n = re.subn(r'public struct SymmetricVDiagram: View \{.*?(?=\n/// A generic overlay)', sym + '\n', text, count=1, flags=re.S)
+          if n != 1: raise SystemExit('SymmetricVDiagram patch failed')
+          text, n = re.subn(r'public struct PolylineConnectors: View \{.*?(?=\n// MARK: - Polyline arrow)', poly + '\n', text, count=1, flags=re.S)
+          if n != 1: raise SystemExit('PolylineConnectors patch failed')
+          arrow.write_text(text)
+
+          # 2) L4: its custom two-branch overlay must use the same
+          # symmetric split primitive as L5/L6. This eliminates the
+          # old per-arm quarter-Y calculation that produced visibly
+          # different branch lengths.
+          p = Path('Panda/Panda/Levels/Level4View.swift')
+          t = p.read_text()
+          new_fn = r'''    private func decompositionPolylineOverlay() -> some View {
+          let anchorGeoH = anchorSize + 24
+          let sub1GeoH = sub1Size + 24
+          let anchorYOff = anchorSize / 2 - anchorGeoH / 2
+          let sub1YOff = sub1Size / 2 - sub1GeoH / 2
+
+          let smallAnchorIdx: Int = aIsBig ? 2 : 0
+          let needSub1Idx: Int = 2
+          let restSub1Idx: Int = aIsBig ? 4 : 0
+
+          func anchorBottom(_ slot: Int) -> CGPoint {
+              CGPoint(
+                  x: anchorRowFrame.minX + anchorSlotCenters[slot].x,
+                  y: anchorRowFrame.minY + anchorSlotCenters[slot].y
+                      + anchorYOff + anchorSize * 0.45
+              )
+          }
+          func sub1Top(_ slot: Int) -> CGPoint {
+              CGPoint(
+                  x: sub1RowFrame.minX + sub1SlotCenters[slot].x,
+                  y: sub1RowFrame.minY + sub1SlotCenters[slot].y
+                      + sub1YOff - sub1Size * 0.45
+              )
+          }
+
+          return SymmetricVDiagram(
+              source: anchorBottom(smallAnchorIdx),
+              destA: sub1Top(needSub1Idx),
+              destB: sub1Top(restSub1Idx),
+              colorA: Color(PandaTheme.orange),
+              colorB: Color(PandaTheme.purple),
+              lineThickness: 7,
+              opacity: 0.85
+          )
+          .allowsHitTesting(false)
+      }
+'''
+          t, n = re.subn(r'    private func decompositionPolylineOverlay\(\) -> some View \{.*?\n    \}\n\n    // MARK: Helper accessors', new_fn + '\n    // MARK: Helper accessors', t, count=1, flags=re.S)
+          if n != 1: raise SystemExit('L4 overlay patch failed')
+          p.write_text(t)
+
+          # 3) L7/L8: split arrows are one-source/two-target and MUST be
+          # symmetric; combine arrows are two-source/one-target and MUST
+          # use the balanced merge primitive.
+          def patch_teen(path_str):
+              p = Path(path_str)
+              t = p.read_text()
+              overlay = r'''    private func stepArrowsOverlay() -> some View {
+          ZStack {
+              if let split = makeSplitArrows() {
+                  SymmetricVDiagram(
+                      source: split.anchorBottom,
+                      destA: split.splitZeroTop,
+                      destB: split.splitTwoTop,
+                      colorA: split.colorZero,
+                      colorB: split.colorTwo,
+                      lineThickness: 7,
+                      opacity: 0.85
+                  )
+              }
+
+              let segments = combineArrows()
+              if segments.count == 2 {
+                  L1MergeLines(
+                      anchorTop: segments[0].from,
+                      anchorMid: segments[1].from,
+                      mergeBox: segments[0].to,
+                      colorA: segments[0].color,
+                      colorB: segments[1].color,
+                      lineThickness: 7
+                  )
+              }
+          }
+      }
+'''
+              t, n = re.subn(r'    private func stepArrowsOverlay\(\) -> some View \{.*?\n    \}\n\n    /// ∧ split arrows', overlay + '\n    /// ∧ split arrows', t, count=1, flags=re.S)
+              if n != 1: raise SystemExit(f'{path_str}: overlay patch failed')
+              p.write_text(t)
+
+          patch_teen('Panda/Panda/Levels/Level7View.swift')
+          patch_teen('Panda/Panda/Levels/Level8View.swift')
+
+          # Validation: ensure all requested levels reference at least one
+          # corrected connector primitive after the patch.
+          checks = {
+              'Level2View.swift': ['L1MergeLines'],
+              'Level3View.swift': ['L1MergeLines'],
+              'Level4View.swift': ['SymmetricVDiagram'],
+              'Level5View.swift': ['SymmetricVDiagram', 'PolylineConnectors'],
+              'Level6View.swift': ['SymmetricVDiagram', 'PolylineConnectors'],
+              'Level7View.swift': ['SymmetricVDiagram', 'L1MergeLines'],
+              'Level8View.swift': ['SymmetricVDiagram', 'L1MergeLines'],
+          }
+          for name, needles in checks.items():
+              p = Path('Panda/Panda/Levels') / name
+              s = p.read_text()
+              missing = [x for x in needles if x not in s]
+              if missing:
+                  raise SystemExit(f'{name} missing {missing}')
+          print('connector patch OK')
+          PY
+
+          git diff --check
+          git diff --stat
+
+      - name: Commit patched source and remove temporary workflow
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Panda/Panda/Components/ArrowConnector.swift Panda/Panda/Levels/Level4View.swift Panda/Panda/Levels/Level7View.swift Panda/Panda/Levels/Level8View.swift .github/workflows/fix_level2_8_connectors.yml
+          git rm .github/workflows/fix_level2_8_connectors.yml
+          git commit -m "[connector-fix] rebalance level 2-8 math connectors"
+          git push
