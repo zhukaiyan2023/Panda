@@ -18,12 +18,9 @@ public struct StepRender: View {
     public let reveal: AnyView?
     public let arrows: AnyView?
 
-    public init(anchor: AnyView? = nil,
-                equation: AnyView? = nil,
-                bodyView: AnyView? = nil,
-                question: AnyView? = nil,
-                reveal: AnyView? = nil,
-                arrows: AnyView? = nil) {
+    public init(anchor: AnyView? = nil, equation: AnyView? = nil,
+                bodyView: AnyView? = nil, question: AnyView? = nil,
+                reveal: AnyView? = nil, arrows: AnyView? = nil) {
         self.anchor = anchor
         self.equation = equation
         self.bodyView = bodyView
@@ -34,16 +31,14 @@ public struct StepRender: View {
 
     public var body: some View {
         VStack(spacing: 12) {
-            if let anchor = anchor { anchor }
-            if let bodyView = bodyView { bodyView }
-            if let equation = equation { equation }
-            if let question = question { question }
-            if let reveal = reveal { reveal }
+            if let anchor { anchor }
+            if let bodyView { bodyView }
+            if let equation { equation }
+            if let question { question }
+            if let reveal { reveal }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .overlay {
-            if let arrows = arrows { arrows }
-        }
+        .overlay { if let arrows { arrows } }
     }
 }
 
@@ -57,12 +52,10 @@ public struct QuestionConfig: View {
     public let buttonWidth: CGFloat
     public let buttonHeight: CGFloat
 
-    public init(correct: Int,
-                values: [Int],
+    public init(correct: Int, values: [Int],
                 labelFor: @escaping (Int) -> String = { "\($0)" },
                 onPick: @escaping (Int) -> Void,
-                buttonWidth: CGFloat = 100,
-                buttonHeight: CGFloat = 80) {
+                buttonWidth: CGFloat = 100, buttonHeight: CGFloat = 80) {
         self.correct = correct
         self.values = values
         self.labelFor = labelFor
@@ -75,11 +68,7 @@ public struct QuestionConfig: View {
         let shuffled = values.shuffled()
         HStack(spacing: 8) {
             ForEach(shuffled, id: \.self) { value in
-                ChoiceButton(
-                    label: labelFor(value),
-                    width: buttonWidth,
-                    height: buttonHeight
-                ) {
+                ChoiceButton(label: labelFor(value), width: buttonWidth, height: buttonHeight) {
                     onPick(value)
                 }
             }
@@ -107,14 +96,11 @@ public struct RoundScaffold: View {
     @State private var showDailyDone = false
     @State private var pandaMood: PandaMood = .idle
 
-    public init(levelId: Int,
-                sampleSize: Int,
-                stepLabels: [String],
+    public init(levelId: Int, sampleSize: Int, stepLabels: [String],
                 poolGen: @escaping () -> [PandaRound],
                 stepBuilder: @escaping (PandaRound, Int, RoundHost) -> StepRender,
                 onRoundCorrect: ((PandaAudio, PandaRound, String?) -> Void)? = nil,
-                introCue: String? = nil,
-                showPanda: Bool = true) {
+                introCue: String? = nil, showPanda: Bool = true) {
         self.levelId = levelId
         self.sampleSize = sampleSize
         self.stepLabels = stepLabels
@@ -124,40 +110,28 @@ public struct RoundScaffold: View {
         self.onRoundCorrect = onRoundCorrect
         self.introCue = introCue
         self.showPanda = showPanda
-        _session = StateObject(wrappedValue: RoundSession(
-            stepCount: stepLabels.count,
-            roundCount: sampled.count
-        ))
+        _session = StateObject(wrappedValue: RoundSession(stepCount: stepLabels.count,
+                                                          roundCount: sampled.count))
     }
 
     public var body: some View {
         ZStack {
             SceneBackground(name: "bg-meadow")
-
             VStack(spacing: 0) {
                 chrome
                 Spacer(minLength: 4)
-
                 if let round = currentRound {
-                    let host = RoundHost(
-                        round: round,
-                        levelId: levelId,
-                        session: session,
-                        advance: advanceStep,
-                        finish: finishRound,
-                        setPandaMood: setPandaMood,
-                        audio: audio
-                    )
+                    let host = RoundHost(round: round, levelId: levelId, session: session,
+                                         advance: advanceStep, finish: finishRound,
+                                         setPandaMood: setPandaMood, audio: audio)
                     stepBuilder(round, session.step, host)
                         .frame(maxWidth: .infinity)
                         .padding(.horizontal, 16)
                         .padding(.top, 8)
                         .id("\(session.roundIndex)-\(session.step)")
                 }
-
                 Spacer(minLength: 8)
             }
-
             if showPanda {
                 VStack {
                     Spacer()
@@ -175,13 +149,9 @@ public struct RoundScaffold: View {
         .safeAreaInset(edge: .top) { Color.clear.frame(height: 0) }
         .onAppear {
             audio.configureSession()
-            if let introCue {
-                audio.playCue(introCue)
-            }
+            if let introCue { audio.playCue(introCue) }
         }
         .onDisappear {
-            // Navigation must invalidate pending narration completions as well
-            // as stop the actual AVAudioPlayer.
             audio.stopAllAudio()
             session.isAnswerLocked = false
         }
@@ -200,10 +170,8 @@ public struct RoundScaffold: View {
                 ZStack {
                     RoundedRectangle(cornerRadius: 16)
                         .fill(Color(PandaTheme.orange))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 16)
-                                .stroke(Color(PandaTheme.ink), lineWidth: 4)
-                        )
+                        .overlay(RoundedRectangle(cornerRadius: 16)
+                            .stroke(Color(PandaTheme.ink), lineWidth: 4))
                     Text("←")
                         .font(.system(size: 26, weight: .heavy, design: .rounded))
                         .foregroundColor(.white)
@@ -211,16 +179,10 @@ public struct RoundScaffold: View {
                 .frame(width: 60, height: 54)
             }
             .buttonStyle(.plain)
-
-            StepBar(
-                labels: stepLabels,
-                step: session.step,
-                totalSteps: stepLabels.count,
-                width: nil
-            )
-            .frame(maxWidth: .infinity)
-            .layoutPriority(1)
-
+            StepBar(labels: stepLabels, step: session.step,
+                    totalSteps: stepLabels.count, width: nil)
+                .frame(maxWidth: .infinity)
+                .layoutPriority(1)
             Color.clear.frame(width: 60, height: 54)
         }
         .padding(.horizontal, 12)
@@ -242,9 +204,8 @@ public struct RoundScaffold: View {
     }
 
     private func advanceStep() {
-        // Correct-answer audio has already completed before RoundHost calls
-        // advance(). Clearing here prevents any stale step prompt from leaking
-        // into the newly rendered step.
+        // Audio completion has already happened before this method is called.
+        // Stop any stale player before SwiftUI renders the next step.
         audio.stopAllAudio()
         if session.step >= stepLabels.count {
             finishRound()
@@ -258,14 +219,12 @@ public struct RoundScaffold: View {
             completeRoundTransition()
             return
         }
-
-        // Start the level-specific answer/read-back. The round must not move
-        // until the audio engine is genuinely idle; using MP3 duration avoids
-        // the old fixed-delay race where question 2 appeared while question 1
-        // was still speaking.
         onRoundCorrect?(audio, round, session.lastEncourageId)
-        audio.whenIdle {
-            completeRoundTransition()
+        audio.whenIdle { [weak self] in
+            guard let self else { return }
+            Task { @MainActor in
+                self.completeRoundTransition()
+            }
         }
     }
 
@@ -277,7 +236,6 @@ public struct RoundScaffold: View {
             session.reset()
             return
         }
-
         if session.roundIndex + 1 < rounds.count {
             audio.stopAllAudio()
             session.roundIndex += 1
@@ -329,11 +287,8 @@ public final class RoundHost: ObservableObject {
     public let session: RoundSession
     private let audio: PandaAudio?
 
-    public init(round: PandaRound,
-                levelId: Int,
-                session: RoundSession,
-                advance: @escaping () -> Void,
-                finish: @escaping () -> Void,
+    public init(round: PandaRound, levelId: Int, session: RoundSession,
+                advance: @escaping () -> Void, finish: @escaping () -> Void,
                 setPandaMood: @escaping (PandaMood) -> Void,
                 audio: PandaAudio? = nil) {
         self.round = round
@@ -361,8 +316,7 @@ public final class RoundHost: ObservableObject {
         audio.playSequence(ids, gapMs: gapMs, onComplete: onComplete)
     }
 
-    public func playStepAudio(_ ids: [String],
-                              seqGapMs: Int = 40,
+    public func playStepAudio(_ ids: [String], seqGapMs: Int = 40,
                               onComplete: (() -> Void)? = nil) {
         guard let audio, !ids.isEmpty else {
             onComplete?()
@@ -376,8 +330,7 @@ public final class RoundHost: ObservableObject {
         }
     }
 
-    public func playRewardAudio(_ ids: [String],
-                                gapMs: Int = 200,
+    public func playRewardAudio(_ ids: [String], gapMs: Int = 200,
                                 seqGapMs: Int = 200,
                                 onComplete: (() -> Void)? = nil) {
         guard let audio, !ids.isEmpty else {
@@ -392,24 +345,24 @@ public final class RoundHost: ObservableObject {
         }
     }
 
-    public func makeQuestion(correct: Int,
-                             values: [Int],
+    public func makeQuestion(correct: Int, values: [Int],
                              labelFor: @escaping (Int) -> String = { "\($0)" },
                              buttonWidth: CGFloat = 100,
                              buttonHeight: CGFloat = 80) -> AnyView {
-        AnyView(QuestionConfig(
+        let host = self
+        return AnyView(QuestionConfig(
             correct: correct,
             values: values,
             labelFor: labelFor,
-            onPick: { value in self.handlePick(value: value, correct: correct) },
+            onPick: { [weak host] value in
+                host?.handlePick(value: value, correct: correct)
+            },
             buttonWidth: buttonWidth,
             buttonHeight: buttonHeight
         ))
     }
 
     private func handlePick(value: Int, correct: Int) {
-        // Ignore repeated taps while feedback is speaking. Without this guard
-        // multiple rapid taps schedule multiple advances and multiple voices.
         guard !session.isAnswerLocked else { return }
         session.isAnswerLocked = true
 
@@ -425,9 +378,12 @@ public final class RoundHost: ObservableObject {
                 return
             }
 
+            // Capture the observable session and advance closure explicitly.
+            // This avoids Swift 6's implicit-self capture diagnostic and also
+            // keeps the completion focused on the same round state.
+            let session = self.session
+            let advance = self.advance
             audio.playCue(cue) {
-                // The cheer has landed completely. Only now is it safe to
-                // render the next step / start the final answer read-back.
                 session.lastEncourageId = nil
                 session.isAnswerLocked = false
                 advance()
@@ -438,6 +394,7 @@ public final class RoundHost: ObservableObject {
                 session.isAnswerLocked = false
                 return
             }
+            let session = self.session
             audio.playCue("enc-wrong-\(levelId)") {
                 session.isAnswerLocked = false
             }
@@ -449,16 +406,11 @@ public final class RoundHost: ObservableObject {
 
 // MARK: - Helpers
 
-public func optionChoices(correct: Int,
-                          min lo: Int = 0,
-                          max hi: Int = 10,
-                          prefer: [Int] = [],
-                          count: Int = 4) -> [Int] {
+public func optionChoices(correct: Int, min lo: Int = 0, max hi: Int = 10,
+                          prefer: [Int] = [], count: Int = 4) -> [Int] {
     var picked: [Int] = []
     func add(_ v: Int) {
-        if v >= lo && v <= hi && !picked.contains(v) {
-            picked.append(v)
-        }
+        if v >= lo && v <= hi && !picked.contains(v) { picked.append(v) }
     }
     add(correct)
     for p in prefer { add(p) }
