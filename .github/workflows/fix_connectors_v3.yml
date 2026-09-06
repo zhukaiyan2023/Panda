@@ -1,0 +1,261 @@
+name: Audit and fix level 2-8 connectors
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    if: "!contains(github.event.head_commit.message, '[connector-v3]')"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Apply connector geometry and call-site fixes
+        shell: bash
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+          import re
+
+          root = Path('Panda/Panda')
+
+          # 1. Replace BalancedSplitConnector with a genuinely symmetric
+          #    split: the colored horizontal arms are mirror lengths around
+          #    the midpoint of the two destination columns. The source stem
+          #    joins that midpoint once; it is not counted as either arm.
+          p = root / 'Components/BalancedMathConnectors.swift'
+          text = p.read_text()
+
+          split = r'''public struct BalancedSplitConnector: View {
+              public let source: CGPoint
+              public let destA: CGPoint
+              public let destB: CGPoint
+              public let colorA: Color
+              public let colorB: Color
+              public let lineThickness: CGFloat
+              public let opacity: Double
+              public let totalLength: CGFloat?
+
+              public init(source: CGPoint,
+                          destA: CGPoint,
+                          destB: CGPoint,
+                          colorA: Color,
+                          colorB: Color,
+                          lineThickness: CGFloat = 7,
+                          opacity: Double = 0.85,
+                          totalLength: CGFloat? = nil) {
+                  self.source = source
+                  self.destA = destA
+                  self.destB = destB
+                  self.colorA = colorA
+                  self.colorB = colorB
+                  self.lineThickness = lineThickness
+                  self.opacity = opacity
+                  self.totalLength = totalLength
+              }
+
+              public var body: some View {
+                  Canvas { context, _ in
+                      let targetY = min(destA.y, destB.y)
+                      let span = targetY - source.y
+                      guard span > 2 else { return }
+
+                      let leftFirst = destA.x <= destB.x
+                      let left = leftFirst ? destA : destB
+                      let right = leftFirst ? destB : destA
+                      let leftColor = leftFirst ? colorA : colorB
+                      let rightColor = leftFirst ? colorB : colorA
+
+                      // The branch point is the midpoint of the target
+                      // columns. Therefore the left/right horizontal arms
+                      // have exactly the same length by construction.
+                      let branchX = (left.x + right.x) * 0.5
+                      let branchY = source.y + span * 0.46
+                      let clearance = min(5, max(2, span * 0.04))
+                      let targetYFinal = targetY - clearance
+
+                      func stroke(_ points: [CGPoint], color: Color, opacity: Double) {
+                          guard points.count > 1 else { return }
+                          var path = Path()
+                          path.move(to: points[0])
+                          for point in points.dropFirst() { path.addLine(to: point) }
+                          context.stroke(
+                              path,
+                              with: .color(color.opacity(opacity)),
+                              style: StrokeStyle(lineWidth: lineThickness,
+                                                 lineCap: .round,
+                                                 lineJoin: .round)
+                          )
+                      }
+
+                      let branch = CGPoint(x: branchX, y: branchY)
+
+                      // Single source trunk. This stays one color and one
+                      // stroke; it is the common stem feeding the split.
+                      stroke([source,
+                              CGPoint(x: source.x, y: branchY),
+                              branch],
+                             color: Color(PandaTheme.ink),
+                             opacity: 0.42)
+
+                      // Equal-length colored horizontal arms, followed by
+                      // equal vertical drops into the two target slots.
+                      stroke([branch,
+                              CGPoint(x: left.x, y: branchY),
+                              CGPoint(x: left.x, y: targetYFinal),
+                              left],
+                             color: leftColor,
+                             opacity: opacity)
+
+                      stroke([branch,
+                              CGPoint(x: right.x, y: branchY),
+                              CGPoint(x: right.x, y: targetYFinal),
+                              right],
+                             color: rightColor,
+                             opacity: opacity)
+                  }
+                  .allowsHitTesting(false)
+              }
+          }
+          '''
+
+          text, n = re.subn(
+              r'public struct BalancedSplitConnector: View \{.*?(?=\n// L7/L8 use this connector)',
+              split + '\n', text, count=1, flags=re.S)
+          if n != 1:
+              raise SystemExit('BalancedSplitConnector block not found')
+          p.write_text(text)
+
+          # 2. Do not rely on cross-type extension aliases inside the
+          #    level declarations. Replace every level-local connector
+          #    call with the concrete corrected type.
+          files = {
+              'Levels/Level2View.swift': [
+                  ('L1MergeLines(', 'BalancedMergeConnector('),
+              ],
+              'Levels/Level3View.swift': [
+                  ('L1MergeLines(', 'BalancedMergeConnector('),
+              ],
+              'Levels/Level5View.swift': [
+                  ('SymmetricVDiagram(', 'BalancedSplitConnector('),
+                  ('PolylineConnectors.Segment', 'BalancedConnectorCollection.Segment'),
+                  ('PolylineConnectors(', 'BalancedConnectorCollection('),
+              ],
+              'Levels/Level6View.swift': [
+                  ('SymmetricVDiagram(', 'BalancedSplitConnector('),
+                  ('PolylineConnectors.Segment', 'BalancedConnectorCollection.Segment'),
+                  ('PolylineConnectors(', 'BalancedConnectorCollection('),
+              ],
+              'Levels/Level7View.swift': [
+                  ('L3StylePolyline(', 'BalancedFixedArmConnector('),
+              ],
+              'Levels/Level8View.swift': [
+                  ('L3StylePolyline(', 'BalancedFixedArmConnector('),
+              ],
+          }
+
+          for rel, replacements in files.items():
+              p = root / rel
+              t = p.read_text()
+              old = t
+              for a, b in replacements:
+                  t = t.replace(a, b)
+              if t != old:
+                  p.write_text(t)
+
+          # 3. L7/L8 split arrows are the same one-source -> two-target
+          #    geometry as L5/L6. Replace their separate FixedArm calls
+          #    with one symmetric split object.
+          #    This is deliberately done at the overlay function so the
+          #    two branches share a midpoint and cannot be asymmetric.
+          for rel in ['Levels/Level7View.swift', 'Levels/Level8View.swift']:
+              p = root / rel
+              t = p.read_text()
+              if rel.endswith('Level7View.swift'):
+                  pattern = r'''            if let splitArrow = makeSplitArrows\(\) \{.*?\n            \}
+            // ∨ combine arrows'''
+                  repl = r'''            if let splitArrow = makeSplitArrows() {
+                BalancedSplitConnector(
+                    source: splitArrow.anchorBottom,
+                    destA: splitArrow.splitZeroTop,
+                    destB: splitArrow.splitTwoTop,
+                    colorA: splitArrow.colorZero,
+                    colorB: splitArrow.colorTwo,
+                    lineThickness: 7,
+                    opacity: 0.85
+                )
+            }
+            // ∨ combine arrows'''
+              else:
+                  pattern = r'''            if let splitArrow = makeSplitArrows\(\) \{.*?\n            \}
+            ForEach\(combineArrows\(\)\)'''
+                  repl = r'''            if let splitArrow = makeSplitArrows() {
+                BalancedSplitConnector(
+                    source: splitArrow.anchorBottom,
+                    destA: splitArrow.splitZeroTop,
+                    destB: splitArrow.splitTwoTop,
+                    colorA: splitArrow.colorZero,
+                    colorB: splitArrow.colorTwo,
+                    lineThickness: 7,
+                    opacity: 0.85
+                )
+            }
+            ForEach(combineArrows())'''
+              t2, n = re.subn(pattern, repl, t, count=1, flags=re.S)
+              if n != 1:
+                  raise SystemExit(f'{rel}: split overlay block not found')
+              p.write_text(t2)
+
+          # 4. L7/L8 combine arrows are two-source -> one-target. Use the
+          #    grouped collection directly, which forces the source-side
+          #    horizontal arms to terminate at the midpoint of the sources.
+          for rel in ['Levels/Level7View.swift', 'Levels/Level8View.swift']:
+              p = root / rel
+              t = p.read_text()
+              t = t.replace(
+                  '''            ForEach(combineArrows()) { seg in
+                BalancedFixedArmConnector(
+                    from: seg.from,
+                    to: seg.to,
+                    color: seg.color
+                )
+            }''',
+                  '''            let segments = combineArrows().map {
+                BalancedConnectorCollection.Segment(
+                    from: $0.from,
+                    to: $0.to,
+                    color: $0.color,
+                    thickness: 7,
+                    opacity: 0.85,
+                    style: .elbow
+                )
+            }
+            if !segments.isEmpty {
+                BalancedConnectorCollection(segments: segments)
+            }''')
+              p.write_text(t)
+
+          # 5. Remove the temporary typealiases from this component.
+          #    Keeping the file concrete makes it obvious at code review
+          #    which component each level is using.
+          text = p = None
+          q = root / 'Components/BalancedMathConnectors.swift'
+          t = q.read_text()
+          t = re.sub(r'\n// Level-local typealiases.*?(?=\Z)', '\n', t, flags=re.S)
+          q.write_text(t)
+          PY
+
+          if git diff --quiet; then
+            echo 'No connector changes needed.'
+            exit 0
+          fi
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add Panda/Panda/Components/BalancedMathConnectors.swift Panda/Panda/Levels/Level2View.swift Panda/Panda/Levels/Level3View.swift Panda/Panda/Levels/Level5View.swift Panda/Panda/Levels/Level6View.swift Panda/Panda/Levels/Level7View.swift Panda/Panda/Levels/Level8View.swift
+          git commit -m '[connector-v3] Fix level 2-8 connector geometry'
+          git push
