@@ -2,12 +2,7 @@
 //  RoundScaffold.swift
 //  Panda
 //
-//  The shared round scaffold every math level is built on.
-//  A level provides a list of `StepRender` views; each step is
-//  rendered in order, and interactive steps (with a `QuestionConfig`)
-//  wait for a tap before advancing.
-//
-//  Mirrors `scenes/roundScene.js`.
+//  Shared round scaffold for math levels.
 //
 
 import SwiftUI
@@ -29,9 +24,6 @@ public struct StepRender: View {
                 question: AnyView? = nil,
                 reveal: AnyView? = nil,
                 arrows: AnyView? = nil) {
-        // Caller must use the same argument order (anchor, equation,
-        // bodyView, question, reveal, arrows). Swift requires named
-        // arguments at call sites.
         self.anchor = anchor
         self.equation = equation
         self.bodyView = bodyView
@@ -104,17 +96,8 @@ public struct RoundScaffold: View {
     public let stepLabels: [String]
     public let rounds: [PandaRound]
     public let stepBuilder: (PandaRound, Int, RoundHost) -> StepRender
-    /// Called once a round's last step is answered correctly.
-    /// Parameters: `audio` (shared audio engine), `round` (the
-    /// current PandaRound for cue-id interpolation), and
-    /// `lastEncourageId` (the cheer cue id that just fired — pass
-    /// to `audio.playAfter(_:then:...)` so the reward reads
-    /// AFTER the celebration tail, not over it).
     public let onRoundCorrect: ((PandaAudio, PandaRound, String?) -> Void)?
     public let introCue: String?
-    /// Whether to draw the friendly panda companion in the bottom-left
-    /// corner. Levels 1-8 (the math rounds) set this to `false` so the
-    /// kid can focus on the equations without a distraction.
     public let showPanda: Bool
 
     @StateObject private var session: RoundSession
@@ -142,7 +125,9 @@ public struct RoundScaffold: View {
         self.introCue = introCue
         self.showPanda = showPanda
         _session = StateObject(wrappedValue: RoundSession(
-            stepCount: stepLabels.count, roundCount: sampled.count))
+            stepCount: stepLabels.count,
+            roundCount: sampled.count
+        ))
     }
 
     public var body: some View {
@@ -173,10 +158,6 @@ public struct RoundScaffold: View {
                 Spacer(minLength: 8)
             }
 
-            // Panda anchored to the bottom-LEFT of the screen, sitting
-            // above the game content as a friendly companion. Hidden when
-            // `showPanda == false` (e.g. the math levels L1-L8) so the
-            // kid can focus on the equations without a distraction.
             if showPanda {
                 VStack {
                     Spacer()
@@ -194,10 +175,15 @@ public struct RoundScaffold: View {
         .safeAreaInset(edge: .top) { Color.clear.frame(height: 0) }
         .onAppear {
             audio.configureSession()
-            // Per-level intro cue (e.g. "l1-intro-1-2-3") or generic.
-            if introCue != nil {
-                audio.playCue(introCue!)
+            if let introCue {
+                audio.playCue(introCue)
             }
+        }
+        .onDisappear {
+            // Navigation must invalidate pending narration completions as well
+            // as stop the actual AVAudioPlayer.
+            audio.stopAllAudio()
+            session.isAnswerLocked = false
         }
         .fullScreenCover(isPresented: $showDailyDone) {
             DailyDoneView(onDismiss: { dismiss() })
@@ -206,7 +192,6 @@ public struct RoundScaffold: View {
 
     private var chrome: some View {
         HStack(spacing: 12) {
-            // Back button — sized for portrait, anchored to the left.
             Button(action: {
                 audio.stopAllAudio()
                 session.reset()
@@ -227,8 +212,6 @@ public struct RoundScaffold: View {
             }
             .buttonStyle(.plain)
 
-            // Step bar — flexes between the back button and a right-side
-            // placeholder so the bar stays visually centred.
             StepBar(
                 labels: stepLabels,
                 step: session.step,
@@ -238,8 +221,6 @@ public struct RoundScaffold: View {
             .frame(maxWidth: .infinity)
             .layoutPriority(1)
 
-            // Symmetric placeholder to balance the back button so the
-            // step bar stays visually centred.
             Color.clear.frame(width: 60, height: 54)
         }
         .padding(.horizontal, 12)
@@ -261,6 +242,9 @@ public struct RoundScaffold: View {
     }
 
     private func advanceStep() {
+        // Correct-answer audio has already completed before RoundHost calls
+        // advance(). Clearing here prevents any stale step prompt from leaking
+        // into the newly rendered step.
         audio.stopAllAudio()
         if session.step >= stepLabels.count {
             finishRound()
@@ -270,52 +254,37 @@ public struct RoundScaffold: View {
     }
 
     private func finishRound() {
-        // Per-round reward audio (read-back the full equation).
-        // We DON'T call `audio.stopAllAudio()` here because the
-        // reward cue needs to play AFTER the just-fired cheer
-        // (`enc-first-{levelId}`), not be cut off by a blanket
-        // stop. The level's `onRoundCorrect` callback is
-        // responsible for chaining the reward off the cheer if
-        // it wants the full read-back; if it just plays a plain
-        // `audio.playCue(...)`, we cancel any in-flight audio
-        // *after* the cue has had a chance to start.
-        if let round = currentRound {
-            onRoundCorrect?(audio, round, session.lastEncourageId)
-            // Give the reward cue ~0.05s to register with the
-            // player before we stop anything else. Without this
-            // brief delay, `audio.stopAllAudio()` (called when
-            // the next round's anchor appears) would race the
-            // reward cue's first frame.
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak audio] in
-                // No-op here — the reward keeps playing. This
-                // hook only exists so the audio engine has a
-                // tick to register the new player.
-                _ = audio
-            }
+        guard let round = currentRound else {
+            completeRoundTransition()
+            return
         }
+
+        // Start the level-specific answer/read-back. The round must not move
+        // until the audio engine is genuinely idle; using MP3 duration avoids
+        // the old fixed-delay race where question 2 appeared while question 1
+        // was still speaking.
+        onRoundCorrect?(audio, round, session.lastEncourageId)
+        audio.whenIdle {
+            completeRoundTransition()
+        }
+    }
+
+    private func completeRoundTransition() {
         let daily = saveStore.markRoundFinished(levelId)
         if daily.locked {
-            // Daily cap reached — stop in-flight audio so the
-            // "做完了，真棒" daily-done cue isn't overlapped by the
-            // still-running reward.
             audio.stopAllAudio()
             showDailyDone = true
             session.reset()
             return
         }
+
         if session.roundIndex + 1 < rounds.count {
-            // Advance to the next round. Stop any leftover audio
-            // FIRST so the next round's intro doesn't overlap the
-            // tail of this round's reward.
             audio.stopAllAudio()
             session.roundIndex += 1
             session.step = 1
-            // Drop the previous round's cheer anchor so the new
-            // round's intro step audio plays immediately (not
-            // chained off a cue that ended seconds ago).
             session.lastEncourageId = nil
+            session.isAnswerLocked = false
         } else {
-            // Last round of the session — pop back to picker.
             audio.stopAllAudio()
             session.reset()
             dismiss()
@@ -329,14 +298,8 @@ public struct RoundScaffold: View {
 public final class RoundSession: ObservableObject {
     @Published public var step: Int = 1
     @Published public var roundIndex: Int = 0
-    /// The last "encouragement" (cheer) cue id played for this
-    /// session — lives on the session (not the host) so it
-    /// survives the per-render host rebuild. Used by
-    /// `RoundHost.playStepAudio` to chain the next step's
-    /// prompt off the celebration's `ended` event instead of
-    /// overlapping it. Mirrors the JS `ctx.lastEncourageId`
-    /// field that roundScene sets in `onPick`.
     @Published public var lastEncourageId: String?
+    @Published public var isAnswerLocked = false
 
     public let stepCount: Int
     public let roundCount: Int
@@ -350,6 +313,7 @@ public final class RoundSession: ObservableObject {
         step = 1
         roundIndex = 0
         lastEncourageId = nil
+        isAnswerLocked = false
     }
 }
 
@@ -381,40 +345,26 @@ public final class RoundHost: ObservableObject {
         self.audio = audio
     }
 
-    /// Reads the last played encouragement cue id from the
-    /// session so it survives the per-render host rebuild.
     public var lastEncourageId: String? { session.lastEncourageId }
 
-    /// Plays a single audio cue. The level step builders use this from
-    /// inside the step closure to read the per-step prompt.
     public func playCue(_ id: String) {
-        guard let audio = audio, !id.isEmpty else { return }
+        guard let audio, !id.isEmpty else { return }
         audio.playCue(id)
     }
 
-    /// Plays a sequence of audio cues with a tight inter-cue gap.
-    /// Use for composite prompts that need to be heard as one
-    /// sentence (e.g. "我们先把a拆成十加几" → "a加b等于几").
     public func playSequence(_ ids: [String], gapMs: Int = 40,
                              onComplete: (() -> Void)? = nil) {
-        guard let audio = audio, !ids.isEmpty else {
+        guard let audio, !ids.isEmpty else {
             onComplete?()
             return
         }
         audio.playSequence(ids, gapMs: gapMs, onComplete: onComplete)
     }
 
-    /// Plays a step's audio prompt. If `lastEncourageId` is set (the
-    /// previous cheer hasn't finished yet), the prompt chains off
-    /// its `ended` event so they don't overlap. Mirrors the JS
-    /// `fireL3StepAudio` / `fireL5StepAudio` / `fireTeenStepAudio`
-    /// helpers. The optional `onComplete` fires when the LAST cue
-    /// in `ids` finishes, so the step can defer rendering the next
-    /// equation until the audio lands.
     public func playStepAudio(_ ids: [String],
                               seqGapMs: Int = 40,
                               onComplete: (() -> Void)? = nil) {
-        guard let audio = audio, !ids.isEmpty else {
+        guard let audio, !ids.isEmpty else {
             onComplete?()
             return
         }
@@ -426,15 +376,11 @@ public final class RoundHost: ObservableObject {
         }
     }
 
-    /// Plays the reward audio for a finished round (chained off the
-    /// last cheer cue). Mirrors the `playAfter(ctx.lastEncourageId,
-    /// answerIds, ...)` pattern at the end of every JS level's
-    /// final-step `onAdvance`.
     public func playRewardAudio(_ ids: [String],
                                 gapMs: Int = 200,
                                 seqGapMs: Int = 200,
                                 onComplete: (() -> Void)? = nil) {
-        guard let audio = audio, !ids.isEmpty else {
+        guard let audio, !ids.isEmpty else {
             onComplete?()
             return
         }
@@ -462,19 +408,39 @@ public final class RoundHost: ObservableObject {
     }
 
     private func handlePick(value: Int, correct: Int) {
+        // Ignore repeated taps while feedback is speaking. Without this guard
+        // multiple rapid taps schedule multiple advances and multiple voices.
+        guard !session.isAnswerLocked else { return }
+        session.isAnswerLocked = true
+
         if value == correct {
             setPandaMood(.cheer)
-            // Per-level "first correct" encouragement. Falls back to a
-            // silent WAV when the pre-baked mp3 isn't bundled.
-            // Mark this as the chain anchor for the next step's
-            // prompt — same role `ctx.lastEncourageId` plays in JS.
             let cue = "enc-first-\(levelId)"
-            audio?.playCue(cue)
             session.lastEncourageId = cue
-            advance()
+
+            guard let audio else {
+                session.lastEncourageId = nil
+                session.isAnswerLocked = false
+                advance()
+                return
+            }
+
+            audio.playCue(cue) {
+                // The cheer has landed completely. Only now is it safe to
+                // render the next step / start the final answer read-back.
+                session.lastEncourageId = nil
+                session.isAnswerLocked = false
+                advance()
+            }
         } else {
             setPandaMood(.think)
-            audio?.playCue("enc-wrong-\(levelId)")
+            guard let audio else {
+                session.isAnswerLocked = false
+                return
+            }
+            audio.playCue("enc-wrong-\(levelId)") {
+                session.isAnswerLocked = false
+            }
         }
     }
 
@@ -490,7 +456,9 @@ public func optionChoices(correct: Int,
                           count: Int = 4) -> [Int] {
     var picked: [Int] = []
     func add(_ v: Int) {
-        if v >= lo && v <= hi && !picked.contains(v) { picked.append(v) }
+        if v >= lo && v <= hi && !picked.contains(v) {
+            picked.append(v)
+        }
     }
     add(correct)
     for p in prefer { add(p) }
