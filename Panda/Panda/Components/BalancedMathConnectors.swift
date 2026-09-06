@@ -63,6 +63,9 @@ public struct BalancedMergeConnector: View {
     }
 }
 
+/// One source -> two destinations. The branch is always placed at the
+/// midpoint of the destination columns so the two colored horizontal
+/// arms are mirror-symmetric by construction.
 public struct BalancedSplitConnector: View {
     public let source: CGPoint
     public let destA: CGPoint
@@ -97,12 +100,19 @@ public struct BalancedSplitConnector: View {
             let span = targetY - source.y
             guard span > 2 else { return }
 
-            let requested = totalLength ?? span
-            let effectiveSpan = min(span, max(24, requested))
-            let branchY = source.y + effectiveSpan * 0.48
-            let branchX = (destA.x + destB.x) * 0.5
+            let leftFirst = destA.x <= destB.x
+            let left = leftFirst ? destA : destB
+            let right = leftFirst ? destB : destA
+            let leftColor = leftFirst ? colorA : colorB
+            let rightColor = leftFirst ? colorB : colorA
+
+            // Use one common branch point. This guarantees equal horizontal
+            // arm lengths even when the source is not centered over either
+            // destination slot.
+            let branchX = (left.x + right.x) * 0.5
+            let branchY = source.y + span * 0.46
             let clearance = min(5, max(2, span * 0.04))
-            let finalY = targetY - clearance
+            let targetYFinal = targetY - clearance
 
             func stroke(_ points: [CGPoint], color: Color, opacity: Double) {
                 guard points.count > 1 else { return }
@@ -117,25 +127,32 @@ public struct BalancedSplitConnector: View {
             }
 
             let branch = CGPoint(x: branchX, y: branchY)
+
+            // Single neutral source stem into the split point.
             stroke([source,
                     CGPoint(x: source.x, y: branchY),
                     branch],
                    color: Color(PandaTheme.ink), opacity: 0.42)
 
+            // The two branches share the same branch point and the same
+            // vertical depth, then terminate at the destination slot tops.
             stroke([branch,
-                    CGPoint(x: destA.x, y: branchY),
-                    CGPoint(x: destA.x, y: finalY)],
-                   color: colorA, opacity: opacity)
+                    CGPoint(x: left.x, y: branchY),
+                    CGPoint(x: left.x, y: targetYFinal),
+                    left],
+                   color: leftColor, opacity: opacity)
+
             stroke([branch,
-                    CGPoint(x: destB.x, y: branchY),
-                    CGPoint(x: destB.x, y: finalY)],
-                   color: colorB, opacity: opacity)
+                    CGPoint(x: right.x, y: branchY),
+                    CGPoint(x: right.x, y: targetYFinal),
+                    right],
+                   color: rightColor, opacity: opacity)
         }
         .allowsHitTesting(false)
     }
 }
 
-// One source -> one destination. The horizontal elbow is fixed-length so
+// One source -> one destination. The horizontal arm is fixed-length so
 // sibling branches in L7/L8 do not become one long arm and one short arm.
 public struct BalancedFixedArmConnector: View {
     public let from: CGPoint
@@ -169,8 +186,13 @@ public struct BalancedFixedArmConnector: View {
             let finalY = to.y - clearance
             let branchY = from.y + dy * 0.48
             let direction: CGFloat = dx >= 0 ? 1 : -1
-            let actualArm = min(armLength, max(24, abs(dx) * 0.72))
-            let branchX = to.x - direction * actualArm
+
+            // Fixed horizontal arm measured from the source. Both arrows
+            // in a sibling pair therefore use exactly the same arm length
+            // instead of deriving it from the individual target distance.
+            // Clamp only when a target is unusually close to the source.
+            let actualArm = min(armLength, max(24, abs(dx)))
+            let branchX = from.x + direction * actualArm
 
             var path = Path()
             path.move(to: from)
