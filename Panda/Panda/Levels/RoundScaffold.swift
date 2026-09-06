@@ -154,6 +154,7 @@ public struct RoundScaffold: View {
         .onDisappear {
             audio.stopAllAudio()
             session.isAnswerLocked = false
+            session.lastStepAudioKey = nil
         }
         .fullScreenCover(isPresented: $showDailyDone) {
             DailyDoneView(onDismiss: { dismiss() })
@@ -204,8 +205,9 @@ public struct RoundScaffold: View {
     }
 
     private func advanceStep() {
-        // Audio completion has already happened before this method is called.
-        // Stop any stale player before SwiftUI renders the next step.
+        // The correct-answer encouragement has already completed before
+        // this method is reached. Invalidate any stale player/task before
+        // the next step view starts its narration.
         audio.stopAllAudio()
         if session.step >= stepLabels.count {
             finishRound()
@@ -220,10 +222,9 @@ public struct RoundScaffold: View {
             return
         }
         onRoundCorrect?(audio, round, session.lastEncourageId)
-        // `RoundScaffold` is a struct (SwiftUI View), not a
-        // class — `[weak self]` is invalid here. The closure runs
-        // on the audio engine's queue; we hop back to the main
-        // actor before mutating @StateObject state.
+        // `RoundScaffold` is a struct (SwiftUI View), not a class.
+        // Wait for the complete read-back/celebration chain before loading
+        // the next round so the answer announcement is never cut short.
         audio.whenIdle {
             Task { @MainActor in
                 self.completeRoundTransition()
@@ -244,6 +245,7 @@ public struct RoundScaffold: View {
             session.roundIndex += 1
             session.step = 1
             session.lastEncourageId = nil
+            session.lastStepAudioKey = nil
             session.isAnswerLocked = false
         } else {
             audio.stopAllAudio()
@@ -262,6 +264,12 @@ public final class RoundSession: ObservableObject {
     @Published public var lastEncourageId: String?
     @Published public var isAnswerLocked = false
 
+    /// Prevents step narration from restarting when `stepBuilder` is
+    /// evaluated repeatedly by SwiftUI. L2 historically started its
+    /// narration directly from `stepBuilder`, so without this token a
+    /// harmless redraw could cancel and restart the same MP3.
+    @Published public var lastStepAudioKey: String?
+
     public let stepCount: Int
     public let roundCount: Int
 
@@ -274,6 +282,7 @@ public final class RoundSession: ObservableObject {
         step = 1
         roundIndex = 0
         lastEncourageId = nil
+        lastStepAudioKey = nil
         isAnswerLocked = false
     }
 }
@@ -325,6 +334,15 @@ public final class RoundHost: ObservableObject {
             onComplete?()
             return
         }
+
+        // De-duplicate the same step cue across SwiftUI body evaluations.
+        // The token includes both round and step, so the next question is
+        // always eligible to start while redraws of the current question are
+        // ignored.
+        let key = "\(session.roundIndex)-\(session.step)-\(ids.joined(separator: "|"))"
+        guard session.lastStepAudioKey != key else { return }
+        session.lastStepAudioKey = key
+
         if let prev = lastEncourageId {
             audio.playAfter(prev, then: ids, gapMs: 400,
                             seqGapMs: seqGapMs, onComplete: onComplete)
@@ -381,11 +399,11 @@ public final class RoundHost: ObservableObject {
                 return
             }
 
-            // Capture the observable session and advance closure explicitly.
-            // This avoids Swift 6's implicit-self capture diagnostic and also
-            // keeps the completion focused on the same round state.
             let session = self.session
             let advance = self.advance
+            // `playCue` owns the single audio channel: it stops the current
+            // question narration first, then waits for the encouragement to
+            // actually finish before advancing.
             audio.playCue(cue) {
                 session.lastEncourageId = nil
                 session.isAnswerLocked = false
