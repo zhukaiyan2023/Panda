@@ -2,11 +2,11 @@
 //  MathExpression.swift
 //  Panda
 //
-//  Renders arithmetic expressions with fixed slot geometry. The
-//  layout is computed once per (slot-count, reserve) key and reused
-//  across re-renders so reveal animations don't reflow the row.
+//  Arithmetic expression renderer with stable slot geometry.
 //
-//  Mirrors `components/expression.js`.
+//  Important rule for the teaching diagrams: a slot must occupy the
+//  same horizontal space before and after a □ is replaced by a digit.
+//  Otherwise the whole equation recenters and connector endpoints move.
 //
 
 import SwiftUI
@@ -23,13 +23,12 @@ public struct MathExpression: View {
     public var body: some View {
         GeometryReader { geo in
             let cx = geo.size.width / 2
-            let cy = geo.size.height / 2
             let layout = ExpressionLayoutCache.shared.layout(
                 key: layoutKey,
                 slots: slots,
                 size: size,
                 xCenter: cx,
-                yCenter: cy
+                yCenter: geo.size.height / 2
             )
             ZStack {
                 ForEach(Array(slots.enumerated()), id: \.offset) { idx, slot in
@@ -60,17 +59,8 @@ public struct MathExpression: View {
                 .foregroundColor(Color(color ?? PandaTheme.ink))
                 .position(x: centerX, y: size / 2 - size * 0.05)
 
-        case .answerBox(let placeholder, let color, let label):
-            // `placeholder` is the inline glyph to render inside the
-            // box ("□" or "?"). `label` is an OPTIONAL override —
-            // usually nil; callers that want a custom glyph pass it
-            // through. The previous code discarded `placeholder` and
-            // only forwarded `label`, so callers passing
-            // `.answerBox("?")` got an empty box. Default to the
-            // placeholder when `label` is nil.
-            AnswerBoxShape(color: color ?? PandaTheme.ink,
-                           size: size,
-                           label: label ?? placeholder)
+        case .answerBox(_, let color, _):
+            AnswerBoxShape(color: color ?? PandaTheme.ink, size: size)
                 .position(x: centerX, y: size / 2)
         }
     }
@@ -81,32 +71,29 @@ public struct MathExpression: View {
 public enum MathSlot {
     case number(Int, color: RGB? = nil, sizeMultiplier: CGFloat? = nil)
     case op(MathOperator, color: RGB? = nil)
-    /// Renders as a hollow box. `label` is the placeholder glyph ("□" or "?").
     case answerBox(String = "□", color: RGB? = nil, label: String? = nil)
 
     public var reserveKey: String {
         switch self {
-        case .number(let v, _, _): return "n\(v)"
-        case .op(let o, _): return "o\(o.rawValue)"
-        case .answerBox(let label, _, _): return "b\(label)"
+        case .number:
+            // All numeric values reserve the same slot width. In particular
+            // "1" and "10" must not move the row when a □ is revealed.
+            return "number"
+        case .op(let o, _):
+            return "op\(o.rawValue)"
+        case .answerBox:
+            // Answer boxes use the same reserved width as numbers.
+            return "number"
         }
     }
 
-    /// Build a `.number` slot if `value` parses as an Int (so the
-    /// slot renders as a digit); otherwise build an `.answerBox`
-    /// slot using the original string as the placeholder label.
-    /// Used by L5 / L6 (and any other level) that need to mix
-    /// numeric literals with placeholder boxes inside a single
-    /// slot array — the same row needs "?" boxes pre-pick and
-    /// numeric values post-pick. Mirrors the JS pattern.
     public static func numberOrBox(_ value: String,
                                     numColor: RGB,
                                     boxColor: RGB) -> MathSlot {
         if let n = Int(value) {
             return .number(n, color: numColor)
-        } else {
-            return .answerBox(value, color: boxColor)
         }
+        return .answerBox(value, color: boxColor)
     }
 }
 
@@ -125,23 +112,17 @@ public enum MathOperator: String {
 private struct AnswerBoxShape: View {
     let color: RGB
     let size: CGFloat
-    let label: String?
 
     var body: some View {
         let boxSize = size * 0.9
-        // Single-crisp-frame idiom (see ArrowConnector.swift for the
-        // long-form comment). The inner placeholder glyph (`?` / `□`)
-        // is intentionally NOT rendered here per user feedback
-        // "应该只保留□一个" — with the glyph removed the box reads
-        // as one clean frame instead of "a box inside a box".
-        // Interactive targeting still works because the empty frame
-        // is the only tap target for that slot.
         RoundedRectangle(cornerRadius: boxSize * 0.16)
             .fill(Color(PandaTheme.card))
             .overlay(
                 RoundedRectangle(cornerRadius: boxSize * 0.16)
-                    .strokeBorder(Color(color),
-                                  lineWidth: max(4, size * 0.08))
+                    .strokeBorder(
+                        Color(color),
+                        lineWidth: max(4, size * 0.08)
+                    )
             )
             .frame(width: boxSize, height: boxSize)
     }
@@ -149,36 +130,52 @@ private struct AnswerBoxShape: View {
 
 // MARK: - Layout cache
 
-/// Cached slot-center positions keyed by `(reserve-shape, size, xCenter)`.
+/// Layout cache deliberately reserves the MAX visual width required by
+/// the curriculum for every number/answer slot. This makes slot centers
+/// invariant across: □ → 1, □ → 7, □ → 10, and similar reveals.
 final class ExpressionLayoutCache {
     static let shared = ExpressionLayoutCache()
     private var store: [String: [CGFloat]] = [:]
     private var totalWidths: [String: CGFloat] = [:]
 
-    func layout(key: String, slots: [MathSlot], size: CGFloat, xCenter: CGFloat, yCenter: CGFloat) -> CachedLayout {
+    func layout(key: String,
+                slots: [MathSlot],
+                size: CGFloat,
+                xCenter: CGFloat,
+                yCenter: CGFloat) -> CachedLayout {
         let cacheKey = "\(key)|\(Int(size))|\(Int(xCenter))"
         if let cached = store[cacheKey], let total = totalWidths[cacheKey] {
             return CachedLayout(centers: cached, totalWidth: total)
         }
+
+        // 1.24 × size comfortably reserves a two-digit Panda numeral.
+        // A one-digit numeral and an answer box therefore occupy the same
+        // horizontal slot, so later reveals cannot recenter the equation.
+        let numberSlotWidth = size * 1.24
         let edgeGap = size * 0.22
+
         let widths = slots.map { slot -> CGFloat in
             switch slot {
-            case .number(let v, _, let m):
-                let n = max(1, "\(v)".count)
-                return size * (m ?? 1.0) * (0.62 + CGFloat(n - 1) * 0.62)
+            case .number(_, _, let multiplier):
+                return max(numberSlotWidth, size * (multiplier ?? 1.0) * 1.24)
+            case .answerBox:
+                return numberSlotWidth
             case .op:
                 return size * 0.4
-            case .answerBox:
-                return size * 0.9
             }
         }
-        let total = widths.reduce(0, +) + edgeGap * CGFloat(max(0, slots.count - 1))
+
+        let total = widths.reduce(0, +)
+            + edgeGap * CGFloat(max(0, slots.count - 1))
+
         var centers: [CGFloat] = []
+        centers.reserveCapacity(slots.count)
         var cursor = xCenter - total / 2
-        for w in widths {
-            centers.append(cursor + w / 2)
-            cursor += w + edgeGap
+        for width in widths {
+            centers.append(cursor + width / 2)
+            cursor += width + edgeGap
         }
+
         store[cacheKey] = centers
         totalWidths[cacheKey] = total
         return CachedLayout(centers: centers, totalWidth: total)
@@ -188,13 +185,15 @@ final class ExpressionLayoutCache {
 struct CachedLayout {
     let centers: [CGFloat]
     let totalWidth: CGFloat
-    func centerX(at index: Int) -> CGFloat { centers[index] }
+
+    func centerX(at index: Int) -> CGFloat {
+        centers[index]
+    }
 }
 
 // MARK: - Convenience builders
 
 public enum ExpressionBuilder {
-    /// `a + b = c` style.
     public static func add(_ a: Int, _ b: Int, sum: Any) -> [MathSlot] {
         [
             .number(a, color: PandaTheme.numBlue),
@@ -205,7 +204,6 @@ public enum ExpressionBuilder {
         ]
     }
 
-    /// `a - b = c` style.
     public static func sub(_ a: Int, _ b: Int, answer: Any) -> [MathSlot] {
         [
             .number(a, color: PandaTheme.numBlue),
@@ -217,8 +215,12 @@ public enum ExpressionBuilder {
     }
 
     private static func answerOrNumber(_ v: Any, color: RGB) -> MathSlot {
-        if let s = v as? String { return .answerBox(s, color: color) }
-        if let i = v as? Int { return .number(i, color: color) }
+        if let s = v as? String {
+            return .answerBox(s, color: color)
+        }
+        if let i = v as? Int {
+            return .number(i, color: color)
+        }
         return .answerBox("□", color: color)
     }
 }
