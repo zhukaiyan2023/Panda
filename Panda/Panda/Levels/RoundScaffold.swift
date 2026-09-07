@@ -133,6 +133,7 @@ public struct RoundScaffold: View {
                         .frame(maxWidth: .infinity)
                         .padding(.horizontal, 16)
                         .padding(.top, 8)
+                        .environment(\.pandaCurrentStepAnswer, session.currentStepAnswer)
                         .id("\(session.roundIndex)-\(session.step)")
                 }
                 Spacer(minLength: 8)
