@@ -57,7 +57,7 @@ public struct QuestionConfig: View {
     public init(correct: Int, values: [Int],
                 labelFor: @escaping (Int) -> String = { "\($0)" },
                 onPick: @escaping (Int) -> Void,
-                buttonWidth: CGFloat = 100, buttonHeight: CGFloat = 80) {
+                buttonWidth: CGFloat = 128, buttonHeight: CGFloat = 96) {
         self.correct = correct
         self.values = values
         self.labelFor = labelFor
@@ -68,7 +68,7 @@ public struct QuestionConfig: View {
     }
 
     public var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 14) {
             ForEach(displayedValues, id: \.self) { value in
                 ChoiceButton(label: labelFor(value), width: buttonWidth, height: buttonHeight) {
                     onPick(value)
@@ -76,6 +76,7 @@ public struct QuestionConfig: View {
             }
         }
         .frame(maxWidth: .infinity)
+        .contentShape(Rectangle())
         .onChange(of: values) { _, newValues in
             displayedValues = newValues.shuffled()
         }
@@ -152,16 +153,13 @@ public struct RoundScaffold: View {
                 }
             }
         }
-        .safeAreaInset(edge: .top) { Color.clear.frame(height: 0) }
         .onAppear {
             audio.configureSession()
             if let introCue { audio.playCue(introCue) }
         }
         .onDisappear {
             audio.stopAllAudio()
-            session.isAnswerLocked = false
-            session.lastStepAudioKey = nil
-            session.currentStepAnswer = nil
+            session.reset()
         }
         .fullScreenCover(isPresented: $showDailyDone) {
             DailyDoneView(onDismiss: { dismiss() })
@@ -170,23 +168,11 @@ public struct RoundScaffold: View {
 
     private var chrome: some View {
         HStack(spacing: 12) {
-            Button(action: {
+            IconButton(style: .back) {
                 audio.stopAllAudio()
                 session.reset()
                 dismiss()
-            }) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 16)
-                        .fill(Color(PandaTheme.orange))
-                        .overlay(RoundedRectangle(cornerRadius: 16)
-                            .stroke(Color(PandaTheme.ink), lineWidth: 4))
-                    Text("←")
-                        .font(.system(size: 26, weight: .heavy, design: .rounded))
-                        .foregroundColor(.white)
-                }
-                .frame(width: 60, height: 54)
             }
-            .buttonStyle(.plain)
             StepBar(labels: stepLabels, step: session.step,
                     totalSteps: stepLabels.count, width: nil)
                 .frame(maxWidth: .infinity)
@@ -204,47 +190,49 @@ public struct RoundScaffold: View {
 
     private func setPandaMood(_ mood: PandaMood) {
         pandaMood = mood
-        if mood != .idle {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.4) {
-                self.pandaMood = .idle
-            }
+        guard mood != .idle else { return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.4) { [weak session] in
+            guard session != nil else { return }
+            self.pandaMood = .idle
         }
     }
 
     private func advanceStep() {
-        // The correct-answer encouragement has already completed before
-        // this method is reached. Invalidate any stale player/task before
-        // the next step view starts its narration.
+        guard !session.isTransitioning else { return }
         audio.stopAllAudio()
         if session.step >= stepLabels.count {
             finishRound()
         } else {
-            // The final step intentionally keeps its answer visible until
-            // the round transition finishes. Earlier step answers are scoped
-            // to the step that just completed and must not leak into the next
-            // question's result box.
             session.currentStepAnswer = nil
             session.step += 1
+            session.isAnswerLocked = false
         }
     }
 
     private func finishRound() {
+        guard !session.isTransitioning else { return }
         guard let round = currentRound else {
             completeRoundTransition()
             return
         }
+
+        session.isTransitioning = true
         onRoundCorrect?(audio, round, session.lastEncourageId)
-        // `RoundScaffold` is a struct (SwiftUI View), not a class.
-        // Wait for the complete read-back/celebration chain before loading
-        // the next round so the answer announcement is never cut short.
-        audio.whenIdle {
+
+        // Wait for the shared audio queue to become idle. The transition
+        // token above makes this callback idempotent if SwiftUI or audio
+        // emits another completion signal.
+        audio.whenIdle { [weak session] in
             Task { @MainActor in
+                guard let session, session.isTransitioning else { return }
                 self.completeRoundTransition()
             }
         }
     }
 
     private func completeRoundTransition() {
+        guard session.isTransitioning else { return }
+
         let daily = saveStore.markRoundFinished(levelId)
         if daily.locked {
             audio.stopAllAudio()
@@ -252,6 +240,7 @@ public struct RoundScaffold: View {
             session.reset()
             return
         }
+
         if session.roundIndex + 1 < rounds.count {
             audio.stopAllAudio()
             session.roundIndex += 1
@@ -260,6 +249,7 @@ public struct RoundScaffold: View {
             session.lastStepAudioKey = nil
             session.isAnswerLocked = false
             session.currentStepAnswer = nil
+            session.isTransitioning = false
         } else {
             audio.stopAllAudio()
             session.reset()
@@ -276,17 +266,13 @@ public final class RoundSession: ObservableObject {
     @Published public var roundIndex: Int = 0
     @Published public var lastEncourageId: String?
     @Published public var isAnswerLocked = false
-
-    /// Correct value selected for the currently active step. It is kept
-    /// populated during the final-step celebration so the equation can
-    /// visibly backfill the final result before the next round is loaded.
     @Published public var currentStepAnswer: Int?
-
-    /// Prevents step narration from restarting when `stepBuilder` is
-    /// evaluated repeatedly by SwiftUI. L2 historically started its
-    /// narration directly from `stepBuilder`, so without this token a
-    /// harmless redraw could cancel and restart the same MP3.
     @Published public var lastStepAudioKey: String?
+
+    /// A single transition gate prevents double taps, repeated SwiftUI
+    /// callbacks, and audio completion callbacks from advancing the same
+    /// round more than once.
+    @Published public var isTransitioning = false
 
     public let stepCount: Int
     public let roundCount: Int
@@ -303,6 +289,7 @@ public final class RoundSession: ObservableObject {
         lastStepAudioKey = nil
         isAnswerLocked = false
         currentStepAnswer = nil
+        isTransitioning = false
     }
 }
 
@@ -353,11 +340,6 @@ public final class RoundHost: ObservableObject {
             onComplete?()
             return
         }
-
-        // De-duplicate the same step cue across SwiftUI body evaluations.
-        // The token includes both round and step, so the next question is
-        // always eligible to start while redraws of the current question are
-        // ignored.
         let key = "\(session.roundIndex)-\(session.step)-\(ids.joined(separator: "|"))"
         guard session.lastStepAudioKey != key else { return }
         session.lastStepAudioKey = key
@@ -387,8 +369,8 @@ public final class RoundHost: ObservableObject {
 
     public func makeQuestion(correct: Int, values: [Int],
                              labelFor: @escaping (Int) -> String = { "\($0)" },
-                             buttonWidth: CGFloat = 100,
-                             buttonHeight: CGFloat = 80) -> AnyView {
+                             buttonWidth: CGFloat = 128,
+                             buttonHeight: CGFloat = 96) -> AnyView {
         let host = self
         return AnyView(QuestionConfig(
             correct: correct,
@@ -403,7 +385,7 @@ public final class RoundHost: ObservableObject {
     }
 
     private func handlePick(value: Int, correct: Int) {
-        guard !session.isAnswerLocked else { return }
+        guard !session.isAnswerLocked, !session.isTransitioning else { return }
         session.isAnswerLocked = true
 
         if value == correct {
@@ -414,20 +396,18 @@ public final class RoundHost: ObservableObject {
 
             guard let audio else {
                 session.lastEncourageId = nil
-                session.isAnswerLocked = false
                 advance()
                 return
             }
 
             let session = self.session
             let advance = self.advance
-            // `playCue` owns the single audio channel: it stops the current
-            // question narration first, then waits for the encouragement to
-            // actually finish before advancing.
             audio.playCue(cue) {
-                session.lastEncourageId = nil
-                session.isAnswerLocked = false
-                advance()
+                Task { @MainActor in
+                    guard !session.isTransitioning else { return }
+                    session.lastEncourageId = nil
+                    advance()
+                }
             }
         } else {
             setPandaMood(.think)
@@ -437,7 +417,10 @@ public final class RoundHost: ObservableObject {
             }
             let session = self.session
             audio.playCue("enc-wrong-\(levelId)") {
-                session.isAnswerLocked = false
+                Task { @MainActor in
+                    guard !session.isTransitioning else { return }
+                    session.isAnswerLocked = false
+                }
             }
         }
     }
