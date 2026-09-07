@@ -1,10 +1,3 @@
-//
-//  WhackAndCount.swift
-//  Panda
-//
-//  Whack-a-mole and 一眼识数 games. Delayed callbacks are lifecycle-safe
-//  and the game grid adapts to the available iPhone/iPad width.
-
 import SwiftUI
 import Combine
 #if canImport(UIKit)
@@ -141,14 +134,20 @@ public struct WhackGameView: View {
         guard running, !done, tappedCorrect == -1, wrongFlash == -1, activeMole == idx else { return }
         let expectedRound = roundIdx
         if candidate == correct {
-            tappedCorrect = candidate; correctCount += 1; hammerHitIdx = idx; hammerHitToken &+= 1; activeMole = -1
+            tappedCorrect = candidate
+            correctCount += 1
+            hammerHitIdx = idx
+            hammerHitToken &+= 1
+            activeMole = -1
             audio.playCue("whack-correct")
             lifecycle.schedule(after: 0.9) {
                 guard self.running, !self.done, self.roundIdx == expectedRound else { return }
                 self.nextQuestion(); self.tappedCorrect = -1; self.hammerHitIdx = -1; self.activeMole = 0
             }
         } else {
-            wrongFlash = candidate; activeMole = -1; audio.playCue("whack-wrong")
+            wrongFlash = candidate
+            activeMole = -1
+            audio.playCue("whack-wrong")
             lifecycle.schedule(after: 0.4) {
                 guard self.running, !self.done, self.roundIdx == expectedRound else { return }
                 self.wrongFlash = -1; self.activeMole = 0
@@ -303,7 +302,21 @@ struct HammerStrike: View {
 struct StunOverlay: View {
     @State private var spin = 0.0
     var body: some View {
-        ZStack { ForEach(0..<3, id: \.self) { i in let angle = (Double(i) * 120 + spin) * .pi / 180; Text("⭐").font(.system(size: 22)).offset(x: CGFloat(cos(angle))*70, y: CGFloat(sin(angle))*70-40) }; Text("💫").font(.system(size: 38)).offset(y: -80) }
-            .onAppear { withAnimation(.linear(duration: 0.9).repeatForever(autoreverses: false)) { spin = 360 } }
+        ZStack {
+            ForEach(0..<3, id: \.self) { i in
+                let angle = (Double(i) * 120 + spin) * .pi / 180
+                Text("⭐")
+                    .font(.system(size: 22))
+                    .offset(x: CGFloat(cos(angle)) * 70, y: CGFloat(sin(angle)) * 70 - 40)
+            }
+            Text("💫")
+                .font(.system(size: 38))
+                .offset(y: -80)
+        }
+        .onAppear {
+            withAnimation(.linear(duration: 0.9).repeatForever(autoreverses: false)) {
+                spin = 360
+            }
+        }
     }
 }
