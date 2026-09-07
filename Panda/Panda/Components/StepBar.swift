@@ -28,6 +28,8 @@ public struct StepBar: View {
         let clampedLabels = Array(labels.prefix(max(0, totalSteps)))
         let safeTotal = max(totalSteps, 1)
         let safeStep = min(max(step, 0), safeTotal)
+        let progress = CGFloat(safeStep) / CGFloat(safeTotal)
+
         let content = VStack(spacing: showsLabels ? 8 : 0) {
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
@@ -36,10 +38,11 @@ public struct StepBar: View {
                         .frame(height: 14)
                     RoundedRectangle(cornerRadius: 7)
                         .fill(Color(PandaTheme.pink))
-                        .frame(width: geo.size.width * CGFloat(safeStep) / CGFloat(safeTotal), height: 14)
+                        .frame(width: geo.size.width * progress, height: 14)
                 }
             }
             .frame(height: 14)
+            .accessibilityHidden(true)
 
             if showsLabels && !clampedLabels.isEmpty {
                 HStack(spacing: 8) {
@@ -52,9 +55,12 @@ public struct StepBar: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.horizontal, 16)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("学习进度")
+        .accessibilityValue("第 \(safeStep) 步，共 \(safeTotal) 步")
 
         if let w = width {
-            return AnyView(content.frame(maxWidth: w))
+            return AnyView(content.frame(maxWidth: max(0, w)))
         } else {
             return AnyView(content)
         }
@@ -69,14 +75,19 @@ private struct StepPill: View {
         Text(label)
             .font(.pandaFont(size: 16))
             .foregroundColor(Color(PandaTheme.ink))
-            .lineLimit(1)
-            .minimumScaleFactor(0.7)
+            .lineLimit(2)
+            .multilineTextAlignment(.center)
+            .minimumScaleFactor(0.72)
+            .allowsTightening(true)
+            .fixedSize(horizontal: false, vertical: true)
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
-            .frame(maxWidth: .infinity)
+            .frame(maxWidth: .infinity, minHeight: 34)
             .background(
                 Capsule().fill(active ? Color(PandaTheme.yellow) : Color(PandaTheme.trackGray))
             )
+            .accessibilityLabel(label)
+            .accessibilityAddTraits(active ? .isSelected : [])
     }
 }
 
