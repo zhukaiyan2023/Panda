@@ -18,7 +18,7 @@ extension EnvironmentValues {
 /// its own slot count makes related columns drift. The grid below keeps the
 /// standard 5-slot equations centered, and shifts longer decomposition rows
 /// left so their trailing "=" and result columns line up with the standard
-/// 5-slot row. L6's special combine rows keep their exact connector columns.
+/// 5-slot row.
 public struct MathExpressionWithSlots: View {
     public let slots: [MathSlot]
     public let size: CGFloat
@@ -33,8 +33,8 @@ public struct MathExpressionWithSlots: View {
         self.onCenters = onCenters
     }
 
-    /// Shared mathematical pitch for normal connector-aware rows.
     private let columnSpacing: CGFloat = 96
+    private let narrowHorizontalInset: CGFloat = 16
 
     public var body: some View {
         GeometryReader { geo in
@@ -55,14 +55,9 @@ public struct MathExpressionWithSlots: View {
                 publishCenters(centers)
             }
             .onChange(of: slotSignature) { _, _ in
-                // The slot contents may change (□ → number), but the slot
-                // coordinates must not. Re-publish the same mathematical
-                // grid so connector geometry stays locked to the columns.
                 publishCenters(centerPositions(in: geo.size.width))
             }
             .transaction { transaction in
-                // Never animate slot replacement. A digit replacing a box
-                // is a content change, not a geometry change.
                 transaction.animation = nil
             }
         }
@@ -70,22 +65,18 @@ public struct MathExpressionWithSlots: View {
 
     /// Computes the absolute X coordinate of every slot.
     ///
-    /// The last two columns ("=" and result) are intentionally shared with
-    /// the normal 5-slot row. This means a 7-slot/9-slot decomposition can
-    /// reveal values without making those columns jump horizontally.
-    ///
-    /// 5 slots -> [-2, -1, 0, 1, 2] * 96
-    /// 7 slots -> [-4, -3, -2, -1, 0, 1, 2] * 96
-    /// 9 slots -> [-6, -5, -4, -3, -2, -1, 0, 1, 2] * 96
-    ///
-    /// L6 combine-tens uses a 144pt pitch and is handled separately.
+    /// Normal rows share their trailing result columns. The nominal pitch is
+    /// 96pt, but it is reduced when a long decomposition row cannot fit in
+    /// the available width. This is important for iPad portrait (and smaller
+    /// devices): a 9-slot row must never extend beyond its parent and clip the
+    /// first/last operands.
     private func centerPositions(in width: CGFloat) -> [CGFloat] {
         guard !slots.isEmpty else { return [] }
 
         let center = width / 2
 
         if isL6CombineTensRow {
-            let pitch: CGFloat = 144
+            let pitch = adaptivePitch(maxPitch: 144, width: width)
             let first = center - 2 * pitch
             return slots.indices.map { first + CGFloat($0) * pitch }
         }
@@ -95,29 +86,33 @@ public struct MathExpressionWithSlots: View {
         case 5:
             halfSlots = 2
         case 7:
-            // Shift the 7-slot decomposition row left by one pitch so
-            // slot 5 ("=") and slot 6 (result) align with slots 3/4 of
-            // the standard 5-slot equation.
             halfSlots = 4
         case 9:
-            // Same rule for 9-slot rows: keep the trailing two columns on
-            // the shared result grid used by the 5-slot equation.
             halfSlots = 6
         default:
             halfSlots = CGFloat(max(0, slots.count - 1)) / 2
         }
 
-        let first = center - halfSlots * columnSpacing
+        let pitch = adaptivePitch(maxPitch: columnSpacing, width: width, slotCount: slots.count)
+        let first = center - halfSlots * pitch
         return slots.indices.map {
-            first + CGFloat($0) * columnSpacing
+            first + CGFloat($0) * pitch
         }
     }
 
-    /// L6 combine-tens is the five-slot row whose middle numeric value is
-    /// rendered with the success/green color:
-    ///   "□ + sum = □"  →  "20 + sum = □"
-    /// This distinguishes it from L2's "□ + c = □" preview and from the
-    /// L7/L8 result rows, whose slot 2 uses the pink number color.
+    /// Returns the largest pitch that keeps the complete row inside the
+    /// available width while preserving the normal visual pitch whenever
+    /// possible. The inset leaves a small breathing margin around the first
+    /// and last token instead of allowing them to touch the edge.
+    private func adaptivePitch(maxPitch: CGFloat,
+                               width: CGFloat,
+                               slotCount: Int = 5) -> CGFloat {
+        guard slotCount > 1 else { return maxPitch }
+        let usableWidth = max(0, width - narrowHorizontalInset * 2)
+        let maxFittingPitch = usableWidth / CGFloat(slotCount - 1)
+        return min(maxPitch, maxFittingPitch)
+    }
+
     private var isL6CombineTensRow: Bool {
         guard slots.count == 5 else { return false }
 
