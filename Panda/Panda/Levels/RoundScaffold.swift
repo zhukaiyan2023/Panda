@@ -101,6 +101,7 @@ public struct RoundScaffold: View {
     @Environment(\.dismiss) private var dismiss
     @State private var showDailyDone = false
     @State private var pandaMood: PandaMood = .idle
+    @State private var moodToken = 0
 
     public init(levelId: Int, sampleSize: Int, stepLabels: [String],
                 poolGen: @escaping () -> [PandaRound],
@@ -158,6 +159,7 @@ public struct RoundScaffold: View {
             if let introCue { audio.playCue(introCue) }
         }
         .onDisappear {
+            moodToken &+= 1
             audio.stopAllAudio()
             session.reset()
         }
@@ -191,8 +193,12 @@ public struct RoundScaffold: View {
     private func setPandaMood(_ mood: PandaMood) {
         pandaMood = mood
         guard mood != .idle else { return }
+
+        moodToken &+= 1
+        let token = moodToken
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.4) { [weak session] in
-            guard session != nil else { return }
+            guard let session, session.roundIndex < rounds.count else { return }
+            guard token == moodToken else { return }
             self.pandaMood = .idle
         }
     }
@@ -219,14 +225,21 @@ public struct RoundScaffold: View {
         session.isTransitioning = true
         onRoundCorrect?(audio, round, session.lastEncourageId)
 
-        // Wait for the shared audio queue to become idle. The transition
-        // token above makes this callback idempotent if SwiftUI or audio
-        // emits another completion signal.
+        // Prefer the audio queue's idle callback so the next round does not
+        // cut off encouragement audio. The transition flag makes both the
+        // callback and the safety timeout idempotent.
         audio.whenIdle { [weak session] in
             Task { @MainActor in
                 guard let session, session.isTransitioning else { return }
                 self.completeRoundTransition()
             }
+        }
+
+        // Never let a missing/stuck audio completion strand the child on the
+        // completed question. This is a safety net, not the normal path.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) { [weak session] in
+            guard let session, session.isTransitioning else { return }
+            self.completeRoundTransition()
         }
     }
 
@@ -256,197 +269,4 @@ public struct RoundScaffold: View {
             dismiss()
         }
     }
-}
-
-// MARK: - Session
-
-@MainActor
-public final class RoundSession: ObservableObject {
-    @Published public var step: Int = 1
-    @Published public var roundIndex: Int = 0
-    @Published public var lastEncourageId: String?
-    @Published public var isAnswerLocked = false
-    @Published public var currentStepAnswer: Int?
-    @Published public var lastStepAudioKey: String?
-
-    /// A single transition gate prevents double taps, repeated SwiftUI
-    /// callbacks, and audio completion callbacks from advancing the same
-    /// round more than once.
-    @Published public var isTransitioning = false
-
-    public let stepCount: Int
-    public let roundCount: Int
-
-    public init(stepCount: Int, roundCount: Int) {
-        self.stepCount = stepCount
-        self.roundCount = roundCount
-    }
-
-    public func reset() {
-        step = 1
-        roundIndex = 0
-        lastEncourageId = nil
-        lastStepAudioKey = nil
-        isAnswerLocked = false
-        currentStepAnswer = nil
-        isTransitioning = false
-    }
-}
-
-// MARK: - Host
-
-@MainActor
-public final class RoundHost: ObservableObject {
-    public let round: PandaRound
-    public let levelId: Int
-    public let advance: () -> Void
-    public let finish: () -> Void
-    public let setPandaMood: (PandaMood) -> Void
-    public let session: RoundSession
-    private let audio: PandaAudio?
-
-    public init(round: PandaRound, levelId: Int, session: RoundSession,
-                advance: @escaping () -> Void, finish: @escaping () -> Void,
-                setPandaMood: @escaping (PandaMood) -> Void,
-                audio: PandaAudio? = nil) {
-        self.round = round
-        self.levelId = levelId
-        self.session = session
-        self.advance = advance
-        self.finish = finish
-        self.setPandaMood = setPandaMood
-        self.audio = audio
-    }
-
-    public var lastEncourageId: String? { session.lastEncourageId }
-
-    public func playCue(_ id: String) {
-        guard let audio, !id.isEmpty else { return }
-        audio.playCue(id)
-    }
-
-    public func playSequence(_ ids: [String], gapMs: Int = 40,
-                             onComplete: (() -> Void)? = nil) {
-        guard let audio, !ids.isEmpty else {
-            onComplete?()
-            return
-        }
-        audio.playSequence(ids, gapMs: gapMs, onComplete: onComplete)
-    }
-
-    public func playStepAudio(_ ids: [String], seqGapMs: Int = 40,
-                              onComplete: (() -> Void)? = nil) {
-        guard let audio, !ids.isEmpty else {
-            onComplete?()
-            return
-        }
-        let key = "\(session.roundIndex)-\(session.step)-\(ids.joined(separator: "|"))"
-        guard session.lastStepAudioKey != key else { return }
-        session.lastStepAudioKey = key
-
-        if let prev = lastEncourageId {
-            audio.playAfter(prev, then: ids, gapMs: 400,
-                            seqGapMs: seqGapMs, onComplete: onComplete)
-        } else {
-            audio.playSequence(ids, gapMs: seqGapMs, onComplete: onComplete)
-        }
-    }
-
-    public func playRewardAudio(_ ids: [String], gapMs: Int = 200,
-                                seqGapMs: Int = 200,
-                                onComplete: (() -> Void)? = nil) {
-        guard let audio, !ids.isEmpty else {
-            onComplete?()
-            return
-        }
-        if let prev = lastEncourageId {
-            audio.playAfter(prev, then: ids, gapMs: gapMs,
-                            seqGapMs: seqGapMs, onComplete: onComplete)
-        } else {
-            audio.playSequence(ids, gapMs: seqGapMs, onComplete: onComplete)
-        }
-    }
-
-    public func makeQuestion(correct: Int, values: [Int],
-                             labelFor: @escaping (Int) -> String = { "\($0)" },
-                             buttonWidth: CGFloat = 128,
-                             buttonHeight: CGFloat = 96) -> AnyView {
-        let host = self
-        return AnyView(QuestionConfig(
-            correct: correct,
-            values: values,
-            labelFor: labelFor,
-            onPick: { [weak host] value in
-                host?.handlePick(value: value, correct: correct)
-            },
-            buttonWidth: buttonWidth,
-            buttonHeight: buttonHeight
-        ))
-    }
-
-    private func handlePick(value: Int, correct: Int) {
-        guard !session.isAnswerLocked, !session.isTransitioning else { return }
-        session.isAnswerLocked = true
-
-        if value == correct {
-            session.currentStepAnswer = value
-            setPandaMood(.cheer)
-            let cue = "enc-first-\(levelId)"
-            session.lastEncourageId = cue
-
-            guard let audio else {
-                session.lastEncourageId = nil
-                advance()
-                return
-            }
-
-            let session = self.session
-            let advance = self.advance
-            audio.playCue(cue) {
-                Task { @MainActor in
-                    guard !session.isTransitioning else { return }
-                    session.lastEncourageId = nil
-                    advance()
-                }
-            }
-        } else {
-            setPandaMood(.think)
-            guard let audio else {
-                session.isAnswerLocked = false
-                return
-            }
-            let session = self.session
-            audio.playCue("enc-wrong-\(levelId)") {
-                Task { @MainActor in
-                    guard !session.isTransitioning else { return }
-                    session.isAnswerLocked = false
-                }
-            }
-        }
-    }
-
-    public func view<V: View>(_ v: V) -> AnyView { AnyView(v) }
-}
-
-// MARK: - Helpers
-
-public func optionChoices(correct: Int, min lo: Int = 0, max hi: Int = 10,
-                          prefer: [Int] = [], count: Int = 4) -> [Int] {
-    var picked: [Int] = []
-    func add(_ v: Int) {
-        if v >= lo && v <= hi && !picked.contains(v) { picked.append(v) }
-    }
-    add(correct)
-    for p in prefer { add(p) }
-    var d = 1
-    while picked.count < count && d <= hi - lo {
-        add(correct + d)
-        add(correct - d)
-        d += 1
-    }
-    return Array(picked.prefix(count))
-}
-
-extension Notification.Name {
-    public static let pandaReturnToPicker = Notification.Name("PandaReturnToPicker")
 }
