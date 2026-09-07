@@ -68,14 +68,27 @@ public struct QuestionConfig: View {
     }
 
     public var body: some View {
-        HStack(spacing: 14) {
-            ForEach(displayedValues, id: \.self) { value in
-                ChoiceButton(label: labelFor(value), width: buttonWidth, height: buttonHeight) {
-                    onPick(value)
+        GeometryReader { geometry in
+            let count = displayedValues.count
+            let spacing: CGFloat = count > 1 ? 14 : 0
+            let availableWidth = max(0, geometry.size.width - spacing * CGFloat(max(0, count - 1)))
+            let adaptiveWidth = count > 0 ? availableWidth / CGFloat(count) : buttonWidth
+            let resolvedWidth = min(buttonWidth, adaptiveWidth)
+
+            HStack(spacing: spacing) {
+                ForEach(displayedValues, id: \.self) { value in
+                    ChoiceButton(
+                        label: labelFor(value),
+                        width: resolvedWidth,
+                        height: buttonHeight
+                    ) {
+                        onPick(value)
+                    }
                 }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
         }
-        .frame(maxWidth: .infinity)
+        .frame(minHeight: buttonHeight)
         .contentShape(Rectangle())
         .onChange(of: values) { _, newValues in
             displayedValues = newValues.shuffled()
@@ -96,6 +109,7 @@ public struct RoundScaffold: View {
 
     @State private var rounds: [PandaRound]
     @StateObject private var session: RoundSession
+    @State private var lifecycle = GameLifecycleToken()
     @EnvironmentObject private var saveStore: PandaSaveStore
     @EnvironmentObject private var audio: PandaAudio
     @Environment(\.dismiss) private var dismiss
@@ -155,10 +169,12 @@ public struct RoundScaffold: View {
             }
         }
         .onAppear {
+            lifecycle.reset()
             audio.configureSession()
             if let introCue { audio.playCue(introCue) }
         }
         .onDisappear {
+            lifecycle.reset()
             moodToken &+= 1
             audio.stopAllAudio()
             session.reset()
@@ -171,6 +187,7 @@ public struct RoundScaffold: View {
     private var chrome: some View {
         HStack(spacing: 12) {
             IconButton(style: .back) {
+                lifecycle.reset()
                 audio.stopAllAudio()
                 session.reset()
                 dismiss()
@@ -196,9 +213,9 @@ public struct RoundScaffold: View {
 
         moodToken &+= 1
         let token = moodToken
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.4) { [weak session] in
-            guard let session, session.roundIndex < rounds.count else { return }
-            guard token == moodToken else { return }
+        lifecycle.schedule(after: 1.4) { [weak session] in
+            guard let session, session.roundIndex < self.rounds.count else { return }
+            guard token == self.moodToken else { return }
             self.pandaMood = .idle
         }
     }
@@ -223,22 +240,27 @@ public struct RoundScaffold: View {
         }
 
         session.isTransitioning = true
+        let capturedGeneration = lifecycle.capture()
         onRoundCorrect?(audio, round, session.lastEncourageId)
 
         // Prefer the audio queue's idle callback so the next round does not
-        // cut off encouragement audio. The transition flag makes both the
-        // callback and the safety timeout idempotent.
+        // cut off encouragement audio. The transition flag and generation
+        // guard make both the callback and the safety timeout idempotent.
         audio.whenIdle { [weak session] in
             Task { @MainActor in
-                guard let session, session.isTransitioning else { return }
+                guard let session,
+                      session.isTransitioning,
+                      self.lifecycle.isCurrent(capturedGeneration) else { return }
                 self.completeRoundTransition()
             }
         }
 
         // Never let a missing/stuck audio completion strand the child on the
         // completed question. This is a safety net, not the normal path.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) { [weak session] in
-            guard let session, session.isTransitioning else { return }
+        lifecycle.schedule(after: 2.5) { [weak session] in
+            guard let session,
+                  session.isTransitioning,
+                  self.lifecycle.isCurrent(capturedGeneration) else { return }
             self.completeRoundTransition()
         }
     }
@@ -248,6 +270,7 @@ public struct RoundScaffold: View {
 
         let daily = saveStore.markRoundFinished(levelId)
         if daily.locked {
+            lifecycle.reset()
             audio.stopAllAudio()
             showDailyDone = true
             session.reset()
@@ -264,6 +287,7 @@ public struct RoundScaffold: View {
             session.currentStepAnswer = nil
             session.isTransitioning = false
         } else {
+            lifecycle.reset()
             audio.stopAllAudio()
             session.reset()
             dismiss()
