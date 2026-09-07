@@ -26,19 +26,21 @@ public struct Level1View: View {
                     return StepRender()
                 }
                 let answer = a - b
-                // Audio: "a减b等于几" — JS uses l6-s1-{a}-{b}
-                // (the cue-id prefix didn't move when the level
-                // renumbered L6 → L1).
-                host.playCue("l6-s1-\(a)-\(b)")
-                // L1 is a single-step problem — no separate anchor view,
-                // just show the equation once.
                 let equation = ExpressionBuilder.sub(a, b, answer: "□")
                 return StepRender(
                     equation: AnyView(expr(equation, size: 96)),
                     question: host.makeQuestion(
                         correct: answer,
-                        values: optionChoices(correct: answer, min: 0, max: 10))
+                        values: optionChoices(correct: answer, min: 0, max: 10)
+                    )
                 )
+                .onAppear {
+                    // Keep audio out of the ViewBuilder body. SwiftUI may
+                    // evaluate the builder repeatedly during state/layout
+                    // updates; onAppear limits the prompt to the lifetime
+                    // of this round/step view.
+                    host.playCue("l6-s1-\(a)-\(b)")
+                }
             },
             onRoundCorrect: { audio, round, lastEncourageId in
                 guard case .subWithinTen(let a, let b) = round else { return }
