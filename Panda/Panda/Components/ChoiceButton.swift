@@ -53,6 +53,7 @@ public struct ChoiceButton: View {
         .buttonStyle(.plain)
         .disabled(isDisabled)
         .accessibilityLabel(Text(label))
+        .accessibilityValue(Text(isCorrect ? "正确" : isDisabled ? "已禁用" : ""))
         .scaleEffect(isCorrect ? 1.04 : 1.0)
         .animation(.spring(response: 0.25, dampingFraction: 0.6), value: isCorrect)
     }
@@ -172,6 +173,20 @@ public struct IconButton: View {
             .frame(width: width, height: height)
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(accessibilityLabel)
+        .accessibilityHint(style == .back ? "返回上一页" : "")
+    }
+
+    private var accessibilityLabel: Text {
+        if let legacyLabel, style != .back {
+            return Text(legacyLabel)
+        }
+        switch style {
+        case .back: return Text("返回")
+        case .primary: return Text("继续")
+        case .success: return Text("完成")
+        case .danger: return Text("关闭")
+        }
     }
 
     private var face: some View {
