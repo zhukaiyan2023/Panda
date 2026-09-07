@@ -159,7 +159,8 @@ struct TeenSubNoBorrowStepView: View {
             .op(.minus),
             .number(b, color: PandaTheme.numPink),
             .op(.equals),
-            .answerBox("?", color: PandaTheme.orange),
+            .answerBox(step == 3 ? host.session.currentStepAnswer.map(String.init) ?? "?" : "?",
+                       color: PandaTheme.orange),
         ]
     }
 
@@ -255,7 +256,7 @@ struct TeenSubNoBorrowStepView: View {
         default:
             // Step 2+ — ones revealed; trailing "?" still open
             // until step 3's correct pick ends the round.
-            return splitSlots(onesValue: ones, answerValue: nil)
+            return splitSlots(onesValue: ones, answerValue: step == 3 ? host.session.currentStepAnswer : nil)
         }
     }
 
@@ -269,7 +270,7 @@ struct TeenSubNoBorrowStepView: View {
             // Step 3 — diff revealed; trailing "?" still open
             // for the answer pick (kept as "?" until the round
             // ends).
-            return resultSlots(answerValue: nil,
+            return resultSlots(answerValue: step == 3 ? host.session.currentStepAnswer : nil,
                                pickValueSlot: diff)
         }
     }
@@ -458,25 +459,28 @@ struct TeenSubNoBorrowStepView: View {
             // ∧ split arrows — anchor.a → split[0], split[2].
             // Drawn once the split row has rendered.
             if let splitArrow = makeSplitArrows() {
-                L3StylePolyline(
-                    from: splitArrow.anchorBottom,
-                    to: splitArrow.splitZeroTop,
-                    color: splitArrow.colorZero
-                )
-                L3StylePolyline(
-                    from: splitArrow.anchorBottom,
-                    to: splitArrow.splitTwoTop,
-                    color: splitArrow.colorTwo
+                SymmetricVDiagram(
+                    source: splitArrow.anchorBottom,
+                    destA: splitArrow.splitZeroTop,
+                    destB: splitArrow.splitTwoTop,
+                    colorA: splitArrow.colorZero,
+                    colorB: splitArrow.colorTwo,
+                    lineThickness: 7,
+                    opacity: 0.85
                 )
             }
             // ∨ combine arrows — split[2], split[4] → result[2].
-            // Step 3 only — shows how the split row's ones + b
-            // feed into the result's diff.
-            ForEach(combineArrows()) { seg in
-                L3StylePolyline(
-                    from: seg.from,
-                    to: seg.to,
-                    color: seg.color
+            // Use one shared join and a vertical trunk, matching the
+            // bracket-style teaching lines used in Levels 4 and 5.
+            let combineSegments = combineArrows()
+            if combineSegments.count == 2 {
+                L1MergeLines(
+                    anchorTop: combineSegments[0].from,
+                    anchorMid: combineSegments[1].from,
+                    mergeBox: combineSegments[0].to,
+                    colorA: combineSegments[0].color,
+                    colorB: combineSegments[1].color,
+                    lineThickness: 7
                 )
             }
         }

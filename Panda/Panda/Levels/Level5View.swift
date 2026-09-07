@@ -204,7 +204,8 @@ struct TwentyWithinStepView: View {
             .op(.plus),
             .number(b, color: PandaTheme.numPink),
             .op(.equals),
-            .answerBox("□", color: PandaTheme.ink),
+            .answerBox(step == 3 ? host.session.currentStepAnswer.map(String.init) ?? "□" : "□",
+                       color: PandaTheme.ink),
         ]
     }
 
@@ -267,7 +268,7 @@ struct TwentyWithinStepView: View {
         default:
             // Step 3: ones revealed, answer still "□" (kid hasn't
             // picked total yet).
-            return splitSlots("\(ones)", "□")
+            return splitSlots("\(ones)", host.session.currentStepAnswer.map(String.init) ?? "□")
         }
     }
 
@@ -282,7 +283,7 @@ struct TwentyWithinStepView: View {
         default:
             // Step 3: ones-sum revealed; answer still "□" (kid hasn't
             // picked total yet).
-            return bottomSlots("\(smallSum)", "□")
+            return bottomSlots("\(smallSum)", host.session.currentStepAnswer.map(String.init) ?? "□")
         }
     }
 

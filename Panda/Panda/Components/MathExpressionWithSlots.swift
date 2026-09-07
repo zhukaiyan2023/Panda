@@ -103,18 +103,25 @@ public struct MathExpressionWithSlots: View {
                 .foregroundColor(Color(color ?? PandaTheme.ink))
                 .position(x: centerX, y: 12 + size / 2 - size * 0.05)
 
-        case .answerBox:
-            RoundedRectangle(cornerRadius: size * 0.9 * 0.16)
-                .fill(Color(PandaTheme.card))
-                .overlay(
-                    RoundedRectangle(cornerRadius: size * 0.9 * 0.16)
-                        .strokeBorder(
-                            Color(PandaTheme.orange),
-                            lineWidth: max(4, size * 0.08)
-                        )
-                )
-                .frame(width: size * 0.9, height: size * 0.9)
-                .position(x: centerX, y: 12 + size / 2)
+        case .answerBox(let label, let color, _):
+            if let value = Int(label) {
+                Text("\(value)")
+                    .font(.pandaFont(size: size))
+                    .foregroundColor(Color(color ?? PandaTheme.ink))
+                    .position(x: centerX, y: 12 + size / 2)
+            } else {
+                RoundedRectangle(cornerRadius: size * 0.9 * 0.16)
+                    .fill(Color(PandaTheme.card))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: size * 0.9 * 0.16)
+                            .strokeBorder(
+                                Color(color ?? PandaTheme.orange),
+                                lineWidth: max(4, size * 0.08)
+                            )
+                    )
+                    .frame(width: size * 0.9, height: size * 0.9)
+                    .position(x: centerX, y: 12 + size / 2)
+            }
         }
     }
 }

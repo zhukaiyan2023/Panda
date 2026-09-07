@@ -234,19 +234,10 @@ public struct BalancedFixedArmConnector: View {
 
             let bendY = from.y + span * ConnectorGeometry.bendRatio
 
-            // Use the midpoint as the elbow. This is stable for every
-            // source/target pair and avoids the exaggerated long/short
-            // elbows created by the old fixed-distance implementation.
-            let bendX = (from.x + to.x) * 0.5
-            let finalY = to.y - ConnectorGeometry.targetClearance
-
             ConnectorGeometry.stroke(
                 context,
                 [from,
                  CGPoint(x: from.x, y: bendY),
-                 CGPoint(x: bendX, y: bendY),
-                 CGPoint(x: bendX, y: finalY),
-                 CGPoint(x: to.x, y: finalY),
                  to],
                 color: color,
                 opacity: opacity,
@@ -307,44 +298,19 @@ public struct BalancedConnectorCollection: View {
 
                 if group.count >= 2 {
                     for item in group { consumed.insert(item.id) }
-
-                    let sourcePoints = group.map { $0.from }
-                    let sourceY = sourcePoints.map(\.y).max() ?? segment.from.y
-                    let target = segment.to
-                    let span = target.y - sourceY
-                    guard span > 4 else { continue }
-
-                    let joinY = sourceY + span * ConnectorGeometry.bendRatio
-                    let joinX = sourcePoints.map(\.x).reduce(0, +) /
-                        CGFloat(sourcePoints.count)
-                    let join = CGPoint(x: joinX, y: joinY)
-                    let finalY = target.y - ConnectorGeometry.targetClearance
-
-                    // Each source gets its own colored arm to the common
-                    // join. Since joinX is the arithmetic midpoint, the
-                    // horizontal arms are equal for a two-source group.
+                    let sourceY = group.map(\.from.y).max() ?? segment.from.y
+                    let bendY = sourceY + (segment.to.y - sourceY) * 0.42
                     for item in group {
                         ConnectorGeometry.stroke(
                             context,
                             [item.from,
-                             CGPoint(x: item.from.x, y: joinY),
-                             join],
+                             CGPoint(x: item.from.x, y: bendY),
+                             item.to],
                             color: item.color,
                             opacity: item.opacity,
                             width: item.thickness
                         )
                     }
-
-                    ConnectorGeometry.stroke(
-                        context,
-                        [join,
-                         CGPoint(x: join.x, y: finalY),
-                         CGPoint(x: target.x, y: finalY),
-                         target],
-                        color: Color(PandaTheme.ink),
-                        opacity: 0.42,
-                        width: group.map(\.thickness).max() ?? 7
-                    )
                     continue
                 }
 
@@ -365,16 +331,9 @@ public struct BalancedConnectorCollection: View {
 
                 case .elbow, .symmetric:
                     let bendY = start.y + dy * ConnectorGeometry.bendRatio
-                    let finalY = end.y - ConnectorGeometry.targetClearance
-                    let bendX = (start.x + end.x) * 0.5
                     ConnectorGeometry.stroke(
                         context,
-                        [start,
-                         CGPoint(x: start.x, y: bendY),
-                         CGPoint(x: bendX, y: bendY),
-                         CGPoint(x: bendX, y: finalY),
-                         CGPoint(x: end.x, y: finalY),
-                         end],
+                        [start, CGPoint(x: start.x, y: bendY), end],
                         color: segment.color,
                         opacity: segment.opacity,
                         width: segment.thickness
@@ -407,13 +366,11 @@ extension TeenPlusTeenStepView {
 }
 
 extension TeenSubNoBorrowStepView {
-    typealias L3StylePolyline = BalancedFixedArmConnector
     typealias SymmetricVDiagram = BalancedSplitConnector
     typealias L1MergeLines = BalancedMergeConnector
 }
 
 extension TeenSubBorrowStepView {
-    typealias L3StylePolyline = BalancedFixedArmConnector
     typealias SymmetricVDiagram = BalancedSplitConnector
     typealias L1MergeLines = BalancedMergeConnector
 }

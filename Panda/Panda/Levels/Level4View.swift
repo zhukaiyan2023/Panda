@@ -79,7 +79,8 @@ struct Level4StepView: View {
             .op(.plus),
             .number(b, color: PandaTheme.numYellow),
             .op(.equals),
-            .answerBox("?", color: PandaTheme.ink)
+            .answerBox(step == 3 ? host.session.currentStepAnswer.map(String.init) ?? "?" : "?",
+                       color: PandaTheme.ink)
         ]
     }
 
@@ -105,7 +106,7 @@ struct Level4StepView: View {
                     .number(big, color: PandaTheme.numBlue), .op(.plus),
                     .number(need, color: PandaTheme.orange), .op(.plus),
                     .number(rest, color: PandaTheme.purple), .op(.equals),
-                    .answerBox("?", color: PandaTheme.ink)
+                    .answerBox(host.session.currentStepAnswer.map(String.init) ?? "?", color: PandaTheme.ink)
                 ]
             }
         } else {
@@ -129,7 +130,7 @@ struct Level4StepView: View {
                     .number(rest, color: PandaTheme.purple), .op(.plus),
                     .number(need, color: PandaTheme.orange), .op(.plus),
                     .number(big, color: PandaTheme.numBlue), .op(.equals),
-                    .answerBox("?", color: PandaTheme.ink)
+                    .answerBox(host.session.currentStepAnswer.map(String.init) ?? "?", color: PandaTheme.ink)
                 ]
             }
         }
@@ -179,14 +180,20 @@ struct Level4StepView: View {
 
                 Spacer().frame(height: rowGap)
 
-                MathExpressionWithSlots(slots: sub1Slots, size: sub1Size) { centers in
-                    sub1Centers = centers
-                }
-                .frame(height: sub1Size + 24)
-                .onGeometryChange(for: CGRect.self) { proxy in
-                    proxy.frame(in: .named(coordSpace))
-                } action: { frame in
-                    sub1Frame = frame
+                // "找好朋友"只需要展示“凑成十”的引导式；拆分总式
+                // 从第二步才出现。保留同高占位，避免按钮上下跳动。
+                if step == 1 {
+                    Color.clear.frame(height: sub1Size + 24)
+                } else {
+                    MathExpressionWithSlots(slots: sub1Slots, size: sub1Size) { centers in
+                        sub1Centers = centers
+                    }
+                    .frame(height: sub1Size + 24)
+                    .onGeometryChange(for: CGRect.self) { proxy in
+                        proxy.frame(in: .named(coordSpace))
+                    } action: { frame in
+                        sub1Frame = frame
+                    }
                 }
 
                 if step < 3 {
@@ -205,7 +212,8 @@ struct Level4StepView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .coordinateSpace(name: coordSpace)
         .overlay {
-            if showAudioLoaded,
+            if step >= 2,
+               showAudioLoaded,
                anchorCenters.indices.contains(splitSourceSlot),
                sub1Centers.indices.contains(splitNeedSlot),
                sub1Centers.indices.contains(splitRestSlot) {

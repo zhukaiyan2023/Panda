@@ -258,14 +258,14 @@ struct TeenPlusTeenStepView: View {
     private var currentAnchorSlots: [MathSlot] {
         // Step 5 is the last step — kid hasn't picked total yet, so
         // the answer stays "□" through the whole row.
-        return anchorSlots("□")
+        return anchorSlots(step == 5 ? host.session.currentStepAnswer.map(String.init) ?? "□" : "□")
     }
 
     private var currentSplit1Slots: [MathSlot] {
         switch step {
         case 1: return split1Slots("□", "□", "□")
         case 2: return split1Slots("\(10)", "\(onesA)", "□")
-        default: return split1Slots("\(10)", "\(onesA)", "□")
+        default: return split1Slots("\(10)", "\(onesA)", host.session.currentStepAnswer.map(String.init) ?? "□")
         }
     }
 
@@ -273,7 +273,7 @@ struct TeenPlusTeenStepView: View {
         switch step {
         case 1, 2: return split2Slots("□", "□", "□")
         case 3, 4: return split2Slots("\(10)", "\(onesB)", "□")
-        default: return split2Slots("\(10)", "\(onesB)", "□")
+        default: return split2Slots("\(10)", "\(onesB)", host.session.currentStepAnswer.map(String.init) ?? "□")
         }
     }
 
@@ -281,14 +281,14 @@ struct TeenPlusTeenStepView: View {
         switch step {
         case 1, 2, 3: return combineOnesSlots("□", "□")
         case 4: return combineOnesSlots("\(sum)", "□")
-        default: return combineOnesSlots("\(sum)", "□")
+        default: return combineOnesSlots("\(sum)", host.session.currentStepAnswer.map(String.init) ?? "□")
         }
     }
 
     private var currentCombineTensSlots: [MathSlot] {
         switch step {
         case 1, 2, 3, 4: return combineTensSlots("□", "□")
-        default: return combineTensSlots("\(20)", "□")
+        default: return combineTensSlots("\(20)", host.session.currentStepAnswer.map(String.init) ?? "□")
         }
     }
 
@@ -379,6 +379,11 @@ struct TeenPlusTeenStepView: View {
             ),
         ]
     }
+
+    // Split-2's two ones digits occupy slots 2 and 6, whose midpoint is
+    // the screen centre. Shift the lower expression by one fixed slot so
+    // its answer box (slot 4) lands exactly at that midpoint.
+    private let combineOnesOffset: CGFloat = -96
 
     /// L7 + L8: combine-ones[0]=10, combine-ones[2]=10 →
     /// combine-tens[0]=tens_sum (∨ shape — two upper 10s converge
@@ -531,6 +536,7 @@ struct TeenPlusTeenStepView: View {
                         combineOnesSlotCenters = centers
                     }
                     .frame(height: combineSize + 24)
+                    .offset(x: combineOnesOffset)
                     .onGeometryChange(for: CGRect.self) { proxy in
                         proxy.frame(in: .named(coordSpace))
                     } action: { newFrame in

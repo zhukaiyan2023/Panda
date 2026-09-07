@@ -23,6 +23,7 @@ import UIKit
 /// the up mole locks it in for 0.5s before the cycle advances.
 public struct WhackGameView: View {
     @State private var question: WhackPools.Question?
+    @Environment(\.scenePhase) private var scenePhase
     @State private var prevKey: String? = nil
     @State private var roundIdx = 0
     @State private var timeLeft: Int = 90
@@ -68,7 +69,7 @@ public struct WhackGameView: View {
             running = false
         }
         .onReceive(timer) { _ in
-            if running && !done {
+            if running && !done && scenePhase == .active {
                 timeLeft -= 1
                 if timeLeft <= 0 {
                     running = false
@@ -80,7 +81,7 @@ public struct WhackGameView: View {
             // Advance the visible mole. The tapped-correct / wrong-flash
             // tiles are pinned at -1 for 0.5s so the kid sees the
             // feedback before the next mole pops up.
-            guard running, !done, tappedCorrect == -1, wrongFlash == -1 else { return }
+            guard running, !done, scenePhase == .active, tappedCorrect == -1, wrongFlash == -1 else { return }
             let total = question?.candidates.count ?? 0
             guard total > 0 else { return }
             activeMole = (activeMole + 1) % total
@@ -97,9 +98,7 @@ public struct WhackGameView: View {
                         totalSteps: 10,
                         width: 600)
                 equationBar(for: q)
-                Spacer()
                 moles(for: q)
-                Spacer()
             }
         }
     }
@@ -157,11 +156,10 @@ public struct WhackGameView: View {
             Text("=")
                 .font(.pandaFont(size: 48))
                 .foregroundColor(Color(PandaTheme.ink))
-            Text(tappedCorrect >= 0 ? "\(q.answer)" : "?")
+            Text(tappedCorrect >= 0 ? "\(q.answer)" : "")
                 .font(.pandaFont(size: 56))
                 .foregroundColor(Color(tappedCorrect >= 0 ? PandaTheme.success : PandaTheme.orange))
-                .padding(.horizontal, 12)
-                .padding(.vertical, 4)
+                .frame(width: 88, height: 76)
                 .background(
                     RoundedRectangle(cornerRadius: 12)
                         .fill(Color.white)
@@ -173,7 +171,10 @@ public struct WhackGameView: View {
 
     private func moles(for q: WhackPools.Question) -> some View {
         let columns = Array(repeating: GridItem(.flexible(), spacing: 18), count: 3)
-        return LazyVGrid(columns: columns, spacing: 18) {
+        return GeometryReader { geometry in
+        let tileScale = max(0.2, min(1, min((geometry.size.width - 68) / 3 / 250,
+                                           (geometry.size.height - 16) / 2 / 260)))
+        LazyVGrid(columns: columns, spacing: 16) {
             ForEach(Array(q.candidates.enumerated()), id: \.offset) { idx, value in
                 // Each mole is "up" only when it's the active mole. The
                 // mole stays visible for one cycle (0.8s) before the
@@ -188,22 +189,26 @@ public struct WhackGameView: View {
                 ) {
                     handleTap(candidate: value, correct: q.answer, idx: idx)
                 }
+                .scaleEffect(tileScale)
+                .frame(width: 250 * tileScale, height: 260 * tileScale)
                 // .id() keys on the token so a fresh hammerHitToken
                 // re-mounts the tile and the HammerStrike overlay
                 // replays even if the same mole is struck twice in a
                 // row.
-                .id("mole-\(idx)-\(hammerHitToken)")
             }
         }
-        .padding(.horizontal, 40)
+        .padding(.horizontal, 16)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
     }
 
     private func handleTap(candidate: Int, correct: Int, idx: Int) {
-        guard running, !done else { return }
+        guard running, !done, scenePhase == .active,
+              tappedCorrect == -1, wrongFlash == -1 else { return }
         // Only count taps on the mole that's currently up — tapping a
         // down mole does nothing (mirrors the original JS which only
         // makes the active mole clickable).
-        guard activeMole == idx || tappedCorrect == candidate else { return }
+        guard activeMole == idx else { return }
         if candidate == correct {
             tappedCorrect = candidate
             correctCount += 1
@@ -219,7 +224,8 @@ public struct WhackGameView: View {
             // 0.9s window covers the full 0.8s hammer strike plus a
             // brief beat for the dizzy stars.
             activeMole = -1
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.9) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.4) {
+                guard running, !done else { return }
                 nextQuestion()
                 tappedCorrect = -1
                 hammerHitIdx = -1
@@ -233,6 +239,7 @@ public struct WhackGameView: View {
             // Wrong tap: flash the mole then advance immediately.
             activeMole = -1
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                guard running, !done else { return }
                 wrongFlash = -1
                 let total = question?.candidates.count ?? 0
                 if total > 0 { activeMole = (idx + 1) % total }
@@ -263,6 +270,7 @@ public struct WhackGameView: View {
 }
 
 private struct MoleTile: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let value: Int
     let colorIndex: Int
     let isUp: Bool
@@ -291,7 +299,12 @@ private struct MoleTile: View {
         let showMoleAndOverlay = isUp || tappedCorrect
 
         Button(action: onTap) {
-            VStack(spacing: 0) {
+            ZStack(alignment: .bottom) {
+                if let hole = pandaImage(named: "whack-hole-clean") {
+                    hole.resizable().scaledToFit()
+                        .frame(width: 230, height: 90)
+                        .opacity(showMoleAndOverlay ? 0 : 1)
+                }
                 ZStack {
                     // Mole sprite — bigger now (210×210) for kid-friendly tap targets.
                     if let mole = pandaImage(named: "whack-mole-popup") {
@@ -301,9 +314,9 @@ private struct MoleTile: View {
                             .aspectRatio(contentMode: .fit)
                             .frame(width: 210, height: 210)
                             // Stunned: tilt + scale the mole when hit.
-                            .rotationEffect(.degrees(tappedCorrect ? 18 : 0))
-                            .scaleEffect(tappedCorrect ? 0.88 : 1.0)
-                            .animation(.spring(response: 0.35, dampingFraction: 0.55), value: tappedCorrect)
+                            .rotationEffect(.degrees(tappedCorrect && !reduceMotion ? -7 : 0))
+                            .scaleEffect(tappedCorrect ? 0.94 : 1.0)
+                            .animation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.7), value: tappedCorrect)
                     }
                     // Digit sits ON the mole's belly — the sprite is drawn
                     // horizontally (face on left, body extending right), so
@@ -332,7 +345,7 @@ private struct MoleTile: View {
                     // the kid sees the hammer meet the mole, then bounce
                     // off. Drawn last so it overlays everything else in
                     // the tile.
-                    if hammerStrike {
+                    if hammerStrike && !reduceMotion {
                         HammerStrike()
                             .frame(width: 220, height: 220)
                             .transition(.opacity)
@@ -345,27 +358,20 @@ private struct MoleTile: View {
                 // feedback window so the hammer animation can actually be
                 // seen — previously the hammer was hidden because this
                 // opacity dropped to `0` the instant the kid hit the mole.
-                .offset(y: isUp ? -16 : (tappedCorrect ? -16 : 110))
+                .offset(y: showMoleAndOverlay ? -30 : (reduceMotion ? -30 : 75))
                 .opacity(showMoleAndOverlay ? 1 : 0)
-                .animation(.spring(response: 0.6, dampingFraction: 0.7), value: isUp)
+                .animation(reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 0.85), value: isUp)
                 .animation(.easeInOut(duration: 0.2), value: tappedCorrect)
                 .frame(width: 240, height: 210)
                 .opacity(wrongFlash ? 0.5 : 1)
 
-                // The hole sprite — scaled up to match the larger mole.
-                if let hole = pandaImage(named: "whack-hole-clean") {
-                    hole
-                        .resizable()
-                        .interpolation(.high)
-                        .aspectRatio(contentMode: .fit)
-                        .frame(width: 250, height: 110)
-                        .offset(y: -50)
-                }
             }
-            .frame(width: 220, height: 240)                       // bigger tile
+            .frame(width: 250, height: 260)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .disabled(!isUp || tappedCorrect || wrongFlash)
+        .accessibilityLabel("数字 \(value)")
     }
 }
 
@@ -380,6 +386,7 @@ public struct CountGameView: View {
     @State private var lastAnswer: Int? = nil
     @State private var locked = false
     @State private var target: Int = 6    // cached per round (no flicker between rounds)
+    @State private var choiceOrder: [Int] = []
     @EnvironmentObject private var saveStore: PandaSaveStore
     @EnvironmentObject private var audio: PandaAudio
     @Environment(\.dismiss) private var dismiss
@@ -417,6 +424,7 @@ public struct CountGameView: View {
         }
         lastAnswer = pick
         target = pick
+        choiceOrder = choicesForTarget(pick).shuffled()
     }
 
     private func bucket(for value: Int) -> Int {
@@ -425,6 +433,23 @@ public struct CountGameView: View {
         case 4...7: return 1
         default: return 2
         }
+    }
+
+    private func choicesForTarget(_ target: Int) -> [Int] {
+        var opts: [Int] = [target]
+        for d in [-2, -1, 1, 2, -3, 3] {
+            let value = target + d
+            if (1...10).contains(value) && !opts.contains(value) {
+                opts.append(value)
+                if opts.count == 4 { break }
+            }
+        }
+        var fallback = 1
+        while opts.count < 4 && fallback <= 10 {
+            if !opts.contains(fallback) { opts.append(fallback) }
+            fallback += 1
+        }
+        return Array(opts.prefix(4))
     }
 
     @ViewBuilder
@@ -494,7 +519,7 @@ public struct CountGameView: View {
             if !opts.contains(fallback) { opts.append(fallback) }
             fallback += 1
         }
-        let shuffled = Array(opts.prefix(4)).shuffled()
+        let shuffled = choiceOrder.isEmpty ? Array(opts.prefix(4)) : choiceOrder
         return HStack(spacing: 12) {
             ForEach(Array(shuffled.enumerated()), id: \.offset) { _, value in
                 ChoiceButton(
@@ -644,30 +669,30 @@ struct HammerStrike: View {
 /// Spinning stars + 💫 emoji that appear over a mole right after the
 /// kid hits it. Plays a looping spin while `tappedCorrect` is true.
 struct StunOverlay: View {
-    @State private var spin: Double = 0
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var startedAt = Date()
 
     var body: some View {
-        ZStack {
-            // 3 small stars circling the mole
-            ForEach(0..<3, id: \.self) { i in
-                let angle = Double(i) * 120 + spin
-                let rad = angle * .pi / 180
-                Text("⭐")
-                    .font(.system(size: 22))
-                    .offset(
-                        x: CGFloat(cos(rad)) * 70,
-                        y: CGFloat(sin(rad)) * 70 - 40
-                    )
+        TimelineView(.animation(minimumInterval: 1.0 / 30, paused: reduceMotion)) { timeline in
+            let phase = reduceMotion ? 0 : timeline.date.timeIntervalSince(startedAt) * 5
+            ZStack {
+                Ellipse()
+                    .stroke(Color(PandaTheme.yellow).opacity(0.65), lineWidth: 3)
+                    .frame(width: 116, height: 30)
+                ForEach(0..<4, id: \.self) { i in
+                    let angle = phase + Double(i) * .pi / 2
+                    Image(systemName: "star.fill")
+                        .font(.system(size: 21, weight: .bold))
+                        .foregroundStyle(Color(i.isMultiple(of: 2) ? PandaTheme.yellow : PandaTheme.orange))
+                        .shadow(color: .white, radius: 2)
+                        .scaleEffect(0.85 + 0.15 * sin(angle))
+                        .offset(x: cos(angle) * 58, y: sin(angle) * 15)
+                        .zIndex(sin(angle))
+                }
             }
-            // Big dizzy face at the top
-            Text("💫")
-                .font(.system(size: 38))
-                .offset(y: -80)
+            .offset(y: -80)
         }
-        .onAppear {
-            withAnimation(.linear(duration: 0.9).repeatForever(autoreverses: false)) {
-                spin = 360
-            }
-        }
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
     }
 }

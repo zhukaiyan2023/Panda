@@ -41,8 +41,6 @@ public struct Level2View: View {
                     // followed by a phase-2 question cue ("a 加 b 等于几").
                     // Both cues live under the l1-* prefix because the
                     // 三数相加 content originated in JS level1.js.
-                    host.playStepAudio(["l1-intro-\(a)-\(b)-\(c)",
-                                          "l1-sub-\(a)-\(b)"])
                     let question = host.makeQuestion(
                         correct: pairSum,
                         values: optionChoices(correct: pairSum, min: 2, max: 9))
@@ -52,9 +50,14 @@ public struct Level2View: View {
                                 a: a, b: b, c: c,
                                 pairSum: pairSum, total: total,
                                 step: 1,
+                                host: host,
                                 question: question
                             )
-                        )
+                        ),
+                        onAppearAction: {
+                            host.playStepAudio(["l1-intro-\(a)-\(b)-\(c)",
+                                                "l1-sub-\(a)-\(b)"])
+                        }
                     )
                 } else {
                     // JS L1 step 2 reads the simplified form
@@ -64,7 +67,6 @@ public struct Level2View: View {
                     // "10"/pairSum lives on, but L2 reads "pairSum
                     // + third" with pairSum on the left, so use the
                     // same mirrored cue id L3 picks for that case).
-                    host.playStepAudio(["l1-step2-\(pairSum)-\(c)"])
                     let question = host.makeQuestion(
                         correct: total,
                         values: optionChoices(correct: total, min: 3, max: 10))
@@ -74,9 +76,13 @@ public struct Level2View: View {
                                 a: a, b: b, c: c,
                                 pairSum: pairSum, total: total,
                                 step: 2,
+                                host: host,
                                 question: question
                             )
-                        )
+                        ),
+                        onAppearAction: {
+                            host.playStepAudio(["l1-step2-\(pairSum)-\(c)"])
+                        }
                     )
                 }
             },
@@ -121,6 +127,7 @@ struct ThreeSumStepView: View {
     let pairSum: Int
     let total: Int
     let step: Int
+    let host: RoundHost
     let question: AnyView
 
     // Coordinate-space name used to translate each row's frame into the
@@ -176,7 +183,8 @@ struct ThreeSumStepView: View {
             .op(.plus),
             .number(c, color: PandaTheme.numPink),
             .op(.equals),
-            .answerBox("□", color: PandaTheme.ink),
+            .answerBox(step == 2 ? host.session.currentStepAnswer.map(String.init) ?? "□" : "□",
+                       color: PandaTheme.ink),
         ]
     }
 
@@ -197,7 +205,7 @@ struct ThreeSumStepView: View {
                 .op(.plus),
                 .number(c, color: PandaTheme.numPink),
                 .op(.equals),
-                .answerBox("□", color: PandaTheme.ink),
+                .answerBox(host.session.currentStepAnswer.map(String.init) ?? "□", color: PandaTheme.ink),
             ]
         }
     }

@@ -238,7 +238,8 @@ struct ThreeTenStepView: View {
             .op(.plus),
             .number(nums[2], color: PandaTheme.numPink),
             .op(.equals),
-            .answerBox("?", color: PandaTheme.ink),
+            .answerBox(step == 2 ? host.session.currentStepAnswer.map(String.init) ?? "?" : "?",
+                       color: PandaTheme.ink),
         ]
     }
 
@@ -270,14 +271,14 @@ struct ThreeTenStepView: View {
                 .op(.plus),
                 .number(third, color: leftoverColor),
                 .op(.equals),
-                .answerBox("?", color: PandaTheme.ink),
+                .answerBox(host.session.currentStepAnswer.map(String.init) ?? "?", color: PandaTheme.ink),
             ]
             : [
                 .number(third, color: leftoverColor),
                 .op(.plus),
                 .number(10, color: PandaTheme.yellow),
                 .op(.equals),
-                .answerBox("?", color: PandaTheme.ink),
+                .answerBox(host.session.currentStepAnswer.map(String.init) ?? "?", color: PandaTheme.ink),
             ]
     }
 

@@ -25,16 +25,16 @@ public enum FeedPools {
     }
 
     public static func targetFor(_ roundIdx: Int) -> Int {
-        targets[min(roundIdx, targets.count - 1)]
+        targets[max(0, min(roundIdx, targets.count - 1))]
     }
     public static func bubbleCountFor(_ roundIdx: Int) -> Int {
-        bubblesPerRound[min(roundIdx, bubblesPerRound.count - 1)]
+        bubblesPerRound[max(0, min(roundIdx, bubblesPerRound.count - 1))]
     }
 
     /// Every unordered pair of DISTINCT digits 1..9 summing to `target`.
     public static func pairsForTarget(_ target: Int) -> [[Int]] {
         var out: [[Int]] = []
-        for lo in 1..<(target / 2) where target - lo > lo {
+        for lo in 1...9 where target - lo > lo {
             let hi = target - lo
             if hi <= 9 { out.append([lo, hi]) }
         }

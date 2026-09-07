@@ -34,5 +34,7 @@ func playCue(_ audio: PandaAudio, _ id: String) {
 /// Plays a sequence of cues (e.g. intro + per-step + reward).
 @MainActor
 func playCues(_ audio: PandaAudio, _ ids: [String]) {
-    for id in ids { audio.playCue(id) }
+    let validIds = ids.filter { !$0.isEmpty }
+    guard !validIds.isEmpty else { return }
+    audio.playSequence(validIds)
 }

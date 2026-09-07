@@ -59,9 +59,16 @@ public struct MathExpression: View {
                 .foregroundColor(Color(color ?? PandaTheme.ink))
                 .position(x: centerX, y: size / 2 - size * 0.05)
 
-        case .answerBox(_, let color, _):
-            AnswerBoxShape(color: color ?? PandaTheme.ink, size: size)
-                .position(x: centerX, y: size / 2)
+        case .answerBox(let label, let color, _):
+            if let value = Int(label) {
+                Text("\(value)")
+                    .font(.pandaFont(size: size))
+                    .foregroundColor(Color(color ?? PandaTheme.ink))
+                    .position(x: centerX, y: size / 2)
+            } else {
+                AnswerBoxShape(color: color ?? PandaTheme.ink, size: size)
+                    .position(x: centerX, y: size / 2)
+            }
         }
     }
 }

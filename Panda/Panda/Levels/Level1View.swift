@@ -29,15 +29,18 @@ public struct Level1View: View {
                 // Audio: "a减b等于几" — JS uses l6-s1-{a}-{b}
                 // (the cue-id prefix didn't move when the level
                 // renumbered L6 → L1).
-                host.playCue("l6-s1-\(a)-\(b)")
                 // L1 is a single-step problem — no separate anchor view,
                 // just show the equation once.
-                let equation = ExpressionBuilder.sub(a, b, answer: "□")
+                let answerLabel = host.session.currentStepAnswer.map(String.init) ?? "□"
+                let equation = ExpressionBuilder.sub(a, b, answer: answerLabel)
                 return StepRender(
                     equation: AnyView(expr(equation, size: 96)),
                     question: host.makeQuestion(
                         correct: answer,
-                        values: optionChoices(correct: answer, min: 0, max: 10))
+                        values: optionChoices(correct: answer, min: 0, max: 10)),
+                    onAppearAction: {
+                        host.playCue("l6-s1-\(a)-\(b)")
+                    }
                 )
             },
             onRoundCorrect: { audio, round, lastEncourageId in

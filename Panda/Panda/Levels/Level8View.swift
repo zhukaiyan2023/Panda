@@ -136,7 +136,8 @@ struct TeenSubBorrowStepView: View {
             .op(.minus),
             .number(b, color: PandaTheme.numPink),
             .op(.equals),
-            .answerBox("?", color: PandaTheme.orange),
+            .answerBox(step == 3 ? host.session.currentStepAnswer.map(String.init) ?? "?" : "?",
+                       color: PandaTheme.orange),
         ]
     }
 
@@ -216,7 +217,7 @@ struct TeenSubBorrowStepView: View {
         case 1:
             return splitSlots(onesValue: nil, answerValue: nil)
         default:
-            return splitSlots(onesValue: ones, answerValue: nil)
+            return splitSlots(onesValue: ones, answerValue: step == 3 ? host.session.currentStepAnswer : nil)
         }
     }
 
@@ -225,7 +226,7 @@ struct TeenSubBorrowStepView: View {
         case 2:
             return resultSlots(answerValue: nil, pickValueSlot: nil)
         default:
-            return resultSlots(answerValue: nil,
+            return resultSlots(answerValue: step == 3 ? host.session.currentStepAnswer : nil,
                                pickValueSlot: sub)
         }
     }
@@ -393,22 +394,25 @@ struct TeenSubBorrowStepView: View {
     private func stepArrowsOverlay() -> some View {
         ZStack {
             if let splitArrow = makeSplitArrows() {
-                L3StylePolyline(
-                    from: splitArrow.anchorBottom,
-                    to: splitArrow.splitZeroTop,
-                    color: splitArrow.colorZero
-                )
-                L3StylePolyline(
-                    from: splitArrow.anchorBottom,
-                    to: splitArrow.splitTwoTop,
-                    color: splitArrow.colorTwo
+                SymmetricVDiagram(
+                    source: splitArrow.anchorBottom,
+                    destA: splitArrow.splitZeroTop,
+                    destB: splitArrow.splitTwoTop,
+                    colorA: splitArrow.colorZero,
+                    colorB: splitArrow.colorTwo,
+                    lineThickness: 7,
+                    opacity: 0.85
                 )
             }
-            ForEach(combineArrows()) { seg in
-                L3StylePolyline(
-                    from: seg.from,
-                    to: seg.to,
-                    color: seg.color
+            let combineSegments = combineArrows()
+            if combineSegments.count == 2 {
+                L1MergeLines(
+                    anchorTop: combineSegments[0].from,
+                    anchorMid: combineSegments[1].from,
+                    mergeBox: combineSegments[0].to,
+                    colorA: combineSegments[0].color,
+                    colorB: combineSegments[1].color,
+                    lineThickness: 7
                 )
             }
         }

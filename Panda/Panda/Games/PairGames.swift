@@ -818,11 +818,10 @@ private struct CloudGameRound: View {
             Text("=")
                 .font(.pandaFont(size: 46))
                 .foregroundColor(Color(PandaTheme.ink))
-            Text(locked ? "\(correct)" : "?")
+            Text(locked ? "\(correct)" : "")
                 .font(.pandaFont(size: 56, weight: .black))
                 .foregroundColor(Color(locked ? PandaTheme.success : PandaTheme.orange))
-                .padding(.horizontal, 14)
-                .padding(.vertical, 4)
+                .frame(width: 88, height: 76)
                 .background(
                     RoundedRectangle(cornerRadius: 12)
                         .fill(Color.white)
@@ -867,6 +866,8 @@ public struct FeedGameView: View {
 
 private struct FeedGameBody: View {
     @State private var roundIndex = 0
+    @State private var round = FeedPools.build(roundIdx: 0)
+    @State private var transitionTask: Task<Void, Never>?
     @EnvironmentObject private var saveStore: PandaSaveStore
     @EnvironmentObject private var audio: PandaAudio
     @Environment(\.dismiss) private var dismiss
@@ -880,10 +881,13 @@ private struct FeedGameBody: View {
             audio.configureSession()
             audio.playCue("feed-intro")
         }
+        .onDisappear {
+            transitionTask?.cancel()
+            audio.stopAllAudio()
+        }
     }
 
     private var content: some View {
-        let round = FeedPools.build(roundIdx: roundIndex)
         // .id() forces a fresh view (and resets @State like `selected`
         // and `foundPairs`) on every round change so previously-picked
         // bubbles aren't carried over.
@@ -894,10 +898,14 @@ private struct FeedGameBody: View {
             onBack: { audio.stopAllAudio(); dismiss() },
             onComplete: {
                 audio.playCue("feed-done")
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+                transitionTask?.cancel()
+                transitionTask = Task { @MainActor in
+                    do { try await Task.sleep(for: .seconds(1.2)) }
+                    catch { return }
                     saveStore.markGameRoundFinished(4)
                     if roundIndex + 1 < 5 {
                         roundIndex += 1
+                        round = FeedPools.build(roundIdx: roundIndex)
                     } else {
                         dismiss()
                     }
@@ -916,6 +924,7 @@ private struct FeedGameRound: View {
     let onComplete: () -> Void
 
     @State private var foundPairs = 0
+    @State private var isFinishing = false
     @State private var pendingIndex: Int? = nil
     @State private var selected: Set<Int> = []
     @State private var wrong: Int = -1
@@ -996,18 +1005,21 @@ private struct FeedGameRound: View {
     }
 
     private func tap(idx: Int, value: Int) {
+        guard !isFinishing else { return }
         if selected.contains(idx) { return }
         if pendingIndex == nil {
             pendingIndex = idx
         } else if let p = pendingIndex, p != idx {
             if value + round.candidates[p] == round.target {
                 selected.insert(p); selected.insert(idx); foundPairs += 1
-                audio.playCue("correct")
                 if foundPairs >= round.pairCount {
+                    isFinishing = true
                     onComplete()
+                } else {
+                    audio.playCue("enc-first-1")
                 }
             } else {
-                audio.playCue("wrong")
+                audio.playCue("enc-wrong-1")
                 wrong = idx
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { wrong = -1 }
             }
