@@ -52,6 +52,8 @@ public struct QuestionConfig: View {
     public let buttonWidth: CGFloat
     public let buttonHeight: CGFloat
 
+    @State private var displayedValues: [Int]
+
     public init(correct: Int, values: [Int],
                 labelFor: @escaping (Int) -> String = { "\($0)" },
                 onPick: @escaping (Int) -> Void,
@@ -62,18 +64,21 @@ public struct QuestionConfig: View {
         self.onPick = onPick
         self.buttonWidth = buttonWidth
         self.buttonHeight = buttonHeight
+        _displayedValues = State(initialValue: values.shuffled())
     }
 
     public var body: some View {
-        let shuffled = values.shuffled()
         HStack(spacing: 8) {
-            ForEach(shuffled, id: \.self) { value in
+            ForEach(displayedValues, id: \.self) { value in
                 ChoiceButton(label: labelFor(value), width: buttonWidth, height: buttonHeight) {
                     onPick(value)
                 }
             }
         }
         .frame(maxWidth: .infinity)
+        .onChange(of: values) { _, newValues in
+            displayedValues = newValues.shuffled()
+        }
     }
 }
 
@@ -83,12 +88,12 @@ public struct RoundScaffold: View {
     public let levelId: Int
     public let sampleSize: Int
     public let stepLabels: [String]
-    public let rounds: [PandaRound]
     public let stepBuilder: (PandaRound, Int, RoundHost) -> StepRender
     public let onRoundCorrect: ((PandaAudio, PandaRound, String?) -> Void)?
     public let introCue: String?
     public let showPanda: Bool
 
+    @State private var rounds: [PandaRound]
     @StateObject private var session: RoundSession
     @EnvironmentObject private var saveStore: PandaSaveStore
     @EnvironmentObject private var audio: PandaAudio
@@ -103,9 +108,9 @@ public struct RoundScaffold: View {
                 introCue: String? = nil, showPanda: Bool = true) {
         self.levelId = levelId
         self.sampleSize = sampleSize
-        self.stepLabels = stepLabels
         let sampled = Array(poolGen().shuffled().prefix(sampleSize))
-        self.rounds = sampled
+        _rounds = State(initialValue: sampled)
+        self.stepLabels = stepLabels
         self.stepBuilder = stepBuilder
         self.onRoundCorrect = onRoundCorrect
         self.introCue = introCue
@@ -155,6 +160,7 @@ public struct RoundScaffold: View {
             audio.stopAllAudio()
             session.isAnswerLocked = false
             session.lastStepAudioKey = nil
+            session.currentStepAnswer = nil
         }
         .fullScreenCover(isPresented: $showDailyDone) {
             DailyDoneView(onDismiss: { dismiss() })
@@ -212,6 +218,11 @@ public struct RoundScaffold: View {
         if session.step >= stepLabels.count {
             finishRound()
         } else {
+            // The final step intentionally keeps its answer visible until
+            // the round transition finishes. Earlier step answers are scoped
+            // to the step that just completed and must not leak into the next
+            // question's result box.
+            session.currentStepAnswer = nil
             session.step += 1
         }
     }
@@ -247,6 +258,7 @@ public struct RoundScaffold: View {
             session.lastEncourageId = nil
             session.lastStepAudioKey = nil
             session.isAnswerLocked = false
+            session.currentStepAnswer = nil
         } else {
             audio.stopAllAudio()
             session.reset()
@@ -263,6 +275,11 @@ public final class RoundSession: ObservableObject {
     @Published public var roundIndex: Int = 0
     @Published public var lastEncourageId: String?
     @Published public var isAnswerLocked = false
+
+    /// Correct value selected for the currently active step. It is kept
+    /// populated during the final-step celebration so the equation can
+    /// visibly backfill the final result before the next round is loaded.
+    @Published public var currentStepAnswer: Int?
 
     /// Prevents step narration from restarting when `stepBuilder` is
     /// evaluated repeatedly by SwiftUI. L2 historically started its
@@ -284,6 +301,7 @@ public final class RoundSession: ObservableObject {
         lastEncourageId = nil
         lastStepAudioKey = nil
         isAnswerLocked = false
+        currentStepAnswer = nil
     }
 }
 
@@ -388,6 +406,7 @@ public final class RoundHost: ObservableObject {
         session.isAnswerLocked = true
 
         if value == correct {
+            session.currentStepAnswer = value
             setPandaMood(.cheer)
             let cue = "enc-first-\(levelId)"
             session.lastEncourageId = cue
