@@ -97,17 +97,21 @@ private struct TeenSubNoBorrowStepView: View {
         ]
     }
 
-    private func resultSlots(pickValue: Int?) -> [MathSlot] {
+    private func resultSlots(pickValue: Int?, answerValue: Int?) -> [MathSlot] {
         let pickSlot: MathSlot = pickValue.map {
             .number($0, color: PandaTheme.numPink)
         } ?? .answerBox("□", color: PandaTheme.orange)
+
+        let answerSlot: MathSlot = answerValue.map {
+            .number($0, color: PandaTheme.ink)
+        } ?? .answerBox("?", color: PandaTheme.orange)
 
         return [
             .number(10, color: PandaTheme.yellow),
             .op(.plus),
             pickSlot,
             .op(.equals),
-            .answerBox("?", color: PandaTheme.orange)
+            answerSlot
         ]
     }
 
@@ -120,9 +124,12 @@ private struct TeenSubNoBorrowStepView: View {
 
     private var currentResultSlots: [MathSlot] {
         if step == 2 {
-            return resultSlots(pickValue: nil)
+            return resultSlots(pickValue: nil, answerValue: nil)
         }
-        return resultSlots(pickValue: diff)
+        return resultSlots(
+            pickValue: diff,
+            answerValue: host.session.currentStepAnswer
+        )
     }
 
     var body: some View {
@@ -156,17 +163,16 @@ private struct TeenSubNoBorrowStepView: View {
                     Color.clear.frame(height: splitSize + 24)
                 }
 
-                if showResultRow {
-                    Spacer().frame(height: gapSplitResult)
-                    MathExpressionWithSlots(slots: currentResultSlots, size: resultSize) { centers in
-                        resultSlotCenters = centers
-                    }
-                    .frame(height: resultSize + 24)
-                    .onGeometryChange(for: CGRect.self) { proxy in
-                        proxy.frame(in: .named(coordSpace))
-                    } action: { frame in
-                        resultRowFrame = frame
-                    }
+                Spacer().frame(height: gapSplitResult)
+                MathExpressionWithSlots(slots: currentResultSlots, size: resultSize) { centers in
+                    resultSlotCenters = centers
+                }
+                .frame(height: resultSize + 24)
+                .opacity(showResultRow ? 1 : 0)
+                .onGeometryChange(for: CGRect.self) { proxy in
+                    proxy.frame(in: .named(coordSpace))
+                } action: { frame in
+                    resultRowFrame = frame
                 }
 
                 Spacer().frame(height: 28)
