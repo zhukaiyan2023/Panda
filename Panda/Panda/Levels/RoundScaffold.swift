@@ -8,8 +8,6 @@
 import SwiftUI
 import Combine
 
-// MARK: - Step Render
-
 public struct StepRender: View {
     public let anchor: AnyView?
     public let equation: AnyView?
@@ -21,12 +19,8 @@ public struct StepRender: View {
     public init(anchor: AnyView? = nil, equation: AnyView? = nil,
                 bodyView: AnyView? = nil, question: AnyView? = nil,
                 reveal: AnyView? = nil, arrows: AnyView? = nil) {
-        self.anchor = anchor
-        self.equation = equation
-        self.bodyView = bodyView
-        self.question = question
-        self.reveal = reveal
-        self.arrows = arrows
+        self.anchor = anchor; self.equation = equation; self.bodyView = bodyView
+        self.question = question; self.reveal = reveal; self.arrows = arrows
     }
 
     public var body: some View {
@@ -42,8 +36,6 @@ public struct StepRender: View {
     }
 }
 
-// MARK: - Question Config
-
 public struct QuestionConfig: View {
     public let correct: Int
     public let values: [Int]
@@ -51,21 +43,18 @@ public struct QuestionConfig: View {
     public let onPick: (Int) -> Void
     public let buttonWidth: CGFloat
     public let buttonHeight: CGFloat
-
     @State private var displayedValues: [Int]
 
     public init(correct: Int, values: [Int],
                 labelFor: @escaping (Int) -> String = { "\($0)" },
                 onPick: @escaping (Int) -> Void,
                 buttonWidth: CGFloat = 128, buttonHeight: CGFloat = 96) {
-        self.correct = correct
-        self.values = values
-        self.labelFor = labelFor
-        self.onPick = onPick
-        self.buttonWidth = buttonWidth
-        self.buttonHeight = buttonHeight
+        self.correct = correct; self.values = values; self.labelFor = labelFor
+        self.onPick = onPick; self.buttonWidth = buttonWidth; self.buttonHeight = buttonHeight
         _displayedValues = State(initialValue: values.shuffled())
     }
+
+    private var normalizedValues: [Int] { Array(Set(values)).sorted() }
 
     public var body: some View {
         GeometryReader { geometry in
@@ -74,14 +63,9 @@ public struct QuestionConfig: View {
             let availableWidth = max(0, geometry.size.width - spacing * CGFloat(max(0, count - 1)))
             let adaptiveWidth = count > 0 ? availableWidth / CGFloat(count) : buttonWidth
             let resolvedWidth = min(buttonWidth, adaptiveWidth)
-
             HStack(spacing: spacing) {
                 ForEach(displayedValues, id: \.self) { value in
-                    ChoiceButton(
-                        label: labelFor(value),
-                        width: resolvedWidth,
-                        height: buttonHeight
-                    ) {
+                    ChoiceButton(label: labelFor(value), width: resolvedWidth, height: buttonHeight) {
                         onPick(value)
                     }
                 }
@@ -90,13 +74,16 @@ public struct QuestionConfig: View {
         }
         .frame(minHeight: buttonHeight)
         .contentShape(Rectangle())
-        .onChange(of: values) { _, newValues in
+        // Compare the choice SET rather than its order. Parent redraws may
+        // recreate optionChoices in a different order; that must not reshuffle
+        // the buttons while the child is deciding an answer.
+        .onChange(of: normalizedValues) { _, newValues in
+            let newSet = Set(newValues)
+            guard Set(displayedValues) != newSet else { return }
             displayedValues = newValues.shuffled()
         }
     }
 }
-
-// MARK: - Round Scaffold
 
 public struct RoundScaffold: View {
     public let levelId: Int
@@ -122,48 +109,47 @@ public struct RoundScaffold: View {
                 stepBuilder: @escaping (PandaRound, Int, RoundHost) -> StepRender,
                 onRoundCorrect: ((PandaAudio, PandaRound, String?) -> Void)? = nil,
                 introCue: String? = nil, showPanda: Bool = true) {
-        self.levelId = levelId
-        self.sampleSize = sampleSize
+        self.levelId = levelId; self.sampleSize = sampleSize
         let sampled = Array(poolGen().shuffled().prefix(sampleSize))
         _rounds = State(initialValue: sampled)
-        self.stepLabels = stepLabels
-        self.stepBuilder = stepBuilder
-        self.onRoundCorrect = onRoundCorrect
-        self.introCue = introCue
-        self.showPanda = showPanda
+        self.stepLabels = stepLabels; self.stepBuilder = stepBuilder
+        self.onRoundCorrect = onRoundCorrect; self.introCue = introCue; self.showPanda = showPanda
         _session = StateObject(wrappedValue: RoundSession(stepCount: stepLabels.count,
                                                           roundCount: sampled.count))
     }
 
     public var body: some View {
-        ZStack {
-            SceneBackground(name: "bg-meadow")
-            VStack(spacing: 0) {
-                chrome
-                Spacer(minLength: 4)
-                if let round = currentRound {
-                    let host = RoundHost(round: round, levelId: levelId, session: session,
-                                         advance: advanceStep, finish: finishRound,
-                                         setPandaMood: setPandaMood, audio: audio)
-                    stepBuilder(round, session.step, host)
-                        .frame(maxWidth: .infinity)
-                        .padding(.horizontal, 16)
-                        .padding(.top, 8)
-                        .environment(\.pandaCurrentStepAnswer, session.currentStepAnswer)
-                        .id("\(session.roundIndex)-\(session.step)")
+        GeometryReader { geo in
+            ZStack {
+                SceneBackground(name: "bg-meadow")
+                VStack(spacing: 0) {
+                    chrome
+                    Spacer(minLength: 4)
+                    if let round = currentRound {
+                        let host = RoundHost(round: round, levelId: levelId, session: session,
+                                             advance: advanceStep, finish: finishRound,
+                                             setPandaMood: setPandaMood, audio: audio)
+                        stepBuilder(round, session.step, host)
+                            .frame(maxWidth: .infinity)
+                            .padding(.horizontal, 16)
+                            .padding(.top, 8)
+                            .environment(\.pandaCurrentStepAnswer, session.currentStepAnswer)
+                            .id("\(session.roundIndex)-\(session.step)")
+                    }
+                    Spacer(minLength: 8)
                 }
-                Spacer(minLength: 8)
-            }
-            if showPanda {
-                VStack {
-                    Spacer()
-                    HStack {
-                        PandaView(mood: pandaMood, size: 130)
-                            .frame(width: 140, height: 130, alignment: .bottomLeading)
-                            .padding(.leading, 8)
-                            .padding(.bottom, 12)
-                            .allowsHitTesting(false)
+                if showPanda {
+                    VStack {
                         Spacer()
+                        HStack {
+                            let pandaSize = min(130, max(92, min(geo.size.width * 0.16, geo.size.height * 0.16)))
+                            PandaView(mood: pandaMood, size: pandaSize)
+                                .frame(width: pandaSize + 10, height: pandaSize, alignment: .bottomLeading)
+                                .padding(.leading, 8)
+                                .padding(.bottom, 12)
+                                .allowsHitTesting(false)
+                            Spacer()
+                        }
                     }
                 }
             }
@@ -174,10 +160,8 @@ public struct RoundScaffold: View {
             if let introCue { audio.playCue(introCue) }
         }
         .onDisappear {
-            lifecycle.reset()
-            moodToken &+= 1
-            audio.stopAllAudio()
-            session.reset()
+            lifecycle.reset(); moodToken &+= 1
+            audio.stopAllAudio(); session.reset()
         }
         .fullScreenCover(isPresented: $showDailyDone) {
             DailyDoneView(onDismiss: { dismiss() })
@@ -185,37 +169,36 @@ public struct RoundScaffold: View {
     }
 
     private var chrome: some View {
-        HStack(spacing: 12) {
-            IconButton(style: .back) {
-                lifecycle.reset()
-                audio.stopAllAudio()
-                session.reset()
-                dismiss()
-            }
+        ZStack {
             StepBar(labels: stepLabels, step: session.step,
-                    totalSteps: stepLabels.count, width: nil)
+                    totalSteps: max(stepLabels.count, 1), width: nil)
                 .frame(maxWidth: .infinity)
-                .layoutPriority(1)
-            Color.clear.frame(width: 60, height: 54)
+                .padding(.leading, 70)
+                .padding(.trailing, 12)
+            HStack {
+                IconButton(style: .back) {
+                    lifecycle.reset(); audio.stopAllAudio(); session.reset(); dismiss()
+                }
+                Spacer(minLength: 0)
+            }
         }
-        .padding(.horizontal, 12)
+        .padding(.horizontal, 8)
         .padding(.top, 8)
     }
 
     private var currentRound: PandaRound? {
-        guard session.roundIndex < rounds.count else { return nil }
+        guard session.roundIndex >= 0, session.roundIndex < rounds.count else { return nil }
         return rounds[session.roundIndex]
     }
 
     private func setPandaMood(_ mood: PandaMood) {
         pandaMood = mood
         guard mood != .idle else { return }
-
         moodToken &+= 1
         let token = moodToken
         lifecycle.schedule(after: 1.4) { [weak session] in
-            guard let session, session.roundIndex < self.rounds.count else { return }
-            guard token == self.moodToken else { return }
+            guard let session, session.roundIndex < self.rounds.count,
+                  token == self.moodToken else { return }
             self.pandaMood = .idle
         }
     }
@@ -234,32 +217,19 @@ public struct RoundScaffold: View {
 
     private func finishRound() {
         guard !session.isTransitioning else { return }
-        guard let round = currentRound else {
-            completeRoundTransition()
-            return
-        }
-
+        guard let round = currentRound else { completeRoundTransition(); return }
         session.isTransitioning = true
         let capturedGeneration = lifecycle.capture()
         onRoundCorrect?(audio, round, session.lastEncourageId)
-
-        // Prefer the audio queue's idle callback so the next round does not
-        // cut off encouragement audio. The transition flag and generation
-        // guard make both the callback and the safety timeout idempotent.
         audio.whenIdle { [weak session] in
             Task { @MainActor in
-                guard let session,
-                      session.isTransitioning,
+                guard let session, session.isTransitioning,
                       self.lifecycle.isCurrent(capturedGeneration) else { return }
                 self.completeRoundTransition()
             }
         }
-
-        // Never let a missing/stuck audio completion strand the child on the
-        // completed question. This is a safety net, not the normal path.
         lifecycle.schedule(after: 2.5) { [weak session] in
-            guard let session,
-                  session.isTransitioning,
+            guard let session, session.isTransitioning,
                   self.lifecycle.isCurrent(capturedGeneration) else { return }
             self.completeRoundTransition()
         }
@@ -267,30 +237,18 @@ public struct RoundScaffold: View {
 
     private func completeRoundTransition() {
         guard session.isTransitioning else { return }
-
         let daily = saveStore.markRoundFinished(levelId)
         if daily.locked {
-            lifecycle.reset()
-            audio.stopAllAudio()
-            showDailyDone = true
-            session.reset()
-            return
+            lifecycle.reset(); audio.stopAllAudio(); showDailyDone = true; session.reset(); return
         }
-
         if session.roundIndex + 1 < rounds.count {
             audio.stopAllAudio()
-            session.roundIndex += 1
-            session.step = 1
-            session.lastEncourageId = nil
-            session.lastStepAudioKey = nil
-            session.isAnswerLocked = false
-            session.currentStepAnswer = nil
+            session.roundIndex += 1; session.step = 1
+            session.lastEncourageId = nil; session.lastStepAudioKey = nil
+            session.isAnswerLocked = false; session.currentStepAnswer = nil
             session.isTransitioning = false
         } else {
-            lifecycle.reset()
-            audio.stopAllAudio()
-            session.reset()
-            dismiss()
+            lifecycle.reset(); audio.stopAllAudio(); session.reset(); dismiss()
         }
     }
 }
