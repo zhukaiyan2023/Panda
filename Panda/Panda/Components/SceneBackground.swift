@@ -24,6 +24,15 @@ public struct SceneBackground: View {
 
     public var body: some View {
         GeometryReader { geo in
+            let decorationScale = min(1.0, max(0.7, geo.size.width / 834.0))
+            let bambooWidth = 100 * decorationScale
+            let bambooHeight = 360 * decorationScale
+            let leafTopWidth = 80 * decorationScale
+            let leafTopHeight = 70 * decorationScale
+            let leafBottomWidth = 60 * decorationScale
+            let leafBottomHeight = 50 * decorationScale
+            let sideInset = 60 * decorationScale
+
             ZStack {
                 // 1) Cream paper base — guarantees a uniform colour
                 //    even on devices with a non-16:9 aspect ratio.
@@ -45,30 +54,35 @@ public struct SceneBackground: View {
                         .clipped()
                 }
 
-                // 3) Bamboo sprig in the bottom-left corner. Sized to
-                //    span ~1/3 of the screen height so it reads as a
-                //    real stalk, not a stub. The slight rotation gives
-                //    it a casual, leaning-into-frame look.
+                // 3) Bamboo sprig in the bottom-left corner. Keep the
+                //    original iPad sizing, but scale it down on narrow
+                //    devices so it cannot dominate or clip the game UI.
                 if let bamboo = pandaImage(named: "bamboo") {
                     bamboo
                         .resizable()
                         .interpolation(.high)
                         .aspectRatio(contentMode: .fit)
-                        .frame(width: 100, height: 360)
+                        .frame(width: bambooWidth, height: bambooHeight)
                         .rotationEffect(.degrees(6))
-                        .position(x: 70, y: geo.size.height - 130)
+                        .position(
+                            x: 70 * decorationScale,
+                            y: geo.size.height - 130 * decorationScale
+                        )
                 }
 
-                // 4) Leaf accent in the top-right — a small decoration
-                //    to balance the bamboo in the opposite corner.
+                // 4) Leaf accent in the top-right — scaled with the
+                //    available width to avoid clipping on narrow screens.
                 if let leaf = pandaImage(named: "leaf") {
                     leaf
                         .resizable()
                         .interpolation(.high)
                         .aspectRatio(contentMode: .fit)
-                        .frame(width: 80, height: 70)
+                        .frame(width: leafTopWidth, height: leafTopHeight)
                         .rotationEffect(.degrees(-22))
-                        .position(x: geo.size.width - 60, y: 130)
+                        .position(
+                            x: geo.size.width - sideInset,
+                            y: 130 * decorationScale
+                        )
                 }
 
                 // 5) Second leaf on the bottom-right (smaller, more
@@ -78,10 +92,13 @@ public struct SceneBackground: View {
                         .resizable()
                         .interpolation(.high)
                         .aspectRatio(contentMode: .fit)
-                        .frame(width: 60, height: 50)
+                        .frame(width: leafBottomWidth, height: leafBottomHeight)
                         .opacity(0.6)
                         .rotationEffect(.degrees(35))
-                        .position(x: geo.size.width - 80, y: geo.size.height - 100)
+                        .position(
+                            x: geo.size.width - 80 * decorationScale,
+                            y: geo.size.height - 100 * decorationScale
+                        )
                 }
             }
         }
