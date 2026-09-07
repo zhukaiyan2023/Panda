@@ -5,9 +5,9 @@ import SwiftUI
 /// L2-L8 use this renderer for teaching diagrams. Connector endpoints must
 /// live on a shared mathematical grid; centering each row independently by
 /// its own slot count makes related columns drift. The grid below keeps the
-/// standard 5-slot equations centered, keeps 7/9-slot decomposition rows on
-/// the shared parent grid, and gives L6's two combine rows the exact columns
-/// required by their V connectors.
+/// standard 5-slot equations centered, and shifts longer decomposition rows
+/// left so their trailing "=" and result columns line up with the standard
+/// 5-slot row. L6's special combine rows keep their exact connector columns.
 public struct MathExpressionWithSlots: View {
     public let slots: [MathSlot]
     public let size: CGFloat
@@ -42,25 +42,30 @@ public struct MathExpressionWithSlots: View {
                 publishCenters(centers)
             }
             .onChange(of: slotSignature) { _, _ in
+                // The slot contents may change (□ → number), but the slot
+                // coordinates must not. Re-publish the same mathematical
+                // grid so connector geometry stays locked to the columns.
                 publishCenters(centerPositions(in: geo.size.width))
+            }
+            .transaction { transaction in
+                // Never animate slot replacement. A digit replacing a box
+                // is a content change, not a geometry change.
+                transaction.animation = nil
             }
         }
     }
 
     /// Computes the absolute X coordinate of every slot.
     ///
-    /// Normal rows remain visually centered:
-    ///   5 slots -> [-2, -1, 0, 1, 2] * 96
-    ///   7 slots -> [-3, -2, -1, 0, 1, 2, 3] * 96
-    ///   9 slots -> [-4 ... 4] * 96
+    /// The last two columns ("=" and result) are intentionally shared with
+    /// the normal 5-slot row. This means a 7-slot/9-slot decomposition can
+    /// reveal values without making those columns jump horizontally.
     ///
-    /// L6 combine-ones is intentionally shifted left so its slot 4 lands
-    /// exactly on the midpoint of split-2 slots 2 and 6, while slots 0/2
-    /// are symmetric around the following combine-tens target.
+    /// 5 slots -> [-2, -1, 0, 1, 2] * 96
+    /// 7 slots -> [-4, -3, -2, -1, 0, 1, 2] * 96
+    /// 9 slots -> [-6, -5, -4, -3, -2, -1, 0, 1, 2] * 96
     ///
-    /// L6 combine-tens uses a 144pt pitch across five slots. This keeps
-    /// slot 0 at the midpoint of combine-ones slots 0/2 and slot 2 directly
-    /// below combine-ones slot 4. The row is still centered overall.
+    /// L6 combine-tens uses a 144pt pitch and is handled separately.
     private func centerPositions(in width: CGFloat) -> [CGFloat] {
         guard !slots.isEmpty else { return [] }
 
@@ -77,9 +82,14 @@ public struct MathExpressionWithSlots: View {
         case 5:
             halfSlots = 2
         case 7:
-            halfSlots = isL6CombineOnesRow ? 4 : 3
-        case 9:
+            // Shift the 7-slot decomposition row left by one pitch so
+            // slot 5 ("=") and slot 6 (result) align with slots 3/4 of
+            // the standard 5-slot equation.
             halfSlots = 4
+        case 9:
+            // Same rule for 9-slot rows: keep the trailing two columns on
+            // the shared result grid used by the 5-slot equation.
+            halfSlots = 6
         default:
             halfSlots = CGFloat(max(0, slots.count - 1)) / 2
         }
@@ -87,30 +97,6 @@ public struct MathExpressionWithSlots: View {
         let first = center - halfSlots * columnSpacing
         return slots.indices.map {
             first + CGFloat($0) * columnSpacing
-        }
-    }
-
-    /// The L6 combine-ones row has the unique pattern
-    /// "10 + 10 + □ = □". It is the only 7-slot connector-aware row where
-    /// slot 0 and slot 2 are both the literal 10.
-    private var isL6CombineOnesRow: Bool {
-        guard slots.count == 7 else { return false }
-        guard case .number(let first, _, _) = slots[0], first == 10 else { return false }
-        guard case .op(.plus, _) = slots[1] else { return false }
-        guard case .number(let second, _, _) = slots[2], second == 10 else { return false }
-        guard case .op(.plus, _) = slots[3] else { return false }
-        switch slots[4] {
-        case .answerBox, .number:
-            break
-        case .op:
-            return false
-        }
-        guard case .op(.equals, _) = slots[5] else { return false }
-        switch slots[6] {
-        case .answerBox, .number:
-            return true
-        case .op:
-            return false
         }
     }
 
