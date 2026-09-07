@@ -70,7 +70,8 @@ public struct WhackGameView: View {
             GeometryReader { geo in
                 VStack(spacing: 12) {
                     chrome(in: geo.size)
-                    StepBar(labels: ["开始", "打中", "完成"], step: min(correctCount + 1, 10), totalSteps: 10, width: min(600, geo.size.width - 24))
+                    StepBar(labels: [], step: min(correctCount + 1, 10), totalSteps: 10,
+                            width: min(600, geo.size.width - 24), showsLabels: false)
                     equationBar(for: q, width: geo.size.width)
                     Spacer(minLength: 8)
                     moles(for: q, width: geo.size.width)
@@ -81,9 +82,7 @@ public struct WhackGameView: View {
     }
 
     private func chrome(in size: CGSize) -> some View {
-        HStack {
-            IconButton(style: .back) { leave() }
-            Spacer()
+        ZStack {
             HStack(spacing: 8) {
                 Text("⏱ \(timeLeft)")
                     .font(.pandaFont(size: min(26, size.width * 0.042)))
@@ -96,8 +95,10 @@ public struct WhackGameView: View {
                     .padding(.horizontal, 18).padding(.vertical, 8)
                     .background(Capsule().fill(Color.white).overlay(Capsule().stroke(Color(PandaTheme.success), lineWidth: 4)))
             }
-            Spacer()
-            Color.clear.frame(width: 80, height: 64)
+            HStack {
+                IconButton(style: .back) { leave() }
+                Spacer(minLength: 0)
+            }
         }
         .padding(.horizontal, min(32, max(16, size.width * 0.025))).padding(.top, 12)
     }
@@ -234,8 +235,21 @@ public struct CountGameView: View {
 
     private func content(in size: CGSize) -> some View {
         VStack(spacing: 12) {
-            HStack { IconButton(style: .back) { leave() }; Spacer(); Text("\(roundIdx + 1) / 5").font(.pandaFont(size: min(28, size.width * 0.045))).foregroundColor(Color(PandaTheme.ink)).padding(.horizontal, 24).padding(.vertical, 10).background(Capsule().fill(Color.white).overlay(Capsule().stroke(Color(PandaTheme.orange), lineWidth: 4))); Spacer(); Color.clear.frame(width: 80, height: 64) }.padding(.horizontal, 16).padding(.top, 12)
-            StepBar(labels: ["开始", "答对", "完成"], step: min(roundIdx + 1, 5), totalSteps: 5, width: min(600, size.width - 24))
+            ZStack {
+                Text("\(roundIdx + 1) / 5")
+                    .font(.pandaFont(size: min(28, size.width * 0.045)))
+                    .foregroundColor(Color(PandaTheme.ink))
+                    .padding(.horizontal, 24).padding(.vertical, 10)
+                    .background(Capsule().fill(Color.white).overlay(Capsule().stroke(Color(PandaTheme.orange), lineWidth: 4)))
+                HStack {
+                    IconButton(style: .back) { leave() }
+                    Spacer(minLength: 0)
+                }
+            }
+            .padding(.horizontal, 16).padding(.top, 12)
+
+            StepBar(labels: [], step: min(roundIdx + 1, 5), totalSteps: 5,
+                    width: min(600, size.width - 24), showsLabels: false)
             Text("一眼看是几？").font(.pandaFont(size: min(36, size.width * 0.055))).foregroundColor(Color(PandaTheme.ink))
             Spacer(); TenFrame(value: target, rows: 2, cell: min(70, size.width * 0.08), gap: 8, dot: PandaTheme.orange, showLabel: false); Spacer()
             choices(for: target, width: size.width); Spacer(minLength: 8)
