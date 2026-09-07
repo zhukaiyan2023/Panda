@@ -61,8 +61,7 @@ public struct MathExpressionWithSlots: View {
     /// L6's combine-ones row is intentionally shifted one column left:
     ///   [10, +, 10, +, □, =, □]
     /// becomes [-4 ... 2] * pitch. That makes slot 4 sit at the same
-    /// column as the midpoint of split-2 slots 2 and 6, while slots 0/2
-    /// sit symmetrically around the following combine target.
+    /// column as the midpoint of split-2 slots 2 and 6.
     private func firstX(in width: CGFloat) -> CGFloat {
         let center = width / 2
         let halfSlots: CGFloat
@@ -90,14 +89,19 @@ public struct MathExpressionWithSlots: View {
         guard case .op(.plus, _) = slots[1] else { return false }
         guard case .number(let second, _, _) = slots[2], second == 10 else { return false }
         guard case .op(.plus, _) = slots[3] else { return false }
-        guard case .answerBox = slots[4] || isNumberSlot(slots[4]) else { return false }
+        switch slots[4] {
+        case .answerBox, .number:
+            break
+        case .op:
+            return false
+        }
         guard case .op(.equals, _) = slots[5] else { return false }
-        return true
-    }
-
-    private func isNumberSlot(_ slot: MathSlot) -> Bool {
-        if case .number = slot { return true }
-        return false
+        switch slots[6] {
+        case .answerBox, .number:
+            return true
+        case .op:
+            return false
+        }
     }
 
     private func publishCenters(xCenter: CGFloat, firstX: CGFloat) {
