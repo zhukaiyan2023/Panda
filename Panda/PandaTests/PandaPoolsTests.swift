@@ -97,6 +97,17 @@ final class PandaPoolsTests: XCTestCase {
         }
     }
 
+    func testFeedBuildIsStableForSameRound() {
+        for idx in 0..<5 {
+            let first = FeedPools.build(roundIdx: idx)
+            let second = FeedPools.build(roundIdx: idx)
+            XCTAssertEqual(first.target, second.target)
+            XCTAssertEqual(first.candidates, second.candidates,
+                           "A SwiftUI redraw must not replace the current board")
+            XCTAssertEqual(first.pairCount, second.pairCount)
+        }
+    }
+
     func testWhackQuestionBuilds() {
         for type in ["A", "B"] {
             let q = WhackPools.buildQuestion(type, prevKey: nil)
