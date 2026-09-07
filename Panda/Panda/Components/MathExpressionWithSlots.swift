@@ -1,5 +1,16 @@
 import SwiftUI
 
+private struct PandaCurrentStepAnswerKey: EnvironmentKey {
+    static let defaultValue: Int? = nil
+}
+
+extension EnvironmentValues {
+    var pandaCurrentStepAnswer: Int? {
+        get { self[PandaCurrentStepAnswerKey.self] }
+        set { self[PandaCurrentStepAnswerKey.self] = newValue }
+    }
+}
+
 /// Connector-aware math expression renderer.
 ///
 /// L2-L8 use this renderer for teaching diagrams. Connector endpoints must
@@ -12,6 +23,7 @@ public struct MathExpressionWithSlots: View {
     public let slots: [MathSlot]
     public let size: CGFloat
     public let onCenters: ([CGPoint]) -> Void
+    @Environment(\.pandaCurrentStepAnswer) private var currentStepAnswer
 
     public init(slots: [MathSlot],
                 size: CGFloat = 72,
@@ -32,6 +44,7 @@ public struct MathExpressionWithSlots: View {
                 ForEach(Array(slots.enumerated()), id: \.offset) { index, slot in
                     tokenView(
                         slot: slot,
+                        index: index,
                         centerX: centers[index],
                         size: size
                     )
@@ -148,6 +161,7 @@ public struct MathExpressionWithSlots: View {
 
     @ViewBuilder
     private func tokenView(slot: MathSlot,
+                           index: Int,
                            centerX: CGFloat,
                            size: CGFloat) -> some View {
         switch slot {
@@ -165,17 +179,26 @@ public struct MathExpressionWithSlots: View {
                 .position(x: centerX, y: 12 + size / 2 - size * 0.05)
 
         case .answerBox:
-            RoundedRectangle(cornerRadius: size * 0.9 * 0.16)
-                .fill(Color(PandaTheme.card))
-                .overlay(
-                    RoundedRectangle(cornerRadius: size * 0.9 * 0.16)
-                        .strokeBorder(
-                            Color(PandaTheme.orange),
-                            lineWidth: max(4, size * 0.08)
-                        )
-                )
-                .frame(width: size * 0.9, height: size * 0.9)
-                .position(x: centerX, y: 12 + size / 2)
+            if index == slots.count - 1,
+               isL6CombineTensRow,
+               let currentStepAnswer {
+                Text("\(currentStepAnswer)")
+                    .font(.pandaFont(size: size))
+                    .foregroundColor(Color(PandaTheme.ink))
+                    .position(x: centerX, y: 12 + size / 2)
+            } else {
+                RoundedRectangle(cornerRadius: size * 0.9 * 0.16)
+                    .fill(Color(PandaTheme.card))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: size * 0.9 * 0.16)
+                            .strokeBorder(
+                                Color(PandaTheme.orange),
+                                lineWidth: max(4, size * 0.08)
+                            )
+                    )
+                    .frame(width: size * 0.9, height: size * 0.9)
+                    .position(x: centerX, y: 12 + size / 2)
+            }
         }
     }
 }
