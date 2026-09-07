@@ -14,7 +14,7 @@ public struct StepBar: View {
     public let totalSteps: Int
     public let width: CGFloat?
 
-    public init(labels: [String], step: Int, totalSteps: Int = 4, width: CGFloat? = 720) {
+    public init(labels: [String], step: Int, totalSteps: Int = 4, width: CGFloat? = nil) {
         self.labels = labels
         self.step = step
         self.totalSteps = totalSteps
@@ -48,10 +48,6 @@ public struct StepBar: View {
         .frame(maxWidth: .infinity)
         .padding(.horizontal, 16)
 
-        // `width` remains an upper bound rather than a hard width. This is
-        // important on compact iPhone layouts and split-screen iPad layouts:
-        // callers can keep their desktop/iPad design width without forcing
-        // the progress bar outside the safe horizontal bounds.
         if let w = width {
             return AnyView(content.frame(maxWidth: w))
         } else {
