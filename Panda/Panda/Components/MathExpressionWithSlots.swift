@@ -2,19 +2,12 @@ import SwiftUI
 
 /// Connector-aware math expression renderer.
 ///
-/// L5-L8 are teaching diagrams: the same mathematical slot must stay on
-/// the same x-column while a □ is replaced by a digit, and related rows
-/// must share the same column grid. Content-width-based layout makes the
-/// source/target columns drift and produces asymmetric elbows.
-///
-/// This renderer therefore uses a fixed column grid. For an expression
-/// with N slots, slot i is always placed at:
-///
-///   centerX + (i - (N-1)/2) * columnSpacing
-///
-/// Because L5-L8 use the same slot indices for related concepts (0→0/2,
-/// 2/4→2, 2/6→4, 0/2→0, etc.), the teaching connectors become geometrically
-/// symmetric by construction.
+/// L2-L8 use this renderer for teaching diagrams. Connector endpoints must
+/// live on a shared mathematical grid; centering each row independently by
+/// its own slot count makes related columns drift. The grid below keeps the
+/// standard 5-slot equations centered, keeps 7/9-slot decomposition rows on
+/// the same parent grid, and gives the L6 "10 + 10 + □" row its deliberate
+/// left shift so its two inputs converge exactly on the next row.
 public struct MathExpressionWithSlots: View {
     public let slots: [MathSlot]
     public let size: CGFloat
@@ -28,19 +21,15 @@ public struct MathExpressionWithSlots: View {
         self.onCenters = onCenters
     }
 
-    /// One global slot pitch for every connector-aware row in L5-L8.
-    /// Keeping the pitch independent of font/row size is critical: an
-    /// anchor row may use size 72 while a decomposition row uses 50-56,
-    /// but their corresponding mathematical columns must still align.
+    /// Shared mathematical pitch for every connector-aware row.
     private let columnSpacing: CGFloat = 96
 
     public var body: some View {
         GeometryReader { geo in
             let xCenter = geo.size.width / 2
-            let count = slots.count
-            let first = xCenter - CGFloat(max(0, count - 1)) * columnSpacing / 2
-            let centers = slots.indices.map {
-                first + CGFloat($0) * columnSpacing
+            let first = firstX(in: geo.size.width)
+            let centers = slots.indices.map { index in
+                first + CGFloat(index) * columnSpacing
             }
 
             ZStack {
@@ -54,28 +43,73 @@ public struct MathExpressionWithSlots: View {
             }
             .frame(width: geo.size.width, height: geo.size.height)
             .onAppear {
-                publishCenters(xCenter: xCenter, count: count)
+                publishCenters(xCenter: xCenter, firstX: first)
             }
             .onChange(of: slotSignature) { _, _ in
-                publishCenters(xCenter: xCenter, count: slots.count)
+                publishCenters(xCenter: xCenter, firstX: firstX(in: geo.size.width))
             }
         }
     }
 
-    /// The surrounding L5-L8 endpoint helpers compensate for the existing
-    /// row frame's 12pt top/bottom padding. Publish that padding exactly once
-    /// so the legacy endpoint conversion lands on the visible token edges.
-    private func publishCenters(xCenter: CGFloat, count: Int) {
-        guard count > 0 else {
+    /// Returns the X of slot 0 in the shared grid.
+    ///
+    /// Normal rows remain visually centered:
+    ///   5 slots -> [-2, -1, 0, 1, 2] * pitch
+    ///   7 slots -> [-3, -2, -1, 0, 1, 2, 3] * pitch
+    ///   9 slots -> [-4 ... 4] * pitch
+    ///
+    /// L6's combine-ones row is intentionally shifted one column left:
+    ///   [10, +, 10, +, □, =, □]
+    /// becomes [-4 ... 2] * pitch. That makes slot 4 sit at the same
+    /// column as the midpoint of split-2 slots 2 and 6, while slots 0/2
+    /// sit symmetrically around the following combine target.
+    private func firstX(in width: CGFloat) -> CGFloat {
+        let center = width / 2
+        let halfSlots: CGFloat
+
+        switch slots.count {
+        case 5:
+            halfSlots = 2
+        case 7:
+            halfSlots = isL6CombineOnesRow ? 4 : 3
+        case 9:
+            halfSlots = 4
+        default:
+            halfSlots = CGFloat(max(0, slots.count - 1)) / 2
+        }
+
+        return center - halfSlots * columnSpacing
+    }
+
+    /// The L6 combine-ones row has the unique leading token pattern
+    /// "10 + 10 + □ = □". It is the only 7-slot connector-aware row where
+    /// slot 0 and slot 2 are both the literal 10.
+    private var isL6CombineOnesRow: Bool {
+        guard slots.count == 7 else { return false }
+        guard case .number(let first, _, _) = slots[0], first == 10 else { return false }
+        guard case .op(.plus, _) = slots[1] else { return false }
+        guard case .number(let second, _, _) = slots[2], second == 10 else { return false }
+        guard case .op(.plus, _) = slots[3] else { return false }
+        guard case .answerBox = slots[4] || isNumberSlot(slots[4]) else { return false }
+        guard case .op(.equals, _) = slots[5] else { return false }
+        return true
+    }
+
+    private func isNumberSlot(_ slot: MathSlot) -> Bool {
+        if case .number = slot { return true }
+        return false
+    }
+
+    private func publishCenters(xCenter: CGFloat, firstX: CGFloat) {
+        guard !slots.isEmpty else {
             onCenters([])
             return
         }
-        let first = xCenter - CGFloat(count - 1) * columnSpacing / 2
-        let reportedY = 24 + size / 2
+
         let points = slots.indices.map { index in
             CGPoint(
-                x: first + CGFloat(index) * columnSpacing,
-                y: reportedY
+                x: firstX + CGFloat(index) * columnSpacing,
+                y: 12 + size / 2
             )
         }
         onCenters(points)
