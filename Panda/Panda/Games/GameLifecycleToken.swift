@@ -11,6 +11,8 @@ final class GameLifecycleToken {
     private(set) var generation: UInt = 0
     private var scheduledTasks: [UUID: Task<Void, Never>] = [:]
 
+    private static let maxDelay: TimeInterval = 60 * 60
+
     func reset() {
         generation &+= 1
         cancelScheduledWork()
@@ -38,12 +40,15 @@ final class GameLifecycleToken {
         scheduledTasks.removeAll(keepingCapacity: true)
     }
 
-    /// Schedule lifecycle-safe delayed work. The task is cancelled automatically
-    /// when the generation changes or when `cancelScheduledWork()` is called.
+    /// Schedule lifecycle-safe delayed work. Invalid or unreasonably large delays
+    /// are ignored rather than overflowing the nanosecond conversion.
     func schedule(after delay: TimeInterval, _ work: @escaping @MainActor () -> Void) {
+        guard delay.isFinite, delay >= 0 else { return }
+
         let capturedGeneration = generation
         let id = UUID()
-        let nanoseconds = UInt64(max(0, delay) * 1_000_000_000)
+        let safeDelay = min(delay, Self.maxDelay)
+        let nanoseconds = UInt64(safeDelay * 1_000_000_000)
 
         let task = Task { @MainActor [weak self] in
             do {
