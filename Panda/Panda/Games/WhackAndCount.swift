@@ -37,8 +37,10 @@ public struct WhackGameView: View {
     public var body: some View {
         ZStack { SceneBackground(name: "bg-meadow"); content }
             .onAppear {
-                lifecycle.reset(); running = true; done = false
-                audio.configureSession(); audio.playCue("whack-intro"); nextQuestion()
+                resetSession()
+                audio.configureSession()
+                audio.playCue("whack-intro")
+                nextQuestion()
             }
             .onDisappear { running = false; lifecycle.reset(); audio.stopAllAudio() }
             .onReceive(timer) { _ in
@@ -51,6 +53,23 @@ public struct WhackGameView: View {
                       let count = question?.candidates.count, count > 0 else { return }
                 activeMole = (activeMole + 1) % count
             }
+    }
+
+    private func resetSession() {
+        lifecycle.reset()
+        lifecycle.cancelScheduledWork()
+        question = nil
+        prevKey = nil
+        roundIdx = 0
+        timeLeft = 90
+        running = true
+        tappedCorrect = -1
+        wrongFlash = -1
+        correctCount = 0
+        done = false
+        activeMole = 0
+        hammerHitIdx = -1
+        hammerHitToken = 0
     }
 
     @ViewBuilder private var content: some View {
@@ -201,8 +220,17 @@ public struct CountGameView: View {
 
     public var body: some View {
         ZStack { SceneBackground(name: "bg-meadow"); GeometryReader { geo in content(in: geo.size) } }
-            .onAppear { lifecycle.reset(); audio.configureSession(); audio.playCue("count-intro"); pickNextTarget() }
+            .onAppear { resetSession(); audio.configureSession(); audio.playCue("count-intro"); pickNextTarget() }
             .onDisappear { lifecycle.reset(); audio.stopAllAudio() }
+    }
+
+    private func resetSession() {
+        lifecycle.reset()
+        lifecycle.cancelScheduledWork()
+        roundIdx = 0
+        lastAnswer = nil
+        locked = false
+        target = 6
     }
 
     private func content(in size: CGSize) -> some View {
@@ -219,8 +247,11 @@ public struct CountGameView: View {
         var opts = [target]
         for d in [-2,-1,1,2,-3,3] { let v = target + d; if (1...10).contains(v) && !opts.contains(v) { opts.append(v); if opts.count == 4 { break } } }
         var f = 1; while opts.count < 4 { if !opts.contains(f) { opts.append(f) }; f += 1 }
+        let stable = Array(opts.prefix(4))
+        let shift = roundIdx % stable.count
+        let ordered = Array(stable[shift...]) + Array(stable[..<shift])
         let buttonWidth = min(130, max(72, (width - 96) / 4))
-        return HStack(spacing: 10) { ForEach(Array(opts.prefix(4).shuffled().enumerated()), id: \.offset) { _, value in ChoiceButton(label: "\(value)", isCorrect: locked && value == target, isDisabled: locked, width: buttonWidth, height: min(96, max(72, buttonWidth * 0.72))) { handleTap(value: value, target: target) } } }.padding(.horizontal, 40)
+        return HStack(spacing: 10) { ForEach(Array(ordered.enumerated()), id: \.offset) { _, value in ChoiceButton(label: "\(value)", isCorrect: locked && value == target, isDisabled: locked, width: buttonWidth, height: min(96, max(72, buttonWidth * 0.72))) { handleTap(value: value, target: target) } } }.padding(.horizontal, 40)
     }
 
     private func pickNextTarget() {
@@ -250,7 +281,7 @@ struct HammerStrike: View {
     @State private var angle: Double = -42
     @State private var task: Task<Void, Never>?
     var body: some View {
-        Group { if let hammer = pandaImage(named: "whack-hammer") { hammer.resizable().interpolation(.high).aspectRatio(contentMode: .fit) } else { Circle().fill(Color(PandaTheme.orange)).overlay(Text("🔨").font(.system(size: 60))) } }
+        Group { if let hammer = pandaImage(named: "whack-hammer") { hammer.resizable().interpolation(.high).aspectRatio(contentMode: .fit) } else { Circle().fill(Color(PandaTheme.orange)).overlay(Text("🔨").font(.system(size: 60))) }
             .frame(width: 160, height: 160).rotationEffect(.degrees(angle)).offset(x: offsetX, y: offsetY)
             .onAppear { playOnce() }.onDisappear { task?.cancel(); task = nil }
     }
