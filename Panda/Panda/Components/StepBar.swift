@@ -13,19 +13,22 @@ public struct StepBar: View {
     public let step: Int
     public let totalSteps: Int
     public let width: CGFloat?
+    public let showsLabels: Bool
 
-    public init(labels: [String], step: Int, totalSteps: Int = 4, width: CGFloat? = nil) {
+    public init(labels: [String], step: Int, totalSteps: Int = 4, width: CGFloat? = nil,
+                showsLabels: Bool = true) {
         self.labels = labels
         self.step = step
         self.totalSteps = totalSteps
         self.width = width
+        self.showsLabels = showsLabels
     }
 
     public var body: some View {
         let clampedLabels = Array(labels.prefix(max(0, totalSteps)))
         let safeTotal = max(totalSteps, 1)
         let safeStep = min(max(step, 0), safeTotal)
-        let content = VStack(spacing: 8) {
+        let content = VStack(spacing: showsLabels ? 8 : 0) {
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
                     RoundedRectangle(cornerRadius: 7)
@@ -38,10 +41,12 @@ public struct StepBar: View {
             }
             .frame(height: 14)
 
-            HStack(spacing: 8) {
-                ForEach(Array(clampedLabels.enumerated()), id: \.offset) { idx, label in
-                    StepPill(label: label, active: idx + 1 == safeStep)
-                        .frame(maxWidth: .infinity)
+            if showsLabels && !clampedLabels.isEmpty {
+                HStack(spacing: 8) {
+                    ForEach(Array(clampedLabels.enumerated()), id: \.offset) { idx, label in
+                        StepPill(label: label, active: idx + 1 == safeStep)
+                            .frame(maxWidth: .infinity)
+                    }
                 }
             }
         }
@@ -79,6 +84,7 @@ private struct StepPill: View {
     VStack(spacing: 24) {
         StepBar(labels: ["看图", "想一想", "选择", "完成"], step: 2)
         StepBar(labels: ["拆小数", "凑十", "算答案"], step: 1, totalSteps: 3)
+        StepBar(labels: ["开始", "打中", "完成"], step: 5, totalSteps: 10, showsLabels: false)
     }
     .padding()
     .background(Color(PandaTheme.paper))
