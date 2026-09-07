@@ -22,7 +22,9 @@ public struct StepBar: View {
     }
 
     public var body: some View {
-        let clampedLabels = Array(labels.prefix(totalSteps))
+        let clampedLabels = Array(labels.prefix(max(0, totalSteps)))
+        let safeTotal = max(totalSteps, 1)
+        let safeStep = min(max(step, 0), safeTotal)
         let content = VStack(spacing: 8) {
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
@@ -31,20 +33,27 @@ public struct StepBar: View {
                         .frame(height: 14)
                     RoundedRectangle(cornerRadius: 7)
                         .fill(Color(PandaTheme.pink))
-                        .frame(width: geo.size.width * CGFloat(step) / CGFloat(totalSteps), height: 14)
+                        .frame(width: geo.size.width * CGFloat(safeStep) / CGFloat(safeTotal), height: 14)
                 }
             }
             .frame(height: 14)
 
             HStack(spacing: 8) {
                 ForEach(Array(clampedLabels.enumerated()), id: \.offset) { idx, label in
-                    StepPill(label: label, active: idx + 1 == step)
+                    StepPill(label: label, active: idx + 1 == safeStep)
                         .frame(maxWidth: .infinity)
                 }
             }
         }
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, 16)
+
+        // `width` remains an upper bound rather than a hard width. This is
+        // important on compact iPhone layouts and split-screen iPad layouts:
+        // callers can keep their desktop/iPad design width without forcing
+        // the progress bar outside the safe horizontal bounds.
         if let w = width {
-            return AnyView(content.frame(width: w))
+            return AnyView(content.frame(maxWidth: w))
         } else {
             return AnyView(content)
         }
