@@ -23,7 +23,6 @@ public struct PandaView: View {
 
     public var body: some View {
         ZStack {
-            // Body with subtle gradient so the head reads as 3D.
             Circle()
                 .fill(
                     LinearGradient(
@@ -37,7 +36,6 @@ public struct PandaView: View {
                 )
                 .frame(width: size * 0.82, height: size * 0.82)
 
-            // Ears — outer black ring + tiny inner pink.
             ZStack {
                 Circle()
                     .fill(Color(PandaTheme.ink))
@@ -58,9 +56,8 @@ public struct PandaView: View {
                     .frame(width: size * 0.10, height: size * 0.10)
                     .offset(y: size * 0.04)
             }
-            .offset(x:  size * 0.30, y: -size * 0.30)
+            .offset(x: size * 0.30, y: -size * 0.30)
 
-            // Eye patches (slightly larger and softer)
             Ellipse()
                 .fill(Color(PandaTheme.ink))
                 .frame(width: size * 0.20, height: size * 0.26)
@@ -69,23 +66,18 @@ public struct PandaView: View {
             Ellipse()
                 .fill(Color(PandaTheme.ink))
                 .frame(width: size * 0.20, height: size * 0.26)
-                .offset(x:  size * 0.17, y: -size * 0.05)
+                .offset(x: size * 0.17, y: -size * 0.05)
                 .rotationEffect(.degrees(8))
 
-            // Eyes — vary by mood.
             eyes
-
-            // Nose — small heart shape for cheer, ellipse otherwise.
             nose
 
-            // Mouth — varies by mood.
             mouthShape
                 .stroke(Color(PandaTheme.ink),
                         style: StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round))
                 .frame(width: size * 0.20, height: size * 0.12)
                 .offset(y: size * 0.13)
 
-            // Cheeks — soft pink blush circles.
             Ellipse()
                 .fill(Color(PandaTheme.pink).opacity(0.45))
                 .frame(width: size * 0.14, height: size * 0.08)
@@ -93,28 +85,24 @@ public struct PandaView: View {
             Ellipse()
                 .fill(Color(PandaTheme.pink).opacity(0.45))
                 .frame(width: size * 0.14, height: size * 0.08)
-                .offset(x:  size * 0.27, y: size * 0.10)
+                .offset(x: size * 0.27, y: size * 0.10)
 
-            // Mood accessory (only for cheer/think).
             accessory
         }
         .frame(width: size, height: size)
     }
 
-    // MARK: - Eyes (white + pupil)
-
     @ViewBuilder
     private var eyes: some View {
         switch mood {
         case .cheer:
-            // Starry / sparkle eyes for cheer — two filled stars.
             ZStack {
                 StarShape().fill(Color.white)
                     .frame(width: size * 0.13, height: size * 0.13)
                     .offset(x: -size * 0.17, y: -size * 0.06)
                 StarShape().fill(Color.white)
                     .frame(width: size * 0.13, height: size * 0.13)
-                    .offset(x:  size * 0.17, y: -size * 0.06)
+                    .offset(x: size * 0.17, y: -size * 0.06)
             }
         default:
             ZStack {
@@ -125,7 +113,7 @@ public struct PandaView: View {
                 Circle()
                     .fill(Color.white)
                     .frame(width: size * 0.10, height: size * 0.10)
-                    .offset(x:  size * 0.17, y: -size * 0.06)
+                    .offset(x: size * 0.17, y: -size * 0.06)
                 Circle()
                     .fill(Color(PandaTheme.ink))
                     .frame(width: size * 0.05, height: size * 0.05)
@@ -133,8 +121,7 @@ public struct PandaView: View {
                 Circle()
                     .fill(Color(PandaTheme.ink))
                     .frame(width: size * 0.05, height: size * 0.05)
-                    .offset(x:  size * 0.17, y: -size * 0.05)
-                // Tiny highlight glints.
+                    .offset(x: size * 0.17, y: -size * 0.05)
                 Circle()
                     .fill(Color.white)
                     .frame(width: size * 0.02, height: size * 0.02)
@@ -142,18 +129,15 @@ public struct PandaView: View {
                 Circle()
                     .fill(Color.white)
                     .frame(width: size * 0.02, height: size * 0.02)
-                    .offset(x:  size * 0.16, y: -size * 0.07)
+                    .offset(x: size * 0.16, y: -size * 0.07)
             }
         }
     }
-
-    // MARK: - Nose
 
     @ViewBuilder
     private var nose: some View {
         switch mood {
         case .cheer:
-            // Tiny heart.
             HeartShape()
                 .fill(Color(PandaTheme.pinkDeep))
                 .frame(width: size * 0.12, height: size * 0.10)
@@ -166,26 +150,21 @@ public struct PandaView: View {
         }
     }
 
-    // MARK: - Mouth
-
     private var mouthShape: Path {
         switch mood {
         case .idle:
-            // Gentle smile arc.
             Path { p in
                 p.move(to: CGPoint(x: -size * 0.08, y: 0))
                 p.addQuadCurve(to: CGPoint(x: size * 0.08, y: 0),
                                control: CGPoint(x: 0, y: size * 0.05))
             }
         case .cheer:
-            // Open smile — wide upward arc.
             Path { p in
                 p.move(to: CGPoint(x: -size * 0.10, y: size * 0.02))
                 p.addQuadCurve(to: CGPoint(x: size * 0.10, y: size * 0.02),
                                control: CGPoint(x: 0, y: -size * 0.06))
             }
         case .think:
-            // Slight frown / contemplation curve.
             Path { p in
                 p.move(to: CGPoint(x: -size * 0.06, y: 0))
                 p.addQuadCurve(to: CGPoint(x: size * 0.06, y: 0),
@@ -194,13 +173,10 @@ public struct PandaView: View {
         }
     }
 
-    // MARK: - Accessory
-
     @ViewBuilder
     private var accessory: some View {
         switch mood {
         case .cheer:
-            // Little bamboo sprig in the lower-right corner.
             ZStack(alignment: .bottom) {
                 Capsule()
                     .fill(Color(PandaTheme.green))
@@ -211,7 +187,7 @@ public struct PandaView: View {
                     .fill(Color(PandaTheme.green))
                     .frame(width: size * 0.12, height: size * 0.05)
                     .rotationEffect(.degrees(-30))
-                    .offset(x: size * 0.20, y: size * 0.00)
+                    .offset(x: size * 0.20, y: 0)
                 Ellipse()
                     .fill(Color(PandaTheme.green).opacity(0.85))
                     .frame(width: size * 0.10, height: size * 0.05)
@@ -219,30 +195,30 @@ public struct PandaView: View {
                     .offset(x: size * 0.18, y: size * 0.10)
             }
         case .think:
-            // Thought bubble in the upper-right.
+            // Keep the thought bubble inside the component's nominal bounds.
+            // The previous x=0.32 + radius=0.10 placed part of the bubble
+            // beyond the `size` frame, which could clip on small displays.
             ZStack(alignment: .bottomLeading) {
                 Circle()
                     .fill(Color.white)
                     .overlay(Circle().stroke(Color(PandaTheme.ink), lineWidth: 3))
                     .frame(width: size * 0.20, height: size * 0.20)
-                    .offset(x: size * 0.32, y: -size * 0.30)
+                    .offset(x: size * 0.27, y: -size * 0.30)
                 Text("?")
                     .font(.pandaFont(size: size * 0.13, weight: .black))
                     .foregroundColor(Color(PandaTheme.ink))
-                    .offset(x: size * 0.32, y: -size * 0.30)
+                    .offset(x: size * 0.27, y: -size * 0.30)
                 Circle()
                     .fill(Color.white)
                     .overlay(Circle().stroke(Color(PandaTheme.ink), lineWidth: 2))
                     .frame(width: size * 0.07, height: size * 0.07)
-                    .offset(x: size * 0.22, y: -size * 0.16)
+                    .offset(x: size * 0.19, y: -size * 0.16)
             }
         case .idle:
             EmptyView()
         }
     }
 }
-
-// MARK: - Heart shape used by the .cheer mood
 
 public struct HeartShape: Shape {
     public func path(in rect: CGRect) -> Path {
