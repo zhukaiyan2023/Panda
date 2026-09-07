@@ -11,28 +11,13 @@ public struct Level6View: View {
             poolGen: PandaPools.poolGensForLevel(6),
             stepBuilder: { round, step, host in
                 guard case .teenPlusTeen(let a, let b) = round else { return StepRender() }
-                let onesA = a % 10
-                let onesB = b % 10
-                let sum = onesA + onesB
-                let total = a + b
-                return StepRender(
-                    equation: AnyView(
-                        TeenPlusTeenStepView(
-                            a: a,
-                            b: b,
-                            onesA: onesA,
-                            onesB: onesB,
-                            sum: sum,
-                            total: total,
-                            step: step,
-                            host: host
-                        )
-                    )
-                )
+                return StepRender(equation: AnyView(
+                    TeenPlusTeenStepView(a: a, b: b, step: step, host: host)
+                ))
             },
             onRoundCorrect: { audio, round, lastEncourageId in
                 guard case .teenPlusTeen(let a, let b) = round else { return }
-                let cue = "l5-rwd-\(a)-\(b)-\(a+b)"
+                let cue = "l5-rwd-\(a)-\(b)-\(a + b)"
                 if let prev = lastEncourageId {
                     audio.playAfter(prev, then: [cue], gapMs: 200, seqGapMs: 200)
                 } else {
@@ -47,186 +32,99 @@ public struct Level6View: View {
 private struct TeenPlusTeenStepView: View {
     let a: Int
     let b: Int
-    let onesA: Int
-    let onesB: Int
-    let sum: Int
-    let total: Int
     let step: Int
     let host: RoundHost
 
-    private let anchorSize: CGFloat = 70
-    private let splitSize: CGFloat = 50
-    private let combineSize: CGFloat = 54
-    private let gapAnchorSplit: CGFloat = 22
-    private let gapSplitSplit: CGFloat = 18
-    private let gapSplitCombine: CGFloat = 22
-    private let gapCombineCombine: CGFloat = 22
+    private var onesA: Int { a % 10 }
+    private var onesB: Int { b % 10 }
+    private var sum: Int { onesA + onesB }
+    private var total: Int { a + b }
+
+    // Compact enough for 11-inch iPad portrait while retaining the complete
+    // five-step teaching chain above the answer choices.
+    private let anchorSize: CGFloat = 62
+    private let splitSize: CGFloat = 44
+    private let combineSize: CGFloat = 46
+    private let gapAnchorSplit: CGFloat = 14
+    private let gapSplitSplit: CGFloat = 12
+    private let gapSplitCombine: CGFloat = 16
+    private let gapCombineCombine: CGFloat = 16
     private let coordSpace = "TeenPlusTeenStepView.root"
 
-    @State private var anchorRowFrame: CGRect = .zero
-    @State private var anchorSlotCenters: [CGPoint] = []
-    @State private var split1RowFrame: CGRect = .zero
-    @State private var split1SlotCenters: [CGPoint] = []
-    @State private var split2RowFrame: CGRect = .zero
-    @State private var split2SlotCenters: [CGPoint] = []
-    @State private var combineOnesRowFrame: CGRect = .zero
-    @State private var combineOnesSlotCenters: [CGPoint] = []
-    @State private var combineTensRowFrame: CGRect = .zero
-    @State private var combineTensSlotCenters: [CGPoint] = []
+    @State private var anchorFrame = CGRect.zero
+    @State private var anchorCenters: [CGPoint] = []
+    @State private var split1Frame = CGRect.zero
+    @State private var split1Centers: [CGPoint] = []
+    @State private var split2Frame = CGRect.zero
+    @State private var split2Centers: [CGPoint] = []
+    @State private var onesFrame = CGRect.zero
+    @State private var onesCenters: [CGPoint] = []
+    @State private var tensFrame = CGRect.zero
+    @State private var tensCenters: [CGPoint] = []
 
-    @State private var showSplit1Row = false
-    @State private var showSplit2Row = false
-    @State private var showCombineOnesRow = false
-    @State private var showCombineTensRow = false
+    @State private var showSplit1 = false
+    @State private var showSplit2 = false
+    @State private var showOnes = false
+    @State private var showTens = false
 
-    private var currentAnchorSlots: [MathSlot] {
-        [
-            .number(a, color: PandaTheme.numBlue),
-            .op(.plus),
-            .number(b, color: PandaTheme.numPink),
-            .op(.equals),
-            .answerBox("□", color: PandaTheme.ink)
-        ]
+    private var anchorSlots: [MathSlot] {
+        [.number(a, color: PandaTheme.numBlue), .op(.plus),
+         .number(b, color: PandaTheme.numPink), .op(.equals),
+         .answerBox("□", color: PandaTheme.ink)]
     }
 
-    private func split1Slots(_ left: String, _ right: String, _ answer: String) -> [MathSlot] {
-        [
-            .numberOrBox(left, numColor: PandaTheme.yellow, boxColor: PandaTheme.orange),
-            .op(.plus),
-            .numberOrBox(right, numColor: PandaTheme.orange, boxColor: PandaTheme.orange),
-            .op(.plus),
-            .number(b, color: PandaTheme.numPink),
-            .op(.equals),
-            .answerBox(answer, color: PandaTheme.orange)
-        ]
+    private var split1Slots: [MathSlot] {
+        [numberOrBox(step == 1 ? "□" : "10", .yellow), .op(.plus),
+         numberOrBox(step == 1 ? "□" : "\(onesA)", .orange), .op(.plus),
+         .number(b, color: PandaTheme.numPink), .op(.equals),
+         .answerBox("□", color: PandaTheme.orange)]
     }
 
-    private func split2Slots(_ left: String, _ right: String, _ answer: String) -> [MathSlot] {
-        [
-            .number(10, color: PandaTheme.yellow),
-            .op(.plus),
-            .number(onesA, color: PandaTheme.orange),
-            .op(.plus),
-            .numberOrBox(left, numColor: PandaTheme.yellow, boxColor: PandaTheme.orange),
-            .op(.plus),
-            .numberOrBox(right, numColor: PandaTheme.orange, boxColor: PandaTheme.orange),
-            .op(.equals),
-            .answerBox(answer, color: PandaTheme.orange)
-        ]
+    private var split2Slots: [MathSlot] {
+        [.number(10, color: PandaTheme.yellow), .op(.plus),
+         .number(onesA, color: PandaTheme.orange), .op(.plus),
+         numberOrBox(step <= 2 ? "□" : "10", .yellow), .op(.plus),
+         numberOrBox(step <= 2 ? "□" : "\(onesB)", .orange), .op(.equals),
+         .answerBox("□", color: PandaTheme.orange)]
     }
 
-    private func combineOnesSlots(_ middle: String, _ answer: String) -> [MathSlot] {
-        [
-            .number(10, color: PandaTheme.yellow),
-            .op(.plus),
-            .number(10, color: PandaTheme.yellow),
-            .op(.plus),
-            .numberOrBox(middle, numColor: PandaTheme.orange, boxColor: PandaTheme.orange),
-            .op(.equals),
-            .answerBox(answer, color: PandaTheme.orange)
-        ]
+    private var onesSlots: [MathSlot] {
+        [.number(10, color: PandaTheme.yellow), .op(.plus),
+         .number(10, color: PandaTheme.yellow), .op(.plus),
+         numberOrBox(step <= 3 ? "□" : "\(sum)", .orange), .op(.equals),
+         .answerBox("□", color: PandaTheme.orange)]
     }
 
-    private func combineTensSlots(_ left: String, _ answer: String) -> [MathSlot] {
-        [
-            .numberOrBox(left, numColor: PandaTheme.yellow, boxColor: PandaTheme.orange),
-            .op(.plus),
-            .number(sum, color: PandaTheme.success),
-            .op(.equals),
-            .answerBox(answer, color: PandaTheme.orange)
-        ]
+    private var tensSlots: [MathSlot] {
+        [numberOrBox(step <= 4 ? "□" : "20", .yellow), .op(.plus),
+         .number(sum, color: PandaTheme.success), .op(.equals),
+         .answerBox("□", color: PandaTheme.orange)]
     }
 
-    private var currentSplit1Slots: [MathSlot] {
-        step == 1
-            ? split1Slots("□", "□", "□")
-            : split1Slots("10", "\(onesA)", "□")
-    }
-
-    private var currentSplit2Slots: [MathSlot] {
-        step <= 2
-            ? split2Slots("□", "□", "□")
-            : split2Slots("10", "\(onesB)", "□")
-    }
-
-    private var currentCombineOnesSlots: [MathSlot] {
-        step <= 3
-            ? combineOnesSlots("□", "□")
-            : combineOnesSlots("\(sum)", "□")
-    }
-
-    private var currentCombineTensSlots: [MathSlot] {
-        step <= 4
-            ? combineTensSlots("□", "□")
-            : combineTensSlots("20", "□")
-    }
-
-    /// Align the result column of each lower row to the true midpoint of
-    /// the two source columns above it. This is calculated from the local
-    /// slot grid, not from a fixed magic offset, so the geometry remains
-    /// symmetric whenever the row size or iPad width changes.
-    private var combineOnesOffset: CGFloat {
-        guard split2SlotCenters.indices.contains(2),
-              split2SlotCenters.indices.contains(6),
-              combineOnesSlotCenters.indices.contains(4) else { return 0 }
-        let sourceMid = (split2SlotCenters[2].x + split2SlotCenters[6].x) / 2
-        return sourceMid - combineOnesSlotCenters[4].x
-    }
-
-    private var combineTensOffset: CGFloat {
-        guard combineOnesSlotCenters.indices.contains(0),
-              combineOnesSlotCenters.indices.contains(2),
-              combineTensSlotCenters.indices.contains(0) else { return 0 }
-        let sourceMid = (combineOnesSlotCenters[0].x + combineOnesSlotCenters[2].x) / 2
-        return sourceMid - combineTensSlotCenters[0].x
+    private func numberOrBox(_ value: String, _ color: RGB) -> MathSlot {
+        value == "□" ? .answerBox(value, color: color) : .number(Int(value) ?? 0, color: color)
     }
 
     var body: some View {
         VStack(spacing: 0) {
             Spacer(minLength: 0)
             VStack(spacing: 0) {
-                row(currentAnchorSlots, size: anchorSize, frame: $anchorRowFrame, centers: $anchorSlotCenters)
+                measuredRow(anchorSlots, size: anchorSize, frame: $anchorFrame, centers: $anchorCenters)
                 Spacer().frame(height: gapAnchorSplit)
-
-                if showSplit1Row {
-                    row(currentSplit1Slots, size: splitSize, frame: $split1RowFrame, centers: $split1SlotCenters)
-                } else {
-                    Color.clear.frame(height: splitSize + 24)
-                }
-
+                conditionalRow(showSplit1, split1Slots, splitSize, frame: $split1Frame, centers: $split1Centers)
                 Spacer().frame(height: gapSplitSplit)
-
-                if showSplit2Row {
-                    row(currentSplit2Slots, size: splitSize, frame: $split2RowFrame, centers: $split2SlotCenters)
-                } else {
-                    Color.clear.frame(height: splitSize + 24)
-                }
-
+                conditionalRow(showSplit2, split2Slots, splitSize, frame: $split2Frame, centers: $split2Centers)
                 Spacer().frame(height: gapSplitCombine)
-
-                if showCombineOnesRow {
-                    row(currentCombineOnesSlots, size: combineSize, frame: $combineOnesRowFrame, centers: $combineOnesSlotCenters)
-                        .offset(x: combineOnesOffset)
-                } else {
-                    Color.clear.frame(height: combineSize + 24)
-                }
-
+                conditionalRow(showOnes, onesSlots, combineSize, frame: $onesFrame, centers: $onesCenters)
                 Spacer().frame(height: gapCombineCombine)
-
-                if showCombineTensRow {
-                    row(currentCombineTensSlots, size: combineSize, frame: $combineTensRowFrame, centers: $combineTensSlotCenters)
-                        .offset(x: combineTensOffset)
-                } else {
-                    Color.clear.frame(height: combineSize + 24)
-                }
-
-                Spacer().frame(height: 24)
+                conditionalRow(showTens, tensSlots, combineSize, frame: $tensFrame, centers: $tensCenters)
+                Spacer().frame(height: 18)
                 host.makeQuestion(
-                    correct: correctForStep,
-                    values: optionChoices(correct: correctForStep, min: rangeForStep.min, max: rangeForStep.max),
+                    correct: correctAnswer,
+                    values: optionChoices(correct: correctAnswer, min: answerRange.min, max: answerRange.max),
                     labelFor: labelForStep,
                     buttonWidth: 144,
-                    buttonHeight: 96
+                    buttonHeight: 82
                 )
             }
             .frame(maxWidth: .infinity)
@@ -234,203 +132,108 @@ private struct TeenPlusTeenStepView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .coordinateSpace(name: coordSpace)
-        .overlay {
-            ZStack {
-                if let v = anchorSplit1V {
-                    BalancedSplitConnector(
-                        source: v.source,
-                        destA: v.destA,
-                        destB: v.destB,
-                        colorA: Color(PandaTheme.yellow),
-                        colorB: Color(PandaTheme.orange),
-                        lineThickness: 7,
-                        opacity: 0.85
-                    )
-                }
-
-                if let v = split1Split2V {
-                    BalancedSplitConnector(
-                        source: v.source,
-                        destA: v.destA,
-                        destB: v.destB,
-                        colorA: Color(PandaTheme.yellow),
-                        colorB: Color(PandaTheme.orange),
-                        lineThickness: 7,
-                        opacity: 0.85
-                    )
-                }
-
-                if let v = combineOnesV {
-                    BalancedMergeConnector(
-                        anchorTop: v.sourceA,
-                        anchorMid: v.sourceB,
-                        mergeBox: v.target,
-                        colorA: Color(PandaTheme.orange),
-                        colorB: Color(PandaTheme.orange),
-                        lineThickness: 7
-                    )
-                }
-
-                if let v = combineTensV {
-                    BalancedMergeConnector(
-                        anchorTop: v.sourceA,
-                        anchorMid: v.sourceB,
-                        mergeBox: v.target,
-                        colorA: Color(PandaTheme.yellow),
-                        colorB: Color(PandaTheme.yellow),
-                        lineThickness: 7
-                    )
-                }
-
-                if let l9 = l9Connector {
-                    BalancedFixedArmConnector(
-                        from: l9.source,
-                        to: l9.target,
-                        color: Color(PandaTheme.success),
-                        lineThickness: 6,
-                        opacity: 0.9
-                    )
-                }
-            }
-        }
-        .onAppear {
-            fireAudioForCurrentStep()
-        }
+        .overlay { connectors }
+        .onAppear { fireAudioForCurrentStep() }
     }
 
     @ViewBuilder
-    private func row(
-        _ slots: [MathSlot],
-        size: CGFloat,
-        frame: Binding<CGRect>,
-        centers: Binding<[CGPoint]>
-    ) -> some View {
-        MathExpressionWithSlots(slots: slots, size: size) { values in
-            centers.wrappedValue = values
-        }
-        .frame(height: size + 24)
-        .onGeometryChange(for: CGRect.self) { proxy in
-            proxy.frame(in: .named(coordSpace))
-        } action: { newFrame in
-            frame.wrappedValue = newFrame
+    private func conditionalRow(_ visible: Bool, _ slots: [MathSlot], _ size: CGFloat,
+                                frame: Binding<CGRect>, centers: Binding<[CGPoint]>) -> some View {
+        if visible {
+            measuredRow(slots, size: size, frame: frame, centers: centers)
+        } else {
+            Color.clear.frame(height: size + 24)
         }
     }
 
-    private var anchorSplit1V: (source: CGPoint, destA: CGPoint, destB: CGPoint)? {
-        guard showSplit1Row,
-              anchorSlotCenters.indices.contains(0),
-              split1SlotCenters.indices.contains(2) else { return nil }
-        let source = edgePoint(anchorSlotCenters, anchorRowFrame, 0, anchorSize, .bottom)
-        let destA = edgePoint(split1SlotCenters, split1RowFrame, 0, splitSize, .top, 0.5)
-        let destB = edgePoint(split1SlotCenters, split1RowFrame, 2, splitSize, .top)
-        return (source, destA, destB)
+    private func measuredRow(_ slots: [MathSlot], size: CGFloat,
+                             frame: Binding<CGRect>, centers: Binding<[CGPoint]>) -> some View {
+        MathExpressionWithSlots(slots: slots, size: size) { centers.wrappedValue = $0 }
+            .frame(height: size + 24)
+            .onGeometryChange(for: CGRect.self) { $0.frame(in: .named(coordSpace)) } action: {
+                frame.wrappedValue = $0
+            }
     }
 
-    private var split1Split2V: (source: CGPoint, destA: CGPoint, destB: CGPoint)? {
-        guard showSplit2Row,
-              split1SlotCenters.indices.contains(4),
-              split2SlotCenters.indices.contains(6) else { return nil }
-        let source = edgePoint(split1SlotCenters, split1RowFrame, 4, splitSize, .bottom)
-        let destA = edgePoint(split2SlotCenters, split2RowFrame, 4, splitSize, .top, 0.5)
-        let destB = edgePoint(split2SlotCenters, split2RowFrame, 6, splitSize, .top)
-        return (source, destA, destB)
-    }
-
-    private var combineOnesV: (sourceA: CGPoint, sourceB: CGPoint, target: CGPoint)? {
-        guard showCombineOnesRow,
-              split2SlotCenters.indices.contains(6),
-              combineOnesSlotCenters.indices.contains(4) else { return nil }
-        let sourceA = edgePoint(split2SlotCenters, split2RowFrame, 2, splitSize, .bottom)
-        let sourceB = edgePoint(split2SlotCenters, split2RowFrame, 6, splitSize, .bottom)
-        let target = edgePoint(combineOnesSlotCenters, combineOnesRowFrame, 4, combineSize, .top)
-        return (sourceA, sourceB, target)
-    }
-
-    private var combineTensV: (sourceA: CGPoint, sourceB: CGPoint, target: CGPoint)? {
-        guard showCombineTensRow,
-              combineOnesSlotCenters.indices.contains(2),
-              combineTensSlotCenters.indices.contains(0) else { return nil }
-        let sourceA = edgePoint(combineOnesSlotCenters, combineOnesRowFrame, 0, combineSize, .bottom)
-        let sourceB = edgePoint(combineOnesSlotCenters, combineOnesRowFrame, 2, combineSize, .bottom)
-        let target = edgePoint(combineTensSlotCenters, combineTensRowFrame, 0, combineSize, .top)
-        return (sourceA, sourceB, target)
-    }
-
-    private var l9Connector: (source: CGPoint, target: CGPoint)? {
-        guard showCombineTensRow,
-              combineOnesSlotCenters.indices.contains(4),
-              combineTensSlotCenters.indices.contains(2) else { return nil }
-        let source = edgePoint(combineOnesSlotCenters, combineOnesRowFrame, 4, combineSize, .bottom)
-        let target = edgePoint(combineTensSlotCenters, combineTensRowFrame, 2, combineSize, .top)
-        return (source, target)
-    }
-
-    private var correctForStep: Int {
-        switch step {
-        case 1: return onesA
-        case 2: return onesB
-        case 3: return sum
-        case 4: return 20
-        default: return total
+    @ViewBuilder
+    private var connectors: some View {
+        if let v = splitConnector(anchorCenters, anchorFrame, 0, anchorSize, split1Centers, split1Frame, 0, 2, splitSize) {
+            BalancedSplitConnector(source: v.source, destA: v.destA, destB: v.destB,
+                                   colorA: Color(PandaTheme.yellow), colorB: Color(PandaTheme.orange),
+                                   lineThickness: 6, opacity: 0.85)
+        }
+        if let v = splitConnector(split1Centers, split1Frame, 4, splitSize, split2Centers, split2Frame, 4, 6, splitSize) {
+            BalancedSplitConnector(source: v.source, destA: v.destA, destB: v.destB,
+                                   colorA: Color(PandaTheme.yellow), colorB: Color(PandaTheme.orange),
+                                   lineThickness: 6, opacity: 0.85)
+        }
+        if showOnes, split2Centers.count > 6, onesCenters.count > 4 {
+            BalancedMergeConnector(
+                anchorTop: edge(split2Centers, split2Frame, 2, splitSize, false),
+                anchorMid: edge(split2Centers, split2Frame, 6, splitSize, false),
+                mergeBox: edge(onesCenters, onesFrame, 4, combineSize, true),
+                colorA: Color(PandaTheme.orange), colorB: Color(PandaTheme.orange), lineThickness: 6)
+        }
+        if showTens, onesCenters.count > 4, tensCenters.count > 2 {
+            BalancedMergeConnector(
+                anchorTop: edge(onesCenters, onesFrame, 0, combineSize, false),
+                anchorMid: edge(onesCenters, onesFrame, 2, combineSize, false),
+                mergeBox: edge(tensCenters, tensFrame, 0, combineSize, true),
+                colorA: Color(PandaTheme.yellow), colorB: Color(PandaTheme.yellow), lineThickness: 6)
+            BalancedFixedArmConnector(
+                from: edge(onesCenters, onesFrame, 4, combineSize, false),
+                to: edge(tensCenters, tensFrame, 2, combineSize, true),
+                color: Color(PandaTheme.success), lineThickness: 5, opacity: 0.9)
         }
     }
 
-    private var rangeForStep: (min: Int, max: Int) {
-        switch step {
-        case 1, 2: return (1, 8)
-        case 3: return (1, 9)
-        case 4: return (18, 22)
-        default: return (20, 29)
-        }
+    private func splitConnector(_ sourceCenters: [CGPoint], _ sourceFrame: CGRect, _ sourceIndex: Int,
+                                _ sourceSize: CGFloat, _ destCenters: [CGPoint], _ destFrame: CGRect,
+                                _ destAIndex: Int, _ destBIndex: Int, _ destSize: CGFloat)
+        -> (source: CGPoint, destA: CGPoint, destB: CGPoint)? {
+        guard showSplit1 || showSplit2,
+              sourceCenters.indices.contains(sourceIndex),
+              destCenters.indices.contains(destAIndex), destCenters.indices.contains(destBIndex) else { return nil }
+        return (
+            edge(sourceCenters, sourceFrame, sourceIndex, sourceSize, false),
+            edge(destCenters, destFrame, destAIndex, destSize, true),
+            edge(destCenters, destFrame, destBIndex, destSize, true)
+        )
+    }
+
+    private func edge(_ centers: [CGPoint], _ frame: CGRect, _ index: Int, _ size: CGFloat, _ top: Bool) -> CGPoint {
+        let p = centers[index]
+        let y = frame.minY + p.y - 12
+        return CGPoint(x: frame.minX + p.x, y: top ? y - size / 2 : y + size / 2)
+    }
+
+    private var correctAnswer: Int {
+        switch step { case 1: return onesA; case 2: return onesB; case 3: return sum; case 4: return 20; default: return total }
+    }
+
+    private var answerRange: (min: Int, max: Int) {
+        switch step { case 1, 2: return (1, 8); case 3: return (1, 9); case 4: return (18, 22); default: return (20, 29) }
     }
 
     private var labelForStep: (Int) -> String {
-        switch step {
-        case 1, 2: return { "10+\($0)" }
-        default: return { "\($0)" }
-        }
+        step <= 2 ? { "10+\($0)" } : { "\($0)" }
     }
 
     private func fireAudioForCurrentStep() {
         switch step {
-        case 1:
-            host.playStepAudio(["l5-s1-\(a)-\(b)"]) { showSplit1Row = true }
+        case 1: host.playStepAudio(["l5-s1-\(a)-\(b)"]) { showSplit1 = true }
         case 2:
-            showSplit1Row = true
-            host.playStepAudio(["l5-s2-\(a)-\(b)"]) { showSplit2Row = true }
+            showSplit1 = true
+            host.playStepAudio(["l5-s2-\(a)-\(b)"]) { showSplit2 = true }
         case 3:
-            showSplit1Row = true
-            showSplit2Row = true
-            host.playStepAudio(["l5-s3-\(onesA)-\(onesB)"]) { showCombineOnesRow = true }
+            showSplit1 = true; showSplit2 = true
+            host.playStepAudio(["l5-s3-\(onesA)-\(onesB)"]) { showOnes = true }
         case 4:
-            showSplit1Row = true
-            showSplit2Row = true
-            showCombineOnesRow = true
-            host.playStepAudio(["l5-s4"]) { showCombineTensRow = true }
+            showSplit1 = true; showSplit2 = true; showOnes = true
+            host.playStepAudio(["l5-s4"]) { showTens = true }
         default:
-            showSplit1Row = true
-            showSplit2Row = true
-            showCombineOnesRow = true
-            showCombineTensRow = true
+            showSplit1 = true; showSplit2 = true; showOnes = true; showTens = true
             host.playStepAudio(["l5-s5-\(sum)"])
         }
-    }
-
-    private enum Edge { case top, bottom }
-
-    private func edgePoint(
-        _ centers: [CGPoint],
-        _ frame: CGRect,
-        _ slot: Int,
-        _ size: CGFloat,
-        _ edge: Edge,
-        _ halfRatio: CGFloat = 0.5
-    ) -> CGPoint {
-        let actualCenterY = frame.minY + centers[slot].y - 12
-        let half = size * halfRatio
-        return CGPoint(
-            x: frame.minX + centers[slot].x,
-            y: edge == .top ? actualCenterY - half : actualCenterY + half
-        )
     }
 }
