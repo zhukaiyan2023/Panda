@@ -27,6 +27,7 @@ public enum FeedPools {
     public static func targetFor(_ roundIdx: Int) -> Int {
         targets[min(roundIdx, targets.count - 1)]
     }
+
     public static func bubbleCountFor(_ roundIdx: Int) -> Int {
         bubblesPerRound[min(roundIdx, bubblesPerRound.count - 1)]
     }
@@ -41,24 +42,44 @@ public enum FeedPools {
         return out
     }
 
-    /// Build one round's board. Deterministic when `rng` is seeded.
-    public static func build(roundIdx: Int, rng: () -> Double = { Double.random(in: 0...1) }) -> Round {
+    /// Build one round's board.
+    ///
+    /// When no RNG is supplied, generation is deterministic for `roundIdx`.
+    /// This is important for SwiftUI: `body` can be evaluated many times,
+    /// so a random board must not silently change while the child view is
+    /// still displaying the same round. Tests and QA can still inject a
+    /// seeded/custom RNG when they need controlled generation.
+    public static func build(roundIdx: Int, rng: (() -> Double)? = nil) -> Round {
+        let random: () -> Double
+        if let rng {
+            random = rng
+        } else {
+            var state = UInt64(roundIdx + 1) &* 0x9E3779B97F4A7C15
+            random = {
+                state ^= state >> 12
+                state ^= state << 25
+                state ^= state >> 27
+                let value = state &* 0x2545F4914F6CDD1D
+                return Double(value % 1_000_000) / 1_000_000.0
+            }
+        }
+
         let target = targetFor(roundIdx)
         let wanted = bubbleCountFor(roundIdx)
         let allPairs = pairsForTarget(target)
         let pairCount = min(pairsPerRoundCap, allPairs.count, wanted / 2)
-        let chosen = Array(allPairs.shuffled(with: rng).prefix(pairCount))
+        let chosen = Array(allPairs.shuffled(with: random).prefix(pairCount))
         let digits = chosen.flatMap { $0 }
         var used = Set(digits)
         var distractors: [Int] = []
-        for d in ([1, 2, 3, 4, 5, 6, 7, 8, 9].shuffled(with: rng)) {
+        for d in ([1, 2, 3, 4, 5, 6, 7, 8, 9].shuffled(with: random)) {
             if used.contains(d) { continue }
             if used.contains(target - d) { continue }
             used.insert(d)
             distractors.append(d)
         }
         let combined = (digits + distractors).prefix(wanted)
-        let shuffled = Array(combined).shuffled(with: rng)
+        let shuffled = Array(combined).shuffled(with: random)
         return Round(target: target, candidates: shuffled, pairCount: pairCount)
     }
 }
@@ -81,8 +102,6 @@ public enum WhackPools {
     public static let typeAPool: [[Int]] = {
         var out: [[Int]] = []
         for a in 1...8 {
-            // (a+1)...9 — a=8 gives 9...9 which is fine. Stop at 8
-            // because (9+1)...9 would be an empty range.
             for b in (a + 1)...9 {
                 let s = a + b
                 if s >= 11 && s <= 18 { out.append([a, b]) }
@@ -95,8 +114,6 @@ public enum WhackPools {
     public static let typeBPool: [[Int]] = {
         var out: [[Int]] = []
         for teen in 11...18 {
-            // 1...(18 - teen) would crash when teen == 18 (empty
-            // range), so skip the upper bound when 18 - teen < 1.
             let upper = 18 - teen
             if upper < 1 { continue }
             for d in 1...upper {
