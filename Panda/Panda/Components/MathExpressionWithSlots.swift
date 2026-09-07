@@ -6,8 +6,8 @@ import SwiftUI
 /// live on a shared mathematical grid; centering each row independently by
 /// its own slot count makes related columns drift. The grid below keeps the
 /// standard 5-slot equations centered, keeps 7/9-slot decomposition rows on
-/// the same parent grid, and gives the L6 "10 + 10 + □" row its deliberate
-/// left shift so its two inputs converge exactly on the next row.
+/// the shared parent grid, and gives L6's two combine rows the exact columns
+/// required by their V connectors.
 public struct MathExpressionWithSlots: View {
     public let slots: [MathSlot]
     public let size: CGFloat
@@ -21,16 +21,12 @@ public struct MathExpressionWithSlots: View {
         self.onCenters = onCenters
     }
 
-    /// Shared mathematical pitch for every connector-aware row.
+    /// Shared mathematical pitch for normal connector-aware rows.
     private let columnSpacing: CGFloat = 96
 
     public var body: some View {
         GeometryReader { geo in
-            let xCenter = geo.size.width / 2
-            let first = firstX(in: geo.size.width)
-            let centers = slots.indices.map { index in
-                first + CGFloat(index) * columnSpacing
-            }
+            let centers = centerPositions(in: geo.size.width)
 
             ZStack {
                 ForEach(Array(slots.enumerated()), id: \.offset) { index, slot in
@@ -43,29 +39,40 @@ public struct MathExpressionWithSlots: View {
             }
             .frame(width: geo.size.width, height: geo.size.height)
             .onAppear {
-                publishCenters(xCenter: xCenter, firstX: first)
+                publishCenters(centers)
             }
             .onChange(of: slotSignature) { _, _ in
-                publishCenters(xCenter: xCenter, firstX: firstX(in: geo.size.width))
+                publishCenters(centerPositions(in: geo.size.width))
             }
         }
     }
 
-    /// Returns the X of slot 0 in the shared grid.
+    /// Computes the absolute X coordinate of every slot.
     ///
     /// Normal rows remain visually centered:
-    ///   5 slots -> [-2, -1, 0, 1, 2] * pitch
-    ///   7 slots -> [-3, -2, -1, 0, 1, 2, 3] * pitch
-    ///   9 slots -> [-4 ... 4] * pitch
+    ///   5 slots -> [-2, -1, 0, 1, 2] * 96
+    ///   7 slots -> [-3, -2, -1, 0, 1, 2, 3] * 96
+    ///   9 slots -> [-4 ... 4] * 96
     ///
-    /// L6's combine-ones row is intentionally shifted one column left:
-    ///   [10, +, 10, +, □, =, □]
-    /// becomes [-4 ... 2] * pitch. That makes slot 4 sit at the same
-    /// column as the midpoint of split-2 slots 2 and 6.
-    private func firstX(in width: CGFloat) -> CGFloat {
-        let center = width / 2
-        let halfSlots: CGFloat
+    /// L6 combine-ones is intentionally shifted left so its slot 4 lands
+    /// exactly on the midpoint of split-2 slots 2 and 6, while slots 0/2
+    /// are symmetric around the following combine-tens target.
+    ///
+    /// L6 combine-tens uses a 144pt pitch across five slots. This keeps
+    /// slot 0 at the midpoint of combine-ones slots 0/2 and slot 2 directly
+    /// below combine-ones slot 4. The row is still centered overall.
+    private func centerPositions(in width: CGFloat) -> [CGFloat] {
+        guard !slots.isEmpty else { return [] }
 
+        let center = width / 2
+
+        if isL6CombineTensRow {
+            let pitch: CGFloat = 144
+            let first = center - 2 * pitch
+            return slots.indices.map { first + CGFloat($0) * pitch }
+        }
+
+        let halfSlots: CGFloat
         switch slots.count {
         case 5:
             halfSlots = 2
@@ -77,10 +84,13 @@ public struct MathExpressionWithSlots: View {
             halfSlots = CGFloat(max(0, slots.count - 1)) / 2
         }
 
-        return center - halfSlots * columnSpacing
+        let first = center - halfSlots * columnSpacing
+        return slots.indices.map {
+            first + CGFloat($0) * columnSpacing
+        }
     }
 
-    /// The L6 combine-ones row has the unique leading token pattern
+    /// The L6 combine-ones row has the unique pattern
     /// "10 + 10 + □ = □". It is the only 7-slot connector-aware row where
     /// slot 0 and slot 2 are both the literal 10.
     private var isL6CombineOnesRow: Bool {
@@ -104,17 +114,44 @@ public struct MathExpressionWithSlots: View {
         }
     }
 
-    private func publishCenters(xCenter: CGFloat, firstX: CGFloat) {
-        guard !slots.isEmpty else {
-            onCenters([])
-            return
+    /// L6 combine-tens is the five-slot row whose middle numeric value is
+    /// rendered with the success/green color:
+    ///   "□ + sum = □"  →  "20 + sum = □"
+    /// This distinguishes it from L2's "□ + c = □" preview and from the
+    /// L7/L8 result rows, whose slot 2 uses the pink number color.
+    private var isL6CombineTensRow: Bool {
+        guard slots.count == 5 else { return false }
+
+        switch slots[0] {
+        case .answerBox:
+            break
+        case .number(let value, _, _):
+            guard value == 20 else { return false }
+        case .op:
+            return false
         }
 
-        let points = slots.indices.map { index in
-            CGPoint(
-                x: firstX + CGFloat(index) * columnSpacing,
-                y: 12 + size / 2
-            )
+        guard case .op(.plus, _) = slots[1] else { return false }
+        guard case .number(_, let color, _) = slots[2], isSuccess(color) else { return false }
+        guard case .op(.equals, _) = slots[3] else { return false }
+        switch slots[4] {
+        case .answerBox, .number:
+            return true
+        case .op:
+            return false
+        }
+    }
+
+    private func isSuccess(_ color: RGB?) -> Bool {
+        guard let color else { return false }
+        return abs(color.r - PandaTheme.success.r) < 0.0001 &&
+               abs(color.g - PandaTheme.success.g) < 0.0001 &&
+               abs(color.b - PandaTheme.success.b) < 0.0001
+    }
+
+    private func publishCenters(_ centers: [CGFloat]) {
+        let points = centers.map { x in
+            CGPoint(x: x, y: 12 + size / 2)
         }
         onCenters(points)
     }
