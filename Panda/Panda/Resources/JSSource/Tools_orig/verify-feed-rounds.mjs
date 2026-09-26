@@ -5,15 +5,14 @@
 //
 // Invariants under test (each failure ends the run with exit 1):
 //   1. buildFeedRound() terminates for every roundIdx in [0, ROUND_COUNT).
-//   2. pairCount === PAIRS_PER_ROUND for every round (the design promise
-//      "After 3 pairs the panda is full").
+//   2. pairCount includes every decomposition available for the target.
 //   3. Every advertised pair actually appears on the rendered board —
 //      the kid can never see a pair the bar is asking them to find.
 //   4. The board has no hidden extra pair — a distractor never sums to
 //      the target with another distractor or with a pair digit.
 //   5. The candidate set fits inside BUBBLES_PER_ROUND (no over-fill).
-//   6. The candidate set holds only 1..9 digits (no zero, no double-digit
-//      leaks) and contains no duplicate of the same digit.
+//   6. The candidate set holds only 0..9 digits (no double-digit
+//      leaks); duplicate digits appear only for a valid double pair.
 //
 // Usage:
 //   node tools/verify-feed-rounds.mjs
@@ -24,7 +23,6 @@ import {
   pairsForTarget,
   targetFor,
   bubbleCountFor,
-  PAIRS_PER_ROUND,
   TARGETS,
   BUBBLES_PER_ROUND,
 } from "../data/feedRounds.js?v=20260814";
@@ -43,8 +41,8 @@ for (const t of TARGETS) {
   }
   for (const [a, b] of ps) {
     if (a + b !== t) fail(`pair ${a}+${b} does not sum to ${t}`);
-    if (a < 1 || b > 9) fail(`pair ${a},${b} out of 1..9 range`);
-    if (a >= b) fail(`pair ${a},${b} not strictly increasing`);
+    if (a < 0 || b > 9) fail(`pair ${a},${b} out of 0..9 range`);
+    if (a > b) fail(`pair ${a},${b} not in canonical order`);
   }
 }
 
@@ -59,14 +57,14 @@ for (let r = 0; r < BUBBLES_PER_ROUND.length; r++) {
   if (candidates.length > wanted) {
     fail(`round ${r}: returned ${candidates.length} candidates, more than BUBBLES_PER_ROUND[${r}]=${wanted}`);
   }
-  // pairCount is capped at PAIRS_PER_ROUND but bounded above by what
-  // the target's math admits (2 pairs for target 5/6, 3+ for 7+).
-  // The hard invariant is "every pair on the board is one we can
-  // actually find" — not a uniform 3 pairs.
+  if (candidates.length !== wanted) {
+    fail(`round ${r}: returned ${candidates.length} candidates, expected exactly ${wanted}`);
+  }
+  // Every decomposition for this target must be present.
   const allPairs = pairsForTarget(target);
-  const expectedPairs = Math.min(PAIRS_PER_ROUND, allPairs.length);
+  const expectedPairs = allPairs.length;
   if (pairCount !== expectedPairs) {
-    fail(`round ${r}: pairCount=${pairCount}, expected min(PAIRS_PER_ROUND, pairsForTarget(${target}).length) = ${expectedPairs}`);
+    fail(`round ${r}: pairCount=${pairCount}, expected all ${expectedPairs} decompositions`);
   }
 
   // Every advertised pair must actually be present on the board —
@@ -94,14 +92,17 @@ for (let r = 0; r < BUBBLES_PER_ROUND.length; r++) {
     }
   }
 
-  // Digits in 1..9, no duplicates, no zero.
-  const seen = new Set();
+  // Digits in 0..9. Repetition is allowed only for a double pair.
+  const counts = new Map();
   for (const v of candidates) {
-    if (!Number.isInteger(v) || v < 1 || v > 9) {
-      fail(`round ${r}: digit ${v} out of 1..9 range`);
+    if (!Number.isInteger(v) || v < 0 || v > 9) {
+      fail(`round ${r}: digit ${v} out of 0..9 range`);
     }
-    if (seen.has(v)) fail(`round ${r}: duplicate digit ${v} in board`);
-    seen.add(v);
+    counts.set(v, (counts.get(v) || 0) + 1);
+    if (counts.get(v) > 2) fail(`round ${r}: digit ${v} appears more than twice`);
+  }
+  for (const [v, count] of counts) {
+    if (count === 2 && v * 2 !== target) fail(`round ${r}: repeated digit ${v} is not a double pair`);
   }
 }
 
@@ -115,7 +116,7 @@ for (let i = 0; i < trials; i++) {
   const r = i % N;
   const { target, candidates, pairCount } = buildFeedRound(r);
   if (candidates.length === 0) fail(`trial ${i}: empty board`);
-  const expected = Math.min(PAIRS_PER_ROUND, pairsForTarget(target).length);
+  const expected = pairsForTarget(target).length;
   if (pairCount !== expected) fail(`trial ${i}: pairCount=${pairCount}, expected ${expected}`);
   if (pairsOnBoard(candidates, target).length !== pairCount) {
     fail(`trial ${i}: extra pair on board`);

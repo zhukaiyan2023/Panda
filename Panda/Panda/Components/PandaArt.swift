@@ -11,8 +11,15 @@ import SwiftUI
 /// returns the SwiftUI `Image`. Returns `nil` if the asset is missing
 /// so the caller can fall back to a shape-based icon.
 public func pandaImage(named name: String) -> Image? {
-    // Try the bundle first (Resources/Art/<name>.png).
-    if let url = Bundle.main.url(forResource: name, withExtension: "png"),
+    // Xcode bundles the art folder as a folder reference, so look inside
+    // `Art` first. Keep the root lookup as a fallback for older bundles.
+    let imageURL = Bundle.main.url(
+        forResource: name,
+        withExtension: "png",
+        subdirectory: "Art"
+    ) ?? Bundle.main.url(forResource: name, withExtension: "png")
+
+    if let url = imageURL,
        let data = try? Data(contentsOf: url),
        let uiImage = UIImage(data: data) {
         return Image(uiImage: uiImage)

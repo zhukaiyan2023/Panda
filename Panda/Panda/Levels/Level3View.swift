@@ -2,7 +2,7 @@
 //  Level3View.swift
 //  Panda
 //
-//  L3 — 两个数凑十 (threeTen, a + b + c with a + b = 10 or b + c = 10).
+//  L3 — 两个数凑十 (threeTen, a + b = 10; the pair is always first).
 //  Mirrors `scenes/level2.js` from the JS codebase (the JS file is named
 //  `level2.js` but its levelId is 3 — the JS file naming was kept stable
 //  for audio cue id compatibility).
@@ -48,15 +48,11 @@ public struct Level3View: View {
                 guard case .threeTen(let a, let b, let c) = round else {
                     return StepRender()
                 }
+                // The level pool guarantees the make-10 pair is first.
                 let nums = [a, b, c]
                 let total = a + b + c
 
-                // Choose pair (mirrors JS choosePair). Uses pairIndices
-                // to handle the (a, a, 10-a) edge case where two
-                // addends share a value — see JS comment for the full
-                // rationale. For Swift the pool only contains
-                // a+b=10 or b+c=10 triples, so we only ever fall into
-                // the first two branches.
+                // The pair occupies the first two displayed slots.
                 //
                 // `pairIndices` stores the PAIR MEMBERS' INDICES INTO
                 // THE ANCHOR EQUATION'S SLOT ARRAY (`a + b + c = □`
@@ -77,25 +73,10 @@ public struct Level3View: View {
                 let third: Int
                 let thirdIdx: Int
                 let pairIndices: [Int]
-                if a + b == 10 {
-                    pair = [a, b]
-                    third = c
-                    thirdIdx = 2        // nums index of c (the leftover)
-                    pairIndices = [0, 2] // anchor slots for a, b
-                } else if b + c == 10 {
-                    pair = [b, c]
-                    third = a
-                    thirdIdx = 0        // nums index of a (the leftover)
-                    pairIndices = [2, 4] // anchor slots for b, c
-                } else {
-                    // Fallback (unreachable for L3's pool, but keeps
-                    // the function total so a pool-corruption doesn't
-                    // crash the level).
-                    pair = [a, b]
-                    third = c
-                    thirdIdx = 2
-                    pairIndices = [0, 2]
-                }
+                pair = [nums[0], nums[1]]
+                third = nums[2]
+                thirdIdx = 2          // nums index of the leftover
+                pairIndices = [0, 2]  // anchor slots for the first two numbers
 
                 // Build the step body view. The body itself owns the
                 // audio chain + the deferred sub-question reveal for
@@ -184,33 +165,32 @@ struct ThreeTenStepView: View {
     // busy before the kid had heard the strategy").
     @State private var showStep1Sub = false
 
-    // Step 1 pair-label picker. The correct value is the pair encoded
-    // as a single Int (e.g. [5, 5] → 55, [4, 6] → 46) so the existing
+    // Step 1 pair-label picker. An unordered pair is encoded canonically
+    // as a single Int (e.g. [5, 5] → 55, [4, 6] or [6, 4] → 46) so the existing
     // `makeQuestion(correct:values:labelFor:)` API works without
     // surgery. The labelFor re-decodes the int back to "5+5" / "4+6"
     // for display. Same approach the JS file takes (the JS compares
     // strings; here we compare ints — equivalent at the picker level).
-    private static let allTenPairs: [[Int]] = [[1, 9], [2, 8], [3, 7], [4, 6], [5, 5]]
-    private static func encode(_ pair: [Int]) -> Int { pair[0] * 10 + pair[1] }
+    private static func encode(_ pair: [Int]) -> Int {
+        min(pair[0], pair[1]) * 10 + max(pair[0], pair[1])
+    }
     private static let pairLabel: (Int) -> String = { v in "\(v / 10)+\(v % 10)" }
 
     private var pairQuestion: AnyView {
         let correct = Self.encode(pair)
-        // Exclude both orderings of the correct pair from distractors
-        // (e.g. for [4, 6] the canonical [4, 6] is excluded; for [6, 4]
-        // we'd still want [4, 6] excluded). ALL_TEN_PAIRS lists each
-        // unordered pair in smaller-first order so the first check
-        // covers canonical order; the swap check is a safety net for
-        // any future pool re-ordering that reverses the pair.
-        let a = pair[0], b = pair[1]
-        let distractors = Self.allTenPairs.filter { p in
-            !((p[0] == a && p[1] == b) || (p[0] == b && p[1] == a))
+        // Every choice must come from a pair of the three numbers shown
+        // in this round. Generate the three index combinations (0+1,
+        // 0+2, 1+2). Canonical encoding treats reversed orders as the
+        // same combination, and contains() removes repetitions caused
+        // by equal digits. No number is introduced from outside the row.
+        var values: [Int] = []
+        for i in 0..<nums.count {
+            for j in (i + 1)..<nums.count {
+                let candidate = Self.encode([nums[i], nums[j]])
+                if !values.contains(candidate) { values.append(candidate) }
+            }
         }
-        // Pair values are pre-encoded as ints so the existing picker
-        // can do numeric equality. Deterministic order — no shuffling
-        // — so the row stays stable across re-renders for diff-ability.
-        var values = [correct]
-        for d in distractors.prefix(3) { values.append(Self.encode(d)) }
+        assert(values.contains(correct), "The displayed make-10 pair must be one of the three choices")
         return host.makeQuestion(
             correct: correct,
             values: values,
@@ -218,12 +198,9 @@ struct ThreeTenStepView: View {
         )
     }
 
-    // tenOnLeft: the ten-pair sits at the start of nums (a+b=10,
-    // pairIndices [0, 1]), so the simplified form puts "10" on the
-    // left and "third" on the right. When the pair is at the end
-    // (b+c=10, pairIndices [1, 2]) we mirror so "third" sits on
-    // the left and "10" on the right — the "10" stays directly
-    // under the pair either way, so the merge arrows can align
+    // The ten-pair sits at the start of nums, so the simplified form
+    // puts "10" on the left and "third" on the right. The merge arrows
+    // therefore converge over the first two addends.
     // with it instead of floating between the two equations.
     private var tenOnLeft: Bool { pairIndices[0] == 0 }
 
@@ -283,10 +260,7 @@ struct ThreeTenStepView: View {
     }
 
     // Step 1 sub-question revealed (after correct pick): pair[0] +
-    // pair[1] = 10. Pair colors mirror the addend anchor positions
-    // — for pair=[9, 1] (which is the b+c=10 case for a=4 in
-    // 4+9+1) we use yellow + pink to match the anchor's color
-    // coding.
+    // pair[1] = 10. Pair colors mirror the first two addend positions.
     private var subRevealSlots: [MathSlot] {
         // pairIndices gives the addend slot indices in the anchor for
         // each pair member. The pair's COLOR (NUM_BLUE / NUM_YELLOW /

@@ -15,8 +15,7 @@ import Foundation
 /// Mirrors `data/feedRounds.js`.
 public enum FeedPools {
     public static let targets: [Int] = [5, 6, 7, 8, 9]
-    public static let bubblesPerRound: [Int] = [5, 5, 7, 8, 9]
-    public static let pairsPerRoundCap: Int = 3
+    public static let bubblesPerRound: [Int] = [7, 9, 9, 11, 10]
 
     public struct Round {
         public let target: Int
@@ -31,10 +30,10 @@ public enum FeedPools {
         bubblesPerRound[max(0, min(roundIdx, bubblesPerRound.count - 1))]
     }
 
-    /// Every unordered pair of DISTINCT digits 1..9 summing to `target`.
+    /// Every unordered pair of digits 0..9 summing to `target`, including doubles.
     public static func pairsForTarget(_ target: Int) -> [[Int]] {
         var out: [[Int]] = []
-        for lo in 1...9 where target - lo > lo {
+        for lo in 0...9 where target - lo >= lo {
             let hi = target - lo
             if hi <= 9 { out.append([lo, hi]) }
         }
@@ -46,12 +45,14 @@ public enum FeedPools {
         let target = targetFor(roundIdx)
         let wanted = bubbleCountFor(roundIdx)
         let allPairs = pairsForTarget(target)
-        let pairCount = min(pairsPerRoundCap, allPairs.count, wanted / 2)
+        // Include every valid decomposition for this target. The board
+        // sizes above have room for all pair bubbles (including doubles).
+        let pairCount = min(allPairs.count, wanted / 2)
         let chosen = Array(allPairs.shuffled(with: rng).prefix(pairCount))
         let digits = chosen.flatMap { $0 }
         var used = Set(digits)
         var distractors: [Int] = []
-        for d in ([1, 2, 3, 4, 5, 6, 7, 8, 9].shuffled(with: rng)) {
+        for d in ([0, 1, 2, 3, 4, 5, 6, 7, 8, 9].shuffled(with: rng)) {
             if used.contains(d) { continue }
             if used.contains(target - d) { continue }
             used.insert(d)
@@ -122,7 +123,10 @@ public enum WhackPools {
             pick = pool.randomElement()!
             tries += 1
         }
-        let a = pick[0], b = pick[1]
+        // Keep the larger addend first in the displayed equation for
+        // both question types (teen + digit already follows this order).
+        let a = max(pick[0], pick[1])
+        let b = min(pick[0], pick[1])
         let answer = a + b
         var candidates: [Int] = [answer]
         for off in offsets {

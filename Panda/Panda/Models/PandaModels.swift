@@ -17,7 +17,7 @@ public enum PandaRound {
     /// L1 — 三数相加小于10 — (a, b, c) with a+b+c ≤ 10.
     case threeSum(a: Int, b: Int, c: Int)
 
-    /// L2 — 两个数凑十 — (a, b, c) with (a+b=10) or (b+c=10).
+    /// L2 — 两个数凑十 — (a, b, c) with a+b=10; the pair is first.
     case threeTen(a: Int, b: Int, c: Int)
 
     /// L3 — 两数凑十 — (a, b) with a+b>10.

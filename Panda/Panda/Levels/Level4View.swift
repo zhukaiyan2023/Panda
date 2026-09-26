@@ -151,6 +151,9 @@ struct Level4StepView: View {
         ]
     }
 
+    // 凑十时拆的是较小的加数：把 small 拆成 need + rest，
+    // 其中 need = 10 - big。Anchor 槽位为 [a, +, b, ...]，
+    // 所以 a 是大数时小数 b 在 slot 2；否则小数 a 在 slot 0。
     private var splitSourceSlot: Int { aIsBig ? 2 : 0 }
     private var splitNeedSlot: Int { 2 }
     private var splitRestSlot: Int { aIsBig ? 4 : 0 }

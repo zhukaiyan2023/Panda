@@ -305,6 +305,7 @@ public struct BalancedConnectorCollection: View {
                             context,
                             [item.from,
                              CGPoint(x: item.from.x, y: bendY),
+                             CGPoint(x: segment.to.x, y: bendY),
                              item.to],
                             color: item.color,
                             opacity: item.opacity,
@@ -320,25 +321,21 @@ public struct BalancedConnectorCollection: View {
                 let dy = end.y - start.y
                 guard dy > 4 else { continue }
 
-                switch segment.style {
-                case .straight:
-                    ConnectorGeometry.stroke(
-                        context, [start, end],
-                        color: segment.color,
-                        opacity: segment.opacity,
-                        width: segment.thickness
-                    )
-
-                case .elbow, .symmetric:
-                    let bendY = start.y + dy * ConnectorGeometry.bendRatio
-                    ConnectorGeometry.stroke(
-                        context,
-                        [start, CGPoint(x: start.x, y: bendY), end],
-                        color: segment.color,
-                        opacity: segment.opacity,
-                        width: segment.thickness
-                    )
-                }
+                // Every connection uses the same orthogonal polyline:
+                // vertical stem, horizontal elbow, vertical finish.
+                // Keep `style` on Segment for source compatibility, but
+                // don't let a legacy style turn the line into a diagonal.
+                let bendY = start.y + dy * ConnectorGeometry.bendRatio
+                ConnectorGeometry.stroke(
+                    context,
+                    [start,
+                     CGPoint(x: start.x, y: bendY),
+                     CGPoint(x: end.x, y: bendY),
+                     end],
+                    color: segment.color,
+                    opacity: segment.opacity,
+                    width: segment.thickness
+                )
             }
         }
         .allowsHitTesting(false)

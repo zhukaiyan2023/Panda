@@ -649,7 +649,7 @@ private struct CloudGameBody: View {
                 let (x, y) = pairs.randomElement()!
                 var z = Int.random(in: 1...9)
                 while z == x || z == y { z = Int.random(in: 1...9) }
-                addends = [x, y, z].sorted()
+                addends = [x, y, z]
                 correct = x + y + z
             }
             // 3 wrong choices near `correct` (so distractors feel related

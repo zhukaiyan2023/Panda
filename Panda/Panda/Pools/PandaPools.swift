@@ -32,13 +32,13 @@ public enum PandaPools {
         return out
     }
 
-    /// L2 — 两个数凑十. (a+b=10) or (b+c=10).
+    /// L2 — 两个数凑十. The make-10 pair is always in the first two slots.
     public static func generateThreeTen() -> [PandaRound] {
         var out: [PandaRound] = []
         for a in 1...9 {
             for b in 1...9 {
                 for c in 1...9 {
-                    if a + b == 10 || b + c == 10 {
+                    if a + b == 10 {
                         out.append(.threeTen(a: a, b: b, c: c))
                     }
                 }

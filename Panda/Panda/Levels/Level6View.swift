@@ -358,7 +358,8 @@ struct TeenPlusTeenStepView: View {
         let apex = topOf(combineOnesSlotCenters,
                          combineOnesRowFrame,
                          slot: 4, size: combineSize,
-                         halfRatio: 0.45)
+                         halfRatio: 0.45,
+                         xOffset: combineOnesOffset)
         let split2Two = bottomOf(split2SlotCenters, split2RowFrame,
                                  slot: 2, size: splitSize)
         let split2Six = bottomOf(split2SlotCenters, split2RowFrame,
@@ -399,10 +400,12 @@ struct TeenPlusTeenStepView: View {
                          halfRatio: 0.45)
         let combineOnesZero = bottomOf(combineOnesSlotCenters,
                                        combineOnesRowFrame,
-                                       slot: 0, size: combineSize)
+                                       slot: 0, size: combineSize,
+                                       xOffset: combineOnesOffset)
         let combineOnesTwo = bottomOf(combineOnesSlotCenters,
                                       combineOnesRowFrame,
-                                      slot: 2, size: combineSize)
+                                      slot: 2, size: combineSize,
+                                      xOffset: combineOnesOffset)
         let yellowColor = Color(PandaTheme.yellow)
         let leftFrom  = combineOnesZero.x <= combineOnesTwo.x ? combineOnesZero : combineOnesTwo
         let rightFrom = combineOnesZero.x <= combineOnesTwo.x ? combineOnesTwo : combineOnesZero
@@ -428,7 +431,8 @@ struct TeenPlusTeenStepView: View {
               combineTensSlotCenters.count > 2 else { return nil }
         let combineOnesFour = bottomOf(combineOnesSlotCenters,
                                        combineOnesRowFrame,
-                                       slot: 4, size: combineSize)
+                                       slot: 4, size: combineSize,
+                                       xOffset: combineOnesOffset)
         let combineTensTwoTop = topOf(combineTensSlotCenters,
                                       combineTensRowFrame,
                                       slot: 2, size: combineSize,
@@ -443,11 +447,12 @@ struct TeenPlusTeenStepView: View {
 
     // Helper: bottom-edge y of a slot in its row's local frame.
     private func bottomOf(_ centers: [CGPoint], _ frame: CGRect,
-                          slot: Int, size: CGFloat) -> CGPoint {
+                          slot: Int, size: CGFloat,
+                          xOffset: CGFloat = 0) -> CGPoint {
         let geoH = size + 24
         let yOff = size / 2 - geoH / 2
         return CGPoint(
-            x: frame.minX + centers[slot].x,
+            x: frame.minX + centers[slot].x + xOffset,
             y: frame.minY + centers[slot].y + yOff + size / 2
         )
     }
@@ -457,11 +462,12 @@ struct TeenPlusTeenStepView: View {
     // size for the digit half-height.
     private func topOf(_ centers: [CGPoint], _ frame: CGRect,
                        slot: Int, size: CGFloat,
-                       halfRatio: CGFloat = 0.45) -> CGPoint {
+                       halfRatio: CGFloat = 0.45,
+                       xOffset: CGFloat = 0) -> CGPoint {
         let geoH = size + 24
         let yOff = size / 2 - geoH / 2
         return CGPoint(
-            x: frame.minX + centers[slot].x,
+            x: frame.minX + centers[slot].x + xOffset,
             y: frame.minY + centers[slot].y + yOff - size * halfRatio
         )
     }
